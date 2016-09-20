@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,7 +8,6 @@
 // **********************************************************************
 
 using System;
-using System.Diagnostics;
 using System.Reflection;
 
 [assembly: CLSCompliant(true)]
@@ -28,15 +27,15 @@ public class Server
         Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
         Ice.ObjectAdapter adapter2 = communicator.createObjectAdapter("ControllerAdapter");
 
-        adapter.add(new TestI(), communicator.stringToIdentity("test"));
+        adapter.add(new TestI(), Ice.Util.stringToIdentity("test"));
         adapter.activate();
-        adapter2.add(new TestControllerI(adapter), communicator.stringToIdentity("testController"));
+        adapter2.add(new TestControllerI(adapter), Ice.Util.stringToIdentity("testController"));
         adapter2.activate();
 
         communicator.waitForShutdown();
         return 0;
     }
-    
+
     public static int Main(string[] args)
     {
         int status = 0;
@@ -47,6 +46,12 @@ public class Server
             Ice.InitializationData initData = new Ice.InitializationData();
             initData.properties = Ice.Util.createProperties(ref args);
             initData.properties.setProperty("Ice.ServerIdleTime", "30");
+
+            //
+            // Disable collocation optimization to test async/await dispatch.
+            //
+            initData.properties.setProperty("Ice.Default.CollocationOptimized", "0");
+
             //
             // Limit the recv buffer size, this test relies on the socket
             // send() blocking after sending a given amount of data.
@@ -55,9 +60,9 @@ public class Server
             communicator = Ice.Util.initialize(ref args, initData);
             status = run(args, communicator);
         }
-        catch(System.Exception ex)
+        catch(Exception ex)
         {
-            System.Console.Error.WriteLine(ex);
+            Console.Error.WriteLine(ex);
             status = 1;
         }
 
@@ -69,7 +74,7 @@ public class Server
             }
             catch(Ice.LocalException ex)
             {
-                System.Console.Error.WriteLine(ex);
+                Console.Error.WriteLine(ex);
                 status = 1;
             }
         }

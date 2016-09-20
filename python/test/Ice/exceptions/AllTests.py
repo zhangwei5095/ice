@@ -1,6 +1,6 @@
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -26,12 +26,8 @@ class ServantLocatorI(Ice.ServantLocator):
     def deactivate(self, category):
         pass
 
-class ObjectFactoryI(Ice.ObjectFactory):
-    def create(id):
-        return None
-
-    def destroy():
-        pass
+def ValueFactory(type):
+    return None
 
 class CallbackBase:
     def __init__(self):
@@ -176,7 +172,7 @@ class Callback(CallbackBase):
         try:
             raise ex
         except Ice.ObjectNotExistException as ex:
-            id = self._communicator.stringToIdentity("does not exist")
+            id = Ice.stringToIdentity("does not exist")
             test(ex.id == id)
         except:
             test(False)
@@ -226,29 +222,29 @@ def allTests(communicator):
     communicator.getProperties().setProperty("TestAdapter1.Endpoints", "default")
     adapter = communicator.createObjectAdapter("TestAdapter1")
     obj = EmptyI()
-    adapter.add(obj, communicator.stringToIdentity("x"))
+    adapter.add(obj, Ice.stringToIdentity("x"))
     try:
-        adapter.add(obj, communicator.stringToIdentity("x"))
+        adapter.add(obj, Ice.stringToIdentity("x"))
         test(false)
     except Ice.AlreadyRegisteredException:
         pass
 
     try:
-        adapter.add(obj, communicator.stringToIdentity(""))
+        adapter.add(obj, Ice.stringToIdentity(""))
         test(false)
     except Ice.IllegalIdentityException as ex:
         test(ex.id.name == "")
 
     try:
-        adapter.add(None, communicator.stringToIdentity("x"))
+        adapter.add(None, Ice.stringToIdentity("x"))
         test(false)
     except Ice.IllegalServantException:
         pass
 
 
-    adapter.remove(communicator.stringToIdentity("x"))
+    adapter.remove(Ice.stringToIdentity("x"))
     try:
-        adapter.remove(communicator.stringToIdentity("x"))
+        adapter.remove(Ice.stringToIdentity("x"))
         test(false)
     except Ice.NotRegisteredException:
         pass
@@ -273,10 +269,10 @@ def allTests(communicator):
 
     sys.stdout.write("testing object factory registration exception... ")
     sys.stdout.flush()
-    of = ObjectFactoryI()
-    communicator.addObjectFactory(of, "x")
+
+    communicator.getValueFactoryManager().add(ValueFactory, "x")
     try:
-        communicator.addObjectFactory(of, "x")
+        communicator.getValueFactoryManager().add(ValueFactory, "x")
         test(false)
     except Ice.AlreadyRegisteredException:
         pass
@@ -499,7 +495,7 @@ def allTests(communicator):
     sys.stdout.write("catching object not exist exception... ")
     sys.stdout.flush()
 
-    id = communicator.stringToIdentity("does not exist")
+    id = Ice.stringToIdentity("does not exist")
     try:
         thrower2 = Test.ThrowerPrx.uncheckedCast(thrower.ice_identity(id))
         thrower2.throwAasA(1)
@@ -593,6 +589,7 @@ def allTests(communicator):
 
     try:
         thrower.throwAfterException()
+        test(False)
     except Test.A:
         pass
     except:
@@ -668,7 +665,7 @@ def allTests(communicator):
     sys.stdout.write("catching object not exist exception with AMI mapping... ")
     sys.stdout.flush()
 
-    id = communicator.stringToIdentity("does not exist")
+    id = Ice.stringToIdentity("does not exist")
     thrower2 = Test.ThrowerPrx.uncheckedCast(thrower.ice_identity(id))
     cb = Callback(communicator)
     thrower2.begin_throwAasA(1, cb.response, cb.exception_AasAObjectNotExist)

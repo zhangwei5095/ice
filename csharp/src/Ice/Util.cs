@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -37,22 +37,11 @@ namespace Ice
         void stop();
     }
 
-#if COMPACT
-    /// <summary>
-    /// A delegate for an action taking no parameters.
-    /// </summary>
-    public delegate void VoidAction();
-#endif
-
     /// <summary>
     /// A delegate for the dispatcher. The dispatcher is called by the Ice
     /// runtime to dispatch servant calls and AMI callbacks.
     /// </summary>
-#if COMPACT
-    public delegate void Dispatcher(VoidAction call, Connection con);
-#else
     public delegate void Dispatcher(System.Action call, Connection con);
-#endif
 
     /// <summary>
     /// Applications that make use of compact type IDs to conserve space
@@ -113,6 +102,11 @@ namespace Ice
         /// The batch request interceptor.
         /// </summary>
         public BatchRequestInterceptor batchRequestInterceptor;
+
+        /// <summary>
+        /// The value factory manager.
+        /// </summary>
+        public ValueFactoryManager valueFactoryManager;
     }
 
     /// <summary>
@@ -447,79 +441,6 @@ namespace Ice
         }
 
         /// <summary>
-        /// Creates an input stream for dynamic invocation and dispatch. The stream uses
-        /// the communicator's default encoding version. The given data is copied.
-        /// </summary>
-        /// <param name="communicator">The communicator for the stream.</param>
-        /// <param name="bytes">An encoded request or reply.</param>
-        /// <returns>The input stream.</returns>
-        public static InputStream createInputStream(Communicator communicator, byte[] bytes)
-        {
-            return new InputStreamI(communicator, bytes, true);
-        }
-
-        /// <summary>
-        /// Creates an input stream for dynamic invocation and dispatch. The stream uses
-        /// the given encoding version.
-        /// </summary>
-        /// <param name="communicator">The communicator for the stream.</param>
-        /// <param name="bytes">An encoded request or reply.</param>
-        /// <param name="v">The desired encoding version.</param>
-        /// <returns>The input stream.</returns>
-        public static InputStream createInputStream(Communicator communicator, byte[] bytes, EncodingVersion v)
-        {
-            return new InputStreamI(communicator, bytes, v, true);
-        }
-
-        /// <summary>
-        /// Wraps encoded data with an input stream for dynamic invocation and dispatch.
-        /// The stream uses the communicator's default encoding version.
-        /// </summary>
-        /// <param name="communicator">The communicator for the stream.</param>
-        /// <param name="bytes">An encoded request or reply.</param>
-        /// <returns>The input stream.</returns>
-        public static InputStream wrapInputStream(Communicator communicator, byte[] bytes)
-        {
-            return new InputStreamI(communicator, bytes, false);
-        }
-
-        /// <summary>
-        /// Wraps encoded data with an input stream for dynamic invocation and dispatch.
-        /// The stream uses the given encoding version.
-        /// </summary>
-        /// <param name="communicator">The communicator for the stream.</param>
-        /// <param name="bytes">An encoded request or reply.</param>
-        /// <param name="v">The desired encoding version.</param>
-        /// <returns>The input stream.</returns>
-        public static InputStream wrapInputStream(Communicator communicator, byte[] bytes, EncodingVersion v)
-        {
-            return new InputStreamI(communicator, bytes, v, false);
-        }
-
-        /// <summary>
-        /// Creates an output stream for dynamic invocation and dispatch. The stream uses
-        /// the communicator's default encoding version.
-        /// </summary>
-        /// <param name="communicator">The communicator for the stream.</param>
-        /// <returns>The output stream.</returns>
-        public static OutputStream createOutputStream(Communicator communicator)
-        {
-            return new OutputStreamI(communicator);
-        }
-
-        /// <summary>
-        /// Creates an output stream for dynamic invocation and dispatch. The stream uses
-        /// the given encoding version.
-        /// </summary>
-        /// <param name="communicator">The communicator for the stream.</param>
-        /// <param name="v">The desired encoding version.</param>
-        /// <returns>The output stream.</returns>
-        public static OutputStream createOutputStream(Communicator communicator, EncodingVersion v)
-        {
-            return new OutputStreamI(communicator, v);
-        }
-
-        /// <summary>
         /// Returns the process-wide logger.
         /// </summary>
         /// <returns>The process-wide logger.</returns>
@@ -555,7 +476,7 @@ namespace Ice
         /// <returns>The Ice version.</returns>
         public static string stringVersion()
         {
-            return "3.7.0"; // "A.B.C", with A=major, B=minor, C=patch
+            return "3.7a3"; // "A.B.C", with A=major, B=minor, C=patch
         }
 
         /// <summary>
@@ -566,7 +487,7 @@ namespace Ice
         /// <returns>The Ice version.</returns>
         public static int intVersion()
         {
-            return 30700; // AABBCC, with AA=major, BB=minor, CC=patch
+            return 30753; // AABBCC, with AA=major, BB=minor, CC=patch
         }
 
         /// <summary>
@@ -768,7 +689,6 @@ namespace IceInternal
             return new ProtocolPluginFacadeI(communicator);
         }
 
-#if !SILVERLIGHT
         public static System.Threading.ThreadPriority stringToThreadPriority(string s)
         {
             if(String.IsNullOrEmpty(s))
@@ -801,16 +721,5 @@ namespace IceInternal
             }
             return ThreadPriority.Normal;
         }
-#endif
     }
 }
-
-#if SILVERLIGHT
-namespace System
-{
-    public interface ICloneable
-    {
-        Object Clone();
-    }
-}
-#endif

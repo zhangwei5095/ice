@@ -2,7 +2,7 @@
 <!--
  **********************************************************************
 
- Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+ Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 
  This copy of Ice is licensed to you under the terms described in the
  ICE_LICENSE file included in this distribution.
@@ -355,6 +355,7 @@ generated from the section label.
         <property name="IPv4" />
         <property name="IPv6" />
         <property name="LogFile" />
+        <property name="LogFile.SizeMax" />
         <property name="LogStdErr.Convert"/>
         <property name="MessageSizeMax" />
         <property name="Nohup" />
@@ -570,10 +571,8 @@ generated from the section label.
         <property name="EntropyDaemon" />
         <property name="FindCert" />
         <property name="FindCert.[any]" deprecatedBy="IceSSL.FindCert"/>
-        <property name="ImportCert.[any]" deprecated="true"/>
         <property name="InitOpenSSL" />
         <property name="KeyFile" deprecated="true"/>
-        <property name="KeySet" deprecatedBy="IceSSL.CertStoreLocation" />
         <property name="Keychain"/>
         <property name="KeychainPassword"/>
         <property name="Keystore" />
@@ -582,7 +581,6 @@ generated from the section label.
         <property name="Password" />
         <property name="PasswordCallback" />
         <property name="PasswordRetryMax" />
-        <property name="PersistKeySet" deprecated="true"/>
         <property name="Protocols" />
         <property name="ProtocolVersionMax" />
         <property name="ProtocolVersionMin" />
@@ -607,7 +605,6 @@ generated from the section label.
     </section>
 
     <section name="IceBT">
-        <property name="DefaultAddress" />
         <property name="RcvSize" />
         <property name="SndSize" />
     </section>

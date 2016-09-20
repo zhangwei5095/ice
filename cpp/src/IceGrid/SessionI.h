@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -35,7 +35,7 @@ typedef IceUtil::Handle<Allocatable> AllocatablePtr;
 class SessionI;
 typedef IceUtil::Handle<SessionI> SessionIPtr;
 
-class BaseSessionI : virtual public Ice::Object, public IceUtil::Mutex
+class BaseSessionI : public virtual Ice::Object, public IceUtil::Mutex
 {
 public:
 
@@ -106,7 +106,7 @@ protected:
     std::set<AllocatablePtr> _allocations;
 };
 
-class ClientSessionFactory : virtual public IceUtil::Shared
+class ClientSessionFactory : public virtual IceUtil::Shared
 {
 public:
 
@@ -128,7 +128,7 @@ private:
 };
 typedef IceUtil::Handle<ClientSessionFactory> ClientSessionFactoryPtr;
 
-class ClientSessionManagerI : virtual public Glacier2::SessionManager
+class ClientSessionManagerI : public virtual Glacier2::SessionManager
 {
 public:
 
@@ -141,7 +141,7 @@ private:
     const ClientSessionFactoryPtr _factory;
 };
 
-class ClientSSLSessionManagerI : virtual public Glacier2::SSLSessionManager
+class ClientSSLSessionManagerI : public virtual Glacier2::SSLSessionManager
 {
 public:
 

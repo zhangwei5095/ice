@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -47,6 +47,7 @@ struct ToInternalServerDescriptor : std::unary_function<CommunicatorDescriptorPt
         if(svc)
         {
             filename += "_" + svc->name;
+            _desc->services->push_back(svc->name);
         }
 
         PropertyDescriptorSeq& props = _desc->properties[filename];
@@ -109,12 +110,10 @@ struct ToInternalServerDescriptor : std::unary_function<CommunicatorDescriptorPt
             if(p->dbHome.empty())
             {
                 _desc->dbEnvs.push_back(new InternalDbEnvDescriptor(p->name, p->properties));
-                props.push_back(createProperty(p->name + ".LMDB.Path", dbsPath + p->name));
                 props.push_back(createProperty("Freeze.DbEnv." + p->name + ".DbHome", dbsPath + p->name));
             }
             else
             {
-                props.push_back(createProperty(p->name + ".LMDB.Path", p->dbHome));
                 props.push_back(createProperty("Freeze.DbEnv." + p->name + ".DbHome", p->dbHome));
             }
         }
@@ -179,7 +178,7 @@ struct ToInternalServerDescriptor : std::unary_function<CommunicatorDescriptorPt
     int _iceVersion;
 };
 
-class LoadCB : virtual public IceUtil::Shared
+class LoadCB : public virtual IceUtil::Shared
 {
 public:
 
@@ -246,7 +245,7 @@ private:
     const int _timeout;
 };
 
-class DestroyCB : virtual public IceUtil::Shared
+class DestroyCB : public virtual IceUtil::Shared
 {
 public:
 
@@ -932,6 +931,7 @@ NodeEntry::getInternalServerDescriptor(const ServerInfo& info) const
     server->activationTimeout = info.descriptor->activationTimeout;
     server->deactivationTimeout = info.descriptor->deactivationTimeout;
     server->applicationDistrib = info.descriptor->applicationDistrib;
+    server->services = Ice::StringSeq();
     if(!info.descriptor->distrib.icepatch.empty())
     {
         server->distrib = new InternalDistributionDescriptor(info.descriptor->distrib.icepatch,

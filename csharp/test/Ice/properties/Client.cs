@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,7 +8,6 @@
 // **********************************************************************
 
 using System;
-using System.Diagnostics;
 using System.Reflection;
 
 [assembly: CLSCompliant(true)]
@@ -23,7 +22,7 @@ public class Client
     {
         if(!b)
         {
-            throw new System.Exception();
+            throw new Exception();
         }
     }
 
@@ -62,9 +61,9 @@ public class Client
             c.main(args, "./config/中国_client.config");
             Console.Out.WriteLine("ok");
         }
-        catch(System.Exception ex)
+        catch(Exception ex)
         {
-            System.Console.Error.WriteLine(ex);
+            Console.Error.WriteLine(ex);
             status = 1;
         }
         
@@ -82,9 +81,9 @@ public class Client
             test(properties.getProperty("Config3").Equals("Config3"));
             Console.Out.WriteLine("ok");
         }
-        catch(System.Exception ex)
+        catch(Exception ex)
         {
-            System.Console.Error.WriteLine(ex);
+            Console.Error.WriteLine(ex);
             status = 1;
         }
 
@@ -124,9 +123,9 @@ public class Client
             }
             Console.Out.WriteLine("ok");
         }
-        catch(System.Exception ex)
+        catch(Exception ex)
         {
-            System.Console.Error.WriteLine(ex);
+            Console.Error.WriteLine(ex);
             status = 1;
         }
 

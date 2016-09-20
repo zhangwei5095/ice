@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -17,7 +17,7 @@ run(id<ICECommunicator> communicator)
     [[communicator getProperties] setProperty:@"TestAdapter.Endpoints" value:@"default -p 12010"];
     id<ICEObjectAdapter> adapter = [communicator createObjectAdapter:@"TestAdapter"];
     ICEObject* object = [TestRetryRetryI retry];
-    [adapter add:object identity:[communicator stringToIdentity:@"retry"]];
+    [adapter add:object identity:[ICEUtil stringToIdentity:@"retry"]];
     //[adapter activate]; // Don't activate OA to ensure collocation is used.
 
     TestRetryRetryPrx* retryAllTests(id<ICECommunicator>);
@@ -34,6 +34,13 @@ run(id<ICECommunicator> communicator)
 int
 main(int argc, char* argv[])
 {
+#ifdef ICE_STATIC_LIBS
+    ICEregisterIceSSL(YES);
+#if TARGET_OS_IPHONE
+    ICEregisterIceIAP(YES);
+#endif
+#endif
+
     int status;
     @autoreleasepool
     {
@@ -43,7 +50,7 @@ main(int argc, char* argv[])
         {
             ICEInitializationData* initData = [ICEInitializationData initializationData];
             initData.properties = defaultServerProperties(&argc, argv);
-	        [initData.properties setProperty:@"Ice.Warn.Dispatch" value:@"0"];
+            [initData.properties setProperty:@"Ice.Warn.Dispatch" value:@"0"];
             [initData.properties setProperty:@"Ice.RetryIntervals" value:@"0 1 10 1"];
 #if TARGET_OS_IPHONE
             initData.prefixTable__ = [NSDictionary dictionaryWithObjectsAndKeys:

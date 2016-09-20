@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -32,14 +32,14 @@ internal class EndpointFactory : IceInternal.EndpointFactory
         return new EndpointI(_factory.create(args, server));
     }
 
-    public IceInternal.EndpointI read(IceInternal.BasicStream s)
+    public IceInternal.EndpointI read(Ice.InputStream s)
     {
         short type = s.readShort();
         Debug.Assert(type == _factory.type());
 
-        s.startReadEncaps();
+        s.startEncapsulation();
         IceInternal.EndpointI endpoint = new EndpointI(_factory.read(s));
-        s.endReadEncaps();
+        s.endEncapsulation();
         return endpoint;
     }
 
@@ -47,7 +47,7 @@ internal class EndpointFactory : IceInternal.EndpointFactory
     {
     }
 
-    public IceInternal.EndpointFactory clone(IceInternal.ProtocolInstance instance)
+    public IceInternal.EndpointFactory clone(IceInternal.ProtocolInstance instance, IceInternal.EndpointFactory del)
     {
         return this;
     }

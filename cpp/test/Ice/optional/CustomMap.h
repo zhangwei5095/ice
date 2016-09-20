@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -12,7 +12,7 @@
 
 #include <IceUtil/Config.h>
 
-#ifdef ICE_CPP11
+#ifdef ICE_CPP11_COMPILER
 #   include <unordered_map>
 #else
 #   include <map>
@@ -21,7 +21,7 @@
 namespace Test
 {
 
-#ifdef ICE_CPP11
+#ifdef ICE_CPP11_COMPILER
 template<typename K, typename V>
 class CustomMap : public std::unordered_map<K, V>
 {

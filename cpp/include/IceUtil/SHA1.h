@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -18,11 +18,11 @@
 namespace IceUtilInternal
 {
 
-ICE_UTIL_API void 
+ICE_API void 
 sha1(const unsigned char*, std::size_t, std::vector<unsigned char>&);
     
 #ifndef ICE_OS_WINRT
-class ICE_UTIL_API SHA1
+class ICE_API SHA1
 {
 public:
     

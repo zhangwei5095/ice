@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -95,7 +95,7 @@ namespace Ice
 
             if(printAdapterReady)
             {
-                System.Console.Out.WriteLine(_name + " ready");
+                Console.Out.WriteLine(_name + " ready");
             }
 
             lock(this)
@@ -689,7 +689,7 @@ namespace Ice
             }
         }
 
-        public void flushAsyncBatchRequests(CommunicatorFlushBatch outAsync)
+        public void flushAsyncBatchRequests(CommunicatorFlushBatchAsync outAsync)
         {
             List<IncomingConnectionFactory> f;
             lock(this)
@@ -926,7 +926,7 @@ namespace Ice
                         {
                             Ice.AlreadyRegisteredException ex = new Ice.AlreadyRegisteredException();
                             ex.kindOfObject = "object adapter with router";
-                            ex.id = instance_.identityToString(router.ice_getIdentity());
+                            ex.id = Ice.Util.identityToString(router.ice_getIdentity());
                             throw ex;
                         }
 
@@ -1017,36 +1017,6 @@ namespace Ice
                 throw;
             }
         }
-
-        /*
-        ~ObjectAdapterI()
-        {
-            if(!_deactivated)
-            {
-                string msg = "object adapter `" + getName() + "' has not been deactivated";
-                if(!Environment.HasShutdownStarted)
-                {
-                    instance_.initializationData().logger.warning(msg);
-                }
-                else
-                {
-                    Console.Error.WriteLine(msg);
-                }
-            }
-            else if(!_destroyed)
-            {
-                string msg = "object adapter `" + getName() + "' has not been destroyed";
-                if(!Environment.HasShutdownStarted)
-                {
-                    instance_.initializationData().logger.warning(msg);
-                }
-                else
-                {
-                    Console.Error.WriteLine(msg);
-                }
-            }
-        }
-        */
 
         private ObjectPrx newProxy(Identity ident, string facet)
         {
@@ -1205,25 +1175,6 @@ namespace Ice
                 EndpointI endp = instance_.endpointFactoryManager().create(s, oaEndpoints);
                 if(endp == null)
                 {
-#if COMPACT
-                    if(s.StartsWith("ssl", StringComparison.Ordinal) || s.StartsWith("wss", StringComparison.Ordinal))
-                    {
-                        instance_.initializationData().logger.warning(
-                            "ignoring endpoint `" + s +
-                            "': IceSSL is not supported with the .NET Compact Framework");
-                        ++end;
-                        continue;
-                    }
-#else
-                    if(AssemblyUtil.runtime_ == AssemblyUtil.Runtime.Mono &&
-                       (s.StartsWith("ssl", StringComparison.Ordinal) || s.StartsWith("wss", StringComparison.Ordinal)))
-                    {
-                        instance_.initializationData().logger.warning(
-                            "ignoring endpoint `" + s + "': IceSSL is not supported with Mono");
-                        ++end;
-                        continue;
-                    }
-#endif
                     Ice.EndpointParseException e2 = new Ice.EndpointParseException();
                     e2.str = "invalid object adapter endpoint `" + s + "'";
                     throw e2;
@@ -1312,21 +1263,6 @@ namespace Ice
                     System.Text.StringBuilder s = new System.Text.StringBuilder();
                     s.Append("couldn't update object adapter `" + _id + "' endpoints with the locator registry:\n");
                     s.Append("the object adapter is not known to the locator registry");
-                    instance_.initializationData().logger.trace(instance_.traceLevels().locationCat, s.ToString());
-                }
-
-                NotRegisteredException ex1 = new NotRegisteredException();
-                ex1.kindOfObject = "object adapter";
-                ex1.id = _id;
-                throw ex1;
-            }
-            catch(InvalidAdapterException ex)
-            {
-                if(instance_.traceLevels().location >= 1)
-                {
-                    System.Text.StringBuilder s = new System.Text.StringBuilder();
-                    s.Append("couldn't update object adapter `" + _id + "' endpoints with the locator registry:\n");
-                    s.Append(ex.reason);
                     instance_.initializationData().logger.trace(instance_.traceLevels().locationCat, s.ToString());
                 }
 

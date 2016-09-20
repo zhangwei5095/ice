@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,9 +9,12 @@
 
 package test.Ice.objects;
 
-import test.Ice.objects.Test._JDisp;
+import test.Ice.objects.Test.J;
 
-
-public final class JI extends _JDisp
+public final class JI extends com.zeroc.Ice.InterfaceByValue
 {
+    public JI()
+    {
+        super(J.ice_staticId());
+    }
 }

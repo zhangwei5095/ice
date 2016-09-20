@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -115,7 +115,7 @@ namespace IceDiscovery
             // Add lookup and lookup reply Ice objects
             //
             LookupI lookup = new LookupI(locatorRegistry, LookupPrxHelper.uncheckedCast(lookupPrx), properties);
-            _multicastAdapter.add(lookup, _communicator.stringToIdentity("IceDiscovery/Lookup"));
+            _multicastAdapter.add(lookup, Ice.Util.stringToIdentity("IceDiscovery/Lookup"));
 
             Ice.ObjectPrx lookupReply = _replyAdapter.addWithUUID(new LookupReplyI(lookup)).ice_datagram();
             lookup.setLookupReply(LookupReplyPrxHelper.uncheckedCast(lookupReply));

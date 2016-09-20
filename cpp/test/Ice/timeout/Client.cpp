@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -19,8 +19,8 @@ using namespace Test;
 int
 run(int, char**, const Ice::CommunicatorPtr& communicator)
 {
-    TimeoutPrx allTests(const Ice::CommunicatorPtr&);
-    TimeoutPrx timeout = allTests(communicator);
+    TimeoutPrxPtr allTests(const Ice::CommunicatorPtr&);
+    TimeoutPrxPtr timeout = allTests(communicator);
     timeout->shutdown();
     return EXIT_SUCCESS;
 }
@@ -31,9 +31,6 @@ main(int argc, char* argv[])
 #ifdef ICE_STATIC_LIBS
     Ice::registerIceSSL();
 #endif
-
-    int status;
-    Ice::CommunicatorPtr communicator;
 
     try
     {
@@ -70,27 +67,12 @@ main(int argc, char* argv[])
         //
         initData.properties->setProperty("Ice.TCP.SndSize", "50000");
 
-        communicator = Ice::initialize(argc, argv, initData);
-        status = run(argc, argv, communicator);
+        Ice::CommunicatorHolder ich = Ice::initialize(argc, argv, initData);
+        return run(argc, argv, ich.communicator());
     }
     catch(const Ice::Exception& ex)
     {
         cerr << ex << endl;
-        status = EXIT_FAILURE;
+        return  EXIT_FAILURE;
     }
-
-    if(communicator)
-    {
-        try
-        {
-            communicator->destroy();
-        }
-        catch(const Ice::Exception& ex)
-        {
-            cerr << ex << endl;
-            status = EXIT_FAILURE;
-        }
-    }
-
-    return status;
 }

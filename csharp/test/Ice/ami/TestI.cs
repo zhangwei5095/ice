@@ -1,17 +1,29 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
 
-using Test;
+using System;
+using System.Diagnostics;
 using System.Threading;
+using System.Threading.Tasks;
+using Test;
 
 public class TestI : TestIntfDisp_
 {
+    protected static void test(bool b)
+    {
+        if(!b)
+        {
+            Debug.Assert(false);
+            throw new Exception();
+        }
+    }
+
     public TestI()
     {
     }
@@ -88,6 +100,37 @@ public class TestI : TestIntfDisp_
     supportsFunctionalTests(Ice.Current current)
     {
         return false;
+    }
+
+    override public async Task
+    opAsyncDispatchAsync(Ice.Current current)
+    {
+        await System.Threading.Tasks.Task.Delay(10);
+    }
+
+    override public async Task<int>
+    opWithResultAsyncDispatchAsync(Ice.Current current)
+    {
+        await System.Threading.Tasks.Task.Delay(10);
+        test(Thread.CurrentThread.Name.Contains("Ice.ThreadPool.Server"));
+        var r = await self(current).opWithResultAsync();
+        test(Thread.CurrentThread.Name.Contains("Ice.ThreadPool.Server"));
+        return r;
+    }
+
+    override public async Task
+    opWithUEAsyncDispatchAsync(Ice.Current current)
+    {
+        test(Thread.CurrentThread.Name.Contains("Ice.ThreadPool.Server"));
+        await System.Threading.Tasks.Task.Delay(10);
+        test(Thread.CurrentThread.Name.Contains("Ice.ThreadPool.Server"));
+        await self(current).opWithUEAsync();
+    }
+
+    TestIntfPrx
+    self(Ice.Current current)
+    {
+        return TestIntfPrxHelper.uncheckedCast(current.adapter.createProxy(current.id));
     }
 
     private int _batchCount;

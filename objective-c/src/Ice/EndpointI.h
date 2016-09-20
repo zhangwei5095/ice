@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in
 // the ICE_LICENSE file included in this distribution.
@@ -8,10 +8,16 @@
 // **********************************************************************
 
 #import <objc/Ice/Endpoint.h>
-
 #import <objc/Ice/LocalObject.h>
 
 #include <Ice/Endpoint.h>
+
+namespace IceObjC
+{
+
+ICE_API void registerEndpointInfoClass(Class cl);
+
+}
 
 @interface ICEEndpoint : ICELocalObject<ICEEndpoint>
 -(Ice::Endpoint*) endpoint;

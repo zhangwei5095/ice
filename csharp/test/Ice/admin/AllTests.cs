@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,13 +9,8 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
-
-#if SILVERLIGHT
-using System.Windows.Controls;
-#endif
 
 using Test;
 
@@ -97,12 +92,7 @@ public class AllTests : TestCommon.TestApp
         }
     }
 
-#if SILVERLIGHT
-    override
-    public void run(Ice.Communicator communicator)
-#else
     public static void allTests(Ice.Communicator communicator)
-#endif
     {
         Write("testing communicator operations... ");
         Flush();
@@ -148,7 +138,7 @@ public class AllTests : TestCommon.TestApp
             init.properties.setProperty("Ice.Admin.Enabled", "1");
             Ice.Communicator com = Ice.Util.initialize(init);
             test(com.getAdmin() == null);
-            Ice.Identity id = com.stringToIdentity("test-admin");
+            Ice.Identity id = Ice.Util.stringToIdentity("test-admin");
             try
             {
                 com.createAdmin(null, id);

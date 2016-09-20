@@ -1,6 +1,6 @@
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -318,8 +318,7 @@ def allTests(communicator)
     outer = Test::Recursive.new
     outer.value = recursive1
     initial.pingPong(outer)
-    
-    
+
     g = Test::G.new
     g.gg1Opt = Test::G1.new("gg1Opt")
     g.gg2 = Test::G2.new(10)
@@ -330,6 +329,9 @@ def allTests(communicator)
     test(r.gg2.a == 10)
     test(r.gg2Opt.a == 20)
     test(r.gg1.a == "gg1")
+
+    initial2 = Test::Initial2Prx::uncheckedCast(base)
+    initial2.opVoid(15, "test")
 
     puts "ok"
 
@@ -657,6 +659,12 @@ def allTests(communicator)
     p2, p3 = initial.opStringIntDict(p1)
     test(p2 == p1 && p3 == p1)
 
+    p2, p3 = initial.opIntOneOptionalDict(Ice::Unset)
+    test(p2 == Ice::Unset && p3 == Ice::Unset)
+    p1 = {1=> Test::OneOptional.new(58), 2=>Test::OneOptional.new(59)}
+    p2, p3 = initial.opIntOneOptionalDict(p1)
+    test(p2[1].a == 58 && p3[1].a == 58)
+
     puts "ok"
 
     print "testing exception optionals... "
@@ -728,6 +736,45 @@ def allTests(communicator)
         test(ex.ss == "test")
         test(ex.o2 == ex.o)
     end
+
+    puts "ok"
+
+    print "testing optionals with marshaled results... "
+    STDOUT.flush
+
+    # TODO: Fix bug ICE-7276
+    #test(initial.opMStruct1() != Ice::Unset)
+    test(initial.opMDict1() != Ice::Unset)
+    test(initial.opMSeq1() != Ice::Unset)
+    test(initial.opMG1() != Ice::Unset)
+
+    (p3, p2) = initial.opMStruct2(Ice::Unset)
+    test(p2 == Ice::Unset && p3 == Ice::Unset)
+
+    p1 = Test::SmallStruct.new()
+    (p3, p2) = initial.opMStruct2(p1)
+    test(p2 == p1 && p3 == p1)
+
+    (p3, p2) = initial.opMSeq2(Ice::Unset)
+    test(p2 == Ice::Unset && p3 == Ice::Unset)
+
+    p1 = ["hello"]
+    (p3, p2) = initial.opMSeq2(p1)
+    test(p2[0] == "hello" && p3[0] == "hello")
+
+    (p3, p2) = initial.opMDict2(Ice::Unset)
+    test(p2 == Ice::Unset && p3 == Ice::Unset)
+
+    p1 = {"test" => 54}
+    (p3, p2) = initial.opMDict2(p1)
+    test(p2["test"] == 54 && p3["test"] == 54)
+
+    (p3, p2) = initial.opMG2(Ice::Unset)
+    test(p2 == Ice::Unset && p3 == Ice::Unset)
+
+    p1 = Test::G.new()
+    (p3, p2) = initial.opMG2(p1)
+    test(p2 != Ice::Unset && p3 != Ice::Unset && p3 == p2)
 
     puts "ok"
 

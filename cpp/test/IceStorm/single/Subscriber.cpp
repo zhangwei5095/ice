@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -133,7 +133,7 @@ run(int, char* argv[], const CommunicatorPtr& communicator)
             manager->create(string(512, 'A'));
             test(false);
         }
-        catch(const IceStorm::InvalidTopic&)
+        catch(const Ice::UnknownException&)
         {
         }
     }
@@ -160,7 +160,7 @@ run(int, char* argv[], const CommunicatorPtr& communicator)
             topic->subscribeAndGetPublisher(IceStorm::QoS(), object);
             test(false);
         }
-        catch(const IceStorm::InvalidSubscriber&)
+        catch(const Ice::UnknownException&)
         {
         }
     }

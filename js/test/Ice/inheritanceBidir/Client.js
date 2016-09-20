@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -25,7 +25,7 @@
                     function(adapter)
                     {
                         var base = communicator.stringToProxy("initial:default -p 12010");
-                        adapter.add(new InitialI(adapter, base), communicator.stringToIdentity("initial"));
+                        adapter.add(new InitialI(adapter, base), Ice.stringToIdentity("initial"));
                         return base.ice_getConnection().then(
                             function(conn)
                             {

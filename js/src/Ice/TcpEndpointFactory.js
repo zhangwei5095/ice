@@ -1,51 +1,56 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
 
-var Ice = require("../Ice/ModuleRegistry").Ice;
-Ice.__M.require(module, ["../Ice/Class", "../Ice/TcpEndpointI"]);
+const Ice = require("../Ice/TcpEndpointI").Ice;
+const TcpEndpointI = Ice.TcpEndpointI;
 
-var TcpEndpointI = Ice.TcpEndpointI;
-
-var TcpEndpointFactory = Ice.Class({
-    __init__: function(instance)
+class TcpEndpointFactory
+{
+    constructor(instance)
     {
         this._instance = instance;
-    },
-    type: function()
+    }
+
+    type()
     {
         return this._instance.type();
-    },
-    protocol: function()
+    }
+
+    protocol()
     {
         return this._instance.protocol();
-    },
-    create: function(args, oaEndpoint)
+    }
+
+    create(args, oaEndpoint)
     {
-        var e = new TcpEndpointI(this._instance);
+        const e = new TcpEndpointI(this._instance);
         e.initWithOptions(args, oaEndpoint);
         return e;
-    },
-    read: function(s)
+    }
+
+    read(s)
     {
-        var e = new TcpEndpointI(this._instance);
+        const e = new TcpEndpointI(this._instance);
         e.initWithStream(s);
         return e;
-    },
-    destroy: function()
+    }
+
+    destroy()
     {
         this._instance = null;
-    },
-    clone:function(instance)
+    }
+
+    clone(instance)
     {
         return new TcpEndpointFactory(instance);
     }
-});
+}
 
 Ice.TcpEndpointFactory = TcpEndpointFactory;
 module.exports.Ice = Ice;

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -26,14 +26,14 @@ run(int argc, char* argv[], const Ice::CommunicatorPtr& communicator)
     os << "tcp -p " << (12010 + num);
     properties->setProperty("ControlAdapter.Endpoints", os.str());
     Ice::ObjectAdapterPtr adapter = communicator->createObjectAdapter("ControlAdapter");
-    adapter->add(new TestIntfI, communicator->stringToIdentity("control"));
+    adapter->add(ICE_MAKE_SHARED(TestIntfI), Ice::stringToIdentity("control"));
     adapter->activate();
 
     if(num == 0)
     {
         properties->setProperty("TestAdapter.Endpoints", "udp -p 12010");
         Ice::ObjectAdapterPtr adapter2 = communicator->createObjectAdapter("TestAdapter");
-        adapter2->add(new TestIntfI, communicator->stringToIdentity("test"));
+        adapter2->add(ICE_MAKE_SHARED(TestIntfI), Ice::stringToIdentity("test"));
         adapter2->activate();
     }
 
@@ -52,7 +52,7 @@ run(int argc, char* argv[], const Ice::CommunicatorPtr& communicator)
     }
     properties->setProperty("McastTestAdapter.Endpoints", endpoint);
     Ice::ObjectAdapterPtr mcastAdapter = communicator->createObjectAdapter("McastTestAdapter");
-    mcastAdapter->add(new TestIntfI, communicator->stringToIdentity("test"));
+    mcastAdapter->add(ICE_MAKE_SHARED(TestIntfI), Ice::stringToIdentity("test"));
     mcastAdapter->activate();
 
     TEST_READY
@@ -68,39 +68,21 @@ main(int argc, char* argv[])
     Ice::registerIceSSL();
 #endif
 
-    int status;
-    Ice::CommunicatorPtr communicator;
-
     try
     {
         Ice::InitializationData initData;
         initData.properties = Ice::createProperties(argc, argv);
-
         initData.properties->setProperty("Ice.Warn.Connections", "0");
         initData.properties->setProperty("Ice.UDP.SndSize", "16384");
         initData.properties->setProperty("Ice.UDP.RcvSize", "16384");
 
-        communicator = Ice::initialize(argc, argv, initData);
-        status = run(argc, argv, communicator);
+        Ice::CommunicatorHolder ich = Ice::initialize(argc, argv, initData);
+        return run(argc, argv, ich.communicator());
     }
     catch(const Ice::Exception& ex)
     {
         cerr << ex << endl;
-        status = EXIT_FAILURE;
+        return  EXIT_FAILURE;
     }
-
-    if(communicator)
-    {
-        try
-        {
-            communicator->destroy();
-        }
-        catch(const Ice::Exception& ex)
-        {
-            cerr << ex << endl;
-            status = EXIT_FAILURE;
-        }
-    }
-
-    return status;
 }
+

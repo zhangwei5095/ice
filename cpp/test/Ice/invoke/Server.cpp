@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -26,26 +26,38 @@ public:
         {
             if(async)
             {
-                _blobject = new BlobjectArrayAsyncI();
+                _blobject = ICE_MAKE_SHARED(BlobjectArrayAsyncI);
             }
             else
             {
-                _blobject = new BlobjectArrayI();
+                _blobject = ICE_MAKE_SHARED(BlobjectArrayI);
             }
         }
         else
         {
             if(async)
             {
-                _blobject = new BlobjectAsyncI();
+                _blobject = ICE_MAKE_SHARED(BlobjectAsyncI);
             }
             else
             {
-                _blobject = new BlobjectI();
+                _blobject = ICE_MAKE_SHARED(BlobjectI);
             }
         }
     }
 
+#ifdef ICE_CPP11_MAPPING
+    virtual Ice::ObjectPtr
+    locate(const Ice::Current&, shared_ptr<void>&)
+    {
+        return _blobject;
+    }
+
+    virtual void
+    finished(const Ice::Current&, const Ice::ObjectPtr&, const shared_ptr<void>&)
+    {
+    }
+#else
     virtual Ice::ObjectPtr
     locate(const Ice::Current&, Ice::LocalObjectPtr&)
     {
@@ -56,7 +68,7 @@ public:
     finished(const Ice::Current&, const Ice::ObjectPtr&, const Ice::LocalObjectPtr&)
     {
     }
-
+#endif
     virtual void
     deactivate(const string&)
     {
@@ -88,9 +100,9 @@ run(int argc, char* argv[], const Ice::CommunicatorPtr& communicator)
     bool array = opts.isSet("array");
     bool async = opts.isSet("async");
 
-    communicator->getProperties()->setProperty("TestAdapter.Endpoints", "default -p 12010:udp");
+    communicator->getProperties()->setProperty("TestAdapter.Endpoints", getTestEndpoint(communicator, 0) + ":udp");
     Ice::ObjectAdapterPtr adapter = communicator->createObjectAdapter("TestAdapter");
-    adapter->addServantLocator(new ServantLocatorI(array, async), "");
+    adapter->addServantLocator(ICE_MAKE_SHARED(ServantLocatorI, array, async), "");
     adapter->activate();
 
     TEST_READY

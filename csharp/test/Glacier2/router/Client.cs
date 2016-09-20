@@ -1,17 +1,15 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
 
-using Glacier2;
 using Test;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Reflection;
 
 [assembly: CLSCompliant(true)]
@@ -27,7 +25,6 @@ public class Client
         public override int run(string[] args)
         {
             Ice.ObjectPrx routerBase;
-
             {
                 Console.Out.Write("testing stringToProxy for router... ");
                 Console.Out.Flush();
@@ -36,7 +33,6 @@ public class Client
             }
 
             Glacier2.RouterPrx router;
-
             {
                 Console.Out.Write("testing checked cast for router... ");
                 Console.Out.Flush();
@@ -288,7 +284,7 @@ public class Client
                 Dictionary<string, string> context = new Dictionary<string, string>();
                 context["_fwd"] =  "t";
                 CallbackPrx otherCategoryTwoway = CallbackPrxHelper.uncheckedCast(
-                    twoway.ice_identity(communicator().stringToIdentity("c2/callback")));
+                    twoway.ice_identity(Ice.Util.stringToIdentity("c2/callback")));
                 otherCategoryTwoway.initiateCallback(twowayR, context);
                 callbackReceiverImpl.callbackOK();
                 Console.Out.WriteLine("ok");
@@ -302,7 +298,7 @@ public class Client
                 try
                 {
                     CallbackPrx otherCategoryTwoway = CallbackPrxHelper.uncheckedCast(
-                        twoway.ice_identity(communicator().stringToIdentity("c3/callback")));
+                        twoway.ice_identity(Ice.Util.stringToIdentity("c3/callback")));
                     otherCategoryTwoway.initiateCallback(twowayR, context);
                     test(false);
                 }
@@ -318,7 +314,7 @@ public class Client
                 Dictionary<string, string> context = new Dictionary<string, string>();
                 context["_fwd"] = "t";
                 CallbackPrx otherCategoryTwoway = CallbackPrxHelper.uncheckedCast(
-                    twoway.ice_identity(communicator().stringToIdentity("_userid/callback")));
+                    twoway.ice_identity(Ice.Util.stringToIdentity("_userid/callback")));
                 otherCategoryTwoway.initiateCallback(twowayR, context);
                 callbackReceiverImpl.callbackOK();
                 Console.Out.WriteLine("ok");
@@ -451,15 +447,6 @@ public class Client
         initData.properties = Ice.Util.createProperties(ref args);
 
         initData.properties.setProperty("Ice.Warn.Connections", "0");
-
-#if COMPACT
-        //
-        // When using Ice for .NET Compact Framework, we need to specify
-        // the assembly so that Ice can locate classes and exceptions.
-        //
-        initData.properties.setProperty("Ice.FactoryAssemblies", "client");
-#endif
-
         App app = new App();
         return app.main(args, initData);
     }

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -23,6 +23,7 @@ import TestUtil, IceGridAdmin
 # Test IceGrid discovery with multiple replicas
 IceGridAdmin.nreplicas=2
 
+testdir = os.path.join(os.getcwd(),)
 #
 # Test client/server without on demand activation.
 #
@@ -31,4 +32,5 @@ IceGridAdmin.iceGridClientServerTest("", "--TestAdapter.Endpoints=default --Test
 #
 # Test client/server with on demand activation.
 #
-IceGridAdmin.iceGridTest("simple_server.xml", "--with-deploy")
+IceGridAdmin.iceGridTest("simple_server.xml", "--with-deploy",
+                         "server.dir='%s'" %  TestUtil.getTestDirectory("server"))

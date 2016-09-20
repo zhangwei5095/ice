@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -10,10 +10,6 @@
 using System;
 using Test;
 using Ice;
-
-#if SILVERLIGHT
-using System.Windows.Controls;
-#endif
 
 public class AllTests : TestCommon.TestApp
 {
@@ -102,7 +98,8 @@ public class AllTests : TestCommon.TestApp
         }
         catch(UnknownLocalException ex)
         {
-            test(ex.unknown.IndexOf("Ice::SocketException") >= 0);
+            test(ex.unknown.IndexOf("Ice::SocketException") >= 0 ||
+                 ex.unknown.IndexOf("Ice.SocketException") >= 0);
         }
         catch(System.Exception)
         {
@@ -198,20 +195,7 @@ public class AllTests : TestCommon.TestApp
         }
     }
 
-#if SILVERLIGHT
-    public override Ice.InitializationData initData()
-    {
-        Ice.InitializationData initData = new Ice.InitializationData();
-        initData.properties = Ice.Util.createProperties();
-        initData.properties.setProperty("Ice.FactoryAssemblies", "servantLocator,version=1.0.0.0");
-        return initData;
-    }
-
-    override
-    public void run(Ice.Communicator communicator)
-#else
     public static TestIntfPrx allTests(Ice.Communicator communicator)
-#endif
     {
         Write("testing stringToProxy... ");
         Flush();
@@ -237,7 +221,7 @@ public class AllTests : TestCommon.TestApp
         }
         catch(UnknownUserException ex)
         {
-            test(ex.unknown.Equals("Test::TestIntfUserException"));
+            test(ex.unknown.Equals("::Test::TestIntfUserException"));
         }
         catch(System.Exception)
         {
@@ -252,7 +236,7 @@ public class AllTests : TestCommon.TestApp
         }
         catch(UnknownUserException ex)
         {
-            test(ex.unknown.Equals("Test::TestIntfUserException"));
+            test(ex.unknown.Equals("::Test::TestIntfUserException"));
         }
         catch(System.Exception)
         {
@@ -372,10 +356,6 @@ public class AllTests : TestCommon.TestApp
         {
             test(false);
         }
-#if SILVERLIGHT
-        obj.shutdown();
-#else
         return obj;
-#endif
     }
 }

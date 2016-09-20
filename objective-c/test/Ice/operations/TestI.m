@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -54,8 +54,8 @@
 }
 
 -(ICELong) opShortIntLong:(ICEShort)p1 p2:(ICEInt)p2 p3:(ICELong)p3
-                          p4:(ICEShort *)p4 p5:(ICEInt *)p5 p6:(ICELong *)p6
-		          current:(ICECurrent *)current
+                       p4:(ICEShort *)p4 p5:(ICEInt *)p5 p6:(ICELong *)p6
+                  current:(ICECurrent *)current
 {
     *p4 = p1;
     *p5 = p2;
@@ -64,7 +64,7 @@
 }
 
 -(ICEDouble) opFloatDouble:(ICEFloat)p1 p2:(ICEDouble)p2 p3:(ICEFloat *)p3 p4:(ICEDouble *)p4
-                           current:(ICECurrent *)current
+                   current:(ICECurrent *)current
 {
     *p3 = p1;
     *p4 = p2;
@@ -97,8 +97,7 @@
 {
     *p2 = p1;
     *p3 = [TestOperationsMyClassPrx uncheckedCast:[current.adapter
-                                           createProxy:[[current.adapter getCommunicator]
-                                                           stringToIdentity:@"noSuchIdentity"]]];
+                                           createProxy:[ICEUtil stringToIdentity:@"noSuchIdentity"]]];
     return [TestOperationsMyClassPrx uncheckedCast:[current.adapter createProxy:[current id_]]];
 }
 
@@ -145,7 +144,7 @@
 
 -(TestOperationsLongS *) opShortIntLongS:(TestOperationsMutableShortS *)p1 p2:(TestOperationsMutableIntS *)p2 p3:(TestOperationsMutableLongS *)p3
                                p4:(TestOperationsShortS **)p4 p5:(TestOperationsIntS **)p5 p6:(TestOperationsLongS **)p6
-			       current:(ICECurrent *)current
+                               current:(ICECurrent *)current
 {
     *p4 = [TestOperationsMutableShortS dataWithData:p1];
     *p5 = [TestOperationsMutableIntS dataWithLength:[p2 length]];
@@ -265,7 +264,7 @@
 
 -(TestOperationsLongSS *) opShortIntLongSS:(TestOperationsMutableShortSS *)p1 p2:(TestOperationsMutableIntSS *)p2 p3:(TestOperationsMutableLongSS *)p3
                                  p4:(TestOperationsShortSS **)p4 p5:(TestOperationsIntSS **)p5 p6:(TestOperationsLongSS **)p6
-			         current:(ICECurrent *)current
+                                 current:(ICECurrent *)current
 {
     *p4 = [TestOperationsShortSS arrayWithArray:p1];
     *p5 = [TestOperationsMutableIntSS array];
@@ -609,7 +608,7 @@
     int *target = (int *)[r bytes];
     while(count-- > 0)
     {
-	*target++ = -*src++;
+        *target++ = -*src++;
     }
     return r;
 }
@@ -649,7 +648,7 @@
     int i;
     for(i = 0; i < [p2 length] / sizeof(ICEDouble); ++i)
     {
-	test(p[i] == d);
+        test(p[i] == d);
     }
 }
 
@@ -717,6 +716,86 @@
 -(TestOperationsByteBoolD*) opByteBoolD2:(TestOperationsByteBoolD*)p current:(ICECurrent*)current
 {
     return p;
+}
+
+-(TestOperationsStringS *) opStringLiterals:(ICECurrent *)current
+{
+    TestOperationsStringS *s = [NSArray arrayWithObjects:TestOperationss0,
+                                                         TestOperationss1,
+                                                         TestOperationss2,
+                                                         TestOperationss3,
+                                                         TestOperationss4,
+                                                         TestOperationss5,
+                                                         TestOperationss6,
+                                                         TestOperationss7,
+                                                         TestOperationss8,
+                                                         TestOperationss9,
+                                                         TestOperationss10,
+
+                                                         TestOperationssw0,
+                                                         TestOperationssw1,
+                                                         TestOperationssw2,
+                                                         TestOperationssw3,
+                                                         TestOperationssw4,
+                                                         TestOperationssw5,
+                                                         TestOperationssw6,
+                                                         TestOperationssw7,
+                                                         TestOperationssw8,
+                                                         TestOperationssw9,
+                                                         TestOperationssw10,
+
+                                                         TestOperationsss0,
+                                                         TestOperationsss1,
+                                                         TestOperationsss2,
+                                                         TestOperationsss3,
+                                                         TestOperationsss4,
+                                                         TestOperationsss5,
+
+                                                         TestOperationssu0,
+                                                         TestOperationssu1,
+                                                         TestOperationssu2,
+                                                         nil];
+    return s;
+}
+
+-(TestOperationsStringS *) opWStringLiterals:(ICECurrent *)current
+{
+    return [self opStringLiterals:current];
+}
+
+-(TestOperationsStructure*) opMStruct1:(ICECurrent *)current
+{
+    return [TestOperationsStructure structure];
+}
+-(TestOperationsStructure*) opMStruct2:(TestOperationsStructure*)p1 p2:(TestOperationsStructure**)p2
+                               current:(ICECurrent *)current
+{
+    *p2 = p1;
+    return p1;
+}
+
+-(TestOperationsStringS*) opMSeq1:(ICECurrent *)current
+{
+    return [TestOperationsStringS array];
+}
+
+-(TestOperationsStringS*) opMSeq2:(TestOperationsMutableStringS*)p1 p2:(TestOperationsStringS**)p2
+                          current:(ICECurrent *)current
+{
+    *p2 = p1;
+    return p1;
+}
+
+-(TestOperationsStringStringD*) opMDict1:(ICECurrent *)current
+{
+    return [TestOperationsStringStringD dictionary];
+}
+
+-(TestOperationsStringStringD*) opMDict2:(TestOperationsMutableStringStringD*)p1 p2:(TestOperationsStringStringD**)p2
+                                 current:(ICECurrent *)current
+{
+    *p2 = p1;
+    return p1;
 }
 
 -(TestOperationsMyClass1*) opMyClass1:(TestOperationsMyClass1*)p current:(ICECurrent*)current

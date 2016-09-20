@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -17,7 +17,7 @@
 class IceServiceInstaller
 {
 public:
-    
+
     static const int icegridregistry = 0;
     static const int icegridnode = 1;
     static const int glacier2router = 2;
@@ -66,7 +66,7 @@ private:
     std::string _glacier2InstanceName;
 
     SID* _sid;
-    IceUtil::ScopedArray<IceUtil::Byte> _sidBuffer;
+    std::vector<IceUtil::Byte> _sidBuffer;
 
     std::string _sidName;
 

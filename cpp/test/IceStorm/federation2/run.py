@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -22,8 +22,8 @@ import TestUtil, IceStormUtil, Expect
 
 iceStormAdmin = os.path.join(TestUtil.getCppBinDir(), "icestormadmin")
 
-publisher = os.path.join(os.getcwd(), "publisher")
-subscriber = os.path.join(os.getcwd(), "subscriber")
+publisher = os.path.join(os.getcwd(), TestUtil.getTestExecutable("publisher"))
+subscriber = os.path.join(os.getcwd(), TestUtil.getTestExecutable("subscriber"))
 
 targets = []
 if TestUtil.appverifier:

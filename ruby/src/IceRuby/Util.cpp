@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -311,7 +311,7 @@ IceRuby::createString(const string& str)
 namespace
 {
 
-template <typename T> 
+template <typename T>
 struct RubyCallArgs
 {
     volatile VALUE val;
@@ -378,8 +378,8 @@ IceRuby::arrayToStringSeq(VALUE val, vector<string>& seq)
     }
     for(long i = 0; i < RARRAY_LEN(arr); ++i)
     {
-        string s = getString(RARRAY_PTR(arr)[i]);
-        seq.push_back(getString(RARRAY_PTR(arr)[i]));
+        string s = getString(RARRAY_AREF(arr, i));
+        seq.push_back(getString(RARRAY_AREF(arr, i)));
     }
     return true;
 }
@@ -393,7 +393,7 @@ IceRuby::stringSeqToArray(const vector<string>& seq)
     {
         for(vector<string>::const_iterator p = seq.begin(); p != seq.end(); ++p, ++i)
         {
-            RARRAY_PTR(result)[i] = createString(*p);
+            RARRAY_ASET(result, i, createString(*p));
         }
     }
     return result;
@@ -699,7 +699,7 @@ setExceptionMembers(const Ice::LocalException& ex, VALUE p)
         m = createEncodingVersion(e.supported);
         callRuby(rb_iv_set, p, "@supported", m);
     }
-    catch(const Ice::NoObjectFactoryException& e)
+    catch(const Ice::NoValueFactoryException& e)
     {
         volatile VALUE v;
         v = createString(e.reason);
@@ -761,7 +761,7 @@ IceRuby::convertLocalException(const Ice::LocalException& ex)
     //
     try
     {
-        string name = ex.ice_name();
+        string name = ex.ice_id().substr(2);
         volatile VALUE cls = callRuby(rb_path2class, name.c_str());
         if(NIL_P(cls))
         {
@@ -777,7 +777,7 @@ IceRuby::convertLocalException(const Ice::LocalException& ex)
     }
     catch(...)
     {
-        string msg = "failure occurred while converting exception " + ex.ice_name();
+        string msg = "failure occurred while converting exception " + ex.ice_id();
         return rb_exc_new2(rb_eRuntimeError, msg.c_str());
     }
 }

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,6 +9,8 @@
 
 #ifndef ICE_UTIL_OPTIONAL_H
 #define ICE_UTIL_OPTIONAL_H
+
+#ifndef ICE_CPP11_MAPPING
 
 #include <IceUtil/Config.h>
 
@@ -85,33 +87,44 @@ public:
         return *this;
     }
 
-    const T& get() const
+    const T& value() const
     {
         checkIsSet();
         return _value;
     }
-    T& get()
+
+    T& value()
     {
         checkIsSet();
         return _value;
+    }
+
+    const T& get() const
+    {
+        return value();
+    }
+
+    T& get()
+    {
+        return value();
     }
 
     const T* operator->() const
     {
-        return &get();
+        return &value();
     }
     T* operator->()
     {
-        return &get();
+        return &value();
     }
 
     const T& operator*() const
     {
-        return get();
+        return value();
     }
     T& operator*()
     {
-        return get();
+        return value();
     }
 
     operator bool() const
@@ -319,4 +332,5 @@ inline bool operator>=(const Y& lhs, const Optional<T>& rhs)
 
 }
 
+#endif
 #endif

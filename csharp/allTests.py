@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -65,7 +65,7 @@ tests = [
     ("Ice/plugin", ["core"]),
     ("Ice/optional", ["core"]),
     ("Ice/admin", ["core"]),
-    ("Ice/metrics", ["core", "nossl", "nows", "noipv6", "nocompress", "nosocks"]),
+    ("Ice/metrics", ["core", "nows", "noipv6", "nocompress", "nosocks"]),
     ("Ice/enums", ["core"]),
     ("Ice/serialize", ["core"]),
     ("Ice/networkProxy", ["core", "noipv6", "nosocks"]),

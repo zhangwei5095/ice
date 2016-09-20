@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -14,6 +14,10 @@
 #include <Ice/Identity.ice>
 #include <Ice/Version.ice>
 #include <Ice/BuiltinSequences.ice>
+
+#ifndef __SLICE2JAVA_COMPAT__
+[["java:package:com.zeroc"]]
+#endif
 
 ["objc:prefix:ICE"]
 module Ice
@@ -69,7 +73,7 @@ local exception CollocationOptimizationException
  * the Ice run time.
  *
  * This exception is raised if an attempt is made to register a
- * servant, servant locator, facet, object factory, plug-in, object
+ * servant, servant locator, facet, value factory, plug-in, object
  * adapter, object, or user exception factory more than once for the
  * same ID.
  *
@@ -80,7 +84,7 @@ local exception AlreadyRegisteredException
     /**
      *
      * The kind of object that is registered already: "servant",
-     * "servant locator", "object factory", "plug-in",
+     * "servant locator", "value factory", "plug-in",
      * "object adapter", "object", or "user exception factory".
      *
      **/
@@ -100,7 +104,7 @@ local exception AlreadyRegisteredException
  * registered with the Ice run time or Ice locator.
  *
  * This exception is raised if an attempt is made to remove a servant,
- * servant locator, facet, object factory, plug-in, object adapter,
+ * servant locator, facet, value factory, plug-in, object adapter,
  * object, or user exception factory that is not currently registered.
  *
  * It's also raised if the Ice locator can't find an object or object
@@ -114,7 +118,7 @@ local exception NotRegisteredException
     /**
      *
      * The kind of object that could not be removed: "servant",
-     * "servant locator", "object factory", "plug-in",
+     * "servant locator", "value factory", "plug-in",
      * "object adapter", "object", or "user exception factory".
      *
      **/
@@ -513,7 +517,6 @@ local exception SocketException extends SyscallException
  * This exception indicates CFNetwork errors.
  *
  **/
-#ifdef ICE_USE_CFSTREAM
 ["cpp:ice_print"]
 local exception CFNetworkException extends SocketException
 {
@@ -524,7 +527,6 @@ local exception CFNetworkException extends SocketException
      **/
     string domain;
 };
-#endif
 
 /**
  *
@@ -888,16 +890,17 @@ local exception UnmarshalOutOfBoundsException extends MarshalException
 
 /**
  *
- * This exception is raised if no suitable object factory was found during
+ * This exception is raised if no suitable value factory was found during
  * unmarshaling of a Slice class instance.
  *
- * @see ObjectFactory
- * @see Communicator#addObjectFactory
- * @see Communicator#findObjectFactory
+ * @see ValueFactory
+ * @see Communicator#getValueFactoryManager
+ * @see ValueFactoryManager#add
+ * @see ValueFactoryManager#find
  *
  **/
 ["cpp:ice_print"]
-local exception NoObjectFactoryException extends MarshalException
+local exception NoValueFactoryException extends MarshalException
 {
     /**
      *
@@ -915,7 +918,7 @@ local exception NoObjectFactoryException extends MarshalException
  * This can happen if client and server are compiled with mismatched Slice
  * definitions or if a class of the wrong type is passed as a parameter
  * or return value using dynamic invocation. This exception can also be
- * raised if {@link IceStorm} is used to send Slice class instances and
+ * raised if IceStorm is used to send Slice class instances and
  * an operation is subscribed to the wrong topic.
  *
  **/
@@ -1031,4 +1034,3 @@ local exception ResponseSentException
 
 
 };
-

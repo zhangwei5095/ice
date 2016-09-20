@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -31,16 +31,14 @@
 namespace IceUtil
 {
 
-class ICE_UTIL_API SimpleShared
+class ICE_API SimpleShared
 {
 public:
 
     SimpleShared();
     SimpleShared(const SimpleShared&);
 
-    virtual ~SimpleShared()
-    {
-    }
+    virtual ~SimpleShared();
 
     SimpleShared& operator=(const SimpleShared&)
     {
@@ -81,7 +79,7 @@ private:
     bool _noDelete;
 };
 
-class ICE_UTIL_API Shared
+class ICE_API Shared
 {
 public:
 

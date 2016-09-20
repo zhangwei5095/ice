@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -10,13 +10,14 @@
 #include <IceUtil/DisableWarnings.h>
 #include <IceUtil/FileUtil.h>
 #include <IceGrid/FileUserAccountMapperI.h>
+#include <fstream>
 
 using namespace std;
 using namespace IceGrid;
 
 FileUserAccountMapperI::FileUserAccountMapperI(const string& filename)
 {
-    IceUtilInternal::ifstream file(filename); // filename is a UTF-8 string
+    ifstream file(IceUtilInternal::streamFilename(filename).c_str()); // filename is a UTF-8 string
     if(!file)
     {
         throw "cannot open `" + filename + "' for reading: " + strerror(errno);

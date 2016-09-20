@@ -1,7 +1,7 @@
 <?
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -25,7 +25,8 @@ function test($b)
     if(!$b)
     {
         $bt = debug_backtrace();
-        die("\ntest failed in ".$bt[0]["file"]." line ".$bt[0]["line"]."\n");
+        echo "\ntest failed in ".$bt[0]["file"]." line ".$bt[0]["line"]."\n";
+        exit(1);
     }
 }
 
@@ -41,6 +42,123 @@ function twoways($communicator, $p)
     $myDerivedClass = $NS ? "Test\\MyDerivedClass" : "Test_MyDerivedClass";
     $myClass = $NS ? "Test\\MyClass" : "Test_MyClass";
     $objectPrxHelper = $NS ? "Ice\\ObjectPrxHelper" : "Ice_ObjectPrxHelper";
+
+
+    $s0 = $NS ? constant("Test\\s0") : constant("Test_s0");
+    $s1 = $NS ? constant("Test\\s1") : constant("Test_s1");
+    $s2 = $NS ? constant("Test\\s2") : constant("Test_s2");
+    $s3 = $NS ? constant("Test\\s3") : constant("Test_s3");
+    $s4 = $NS ? constant("Test\\s4") : constant("Test_s4");
+    $s5 = $NS ? constant("Test\\s5") : constant("Test_s5");
+    $s6 = $NS ? constant("Test\\s6") : constant("Test_s6");
+    $s7 = $NS ? constant("Test\\s7") : constant("Test_s7");
+    $s8 = $NS ? constant("Test\\s8") : constant("Test_s8");
+    $s9 = $NS ? constant("Test\\s9") : constant("Test_s9");
+    $s10 = $NS ? constant("Test\\s10") : constant("Test_s10");
+
+    $sw0 = $NS ? constant("Test\\sw0") : constant("Test_sw0");
+    $sw1 = $NS ? constant("Test\\sw1") : constant("Test_sw1");
+    $sw2 = $NS ? constant("Test\\sw2") : constant("Test_sw2");
+    $sw3 = $NS ? constant("Test\\sw3") : constant("Test_sw3");
+    $sw4 = $NS ? constant("Test\\sw4") : constant("Test_sw4");
+    $sw5 = $NS ? constant("Test\\sw5") : constant("Test_sw5");
+    $sw6 = $NS ? constant("Test\\sw6") : constant("Test_sw6");
+    $sw7 = $NS ? constant("Test\\sw7") : constant("Test_sw7");
+    $sw8 = $NS ? constant("Test\\sw8") : constant("Test_sw8");
+    $sw9 = $NS ? constant("Test\\sw9") : constant("Test_sw9");
+    $sw10 = $NS ? constant("Test\\sw10") : constant("Test_sw10");
+
+    $ss0 = $NS ? constant("Test\\ss0") : constant("Test_ss0");
+    $ss1 = $NS ? constant("Test\\ss1") : constant("Test_ss1");
+    $ss2 = $NS ? constant("Test\\ss2") : constant("Test_ss2");
+    $ss3 = $NS ? constant("Test\\ss3") : constant("Test_ss3");
+    $ss4 = $NS ? constant("Test\\ss4") : constant("Test_ss4");
+    $ss5 = $NS ? constant("Test\\ss5") : constant("Test_ss5");
+
+    $su0 = $NS ? constant("Test\\su0") : constant("Test_su0");
+    $su1 = $NS ? constant("Test\\su1") : constant("Test_su1");
+    $su2 = $NS ? constant("Test\\su2") : constant("Test_su2");
+
+    {
+        $literals = $p->opStringLiterals();
+
+        test($s0 == "\\" &&
+             $s0 == $sw0 &&
+             $s0 == $literals[0] &&
+             $s0 == $literals[11]);
+
+        test($s1 == "A" &&
+             $s1 == $sw1 &&
+             $s1 == $literals[1] &&
+             $s1 == $literals[12]);
+
+        test($s2 == "Ice" &&
+             $s2 == $sw2 &&
+             $s2 == $literals[2] &&
+             $s2 == $literals[13]);
+
+        test($s3 == "A21" &&
+             $s3 == $sw3 &&
+             $s3 == $literals[3] &&
+             $s3 == $literals[14]);
+
+        test($s4 == "\\u0041 \\U00000041" &&
+             $s4 == $sw4 &&
+             $s4 == $literals[4] &&
+             $s4 == $literals[15]);
+
+        test($s5 == "\xc3\xbf" &&
+             $s5 == $sw5 &&
+             $s5 == $literals[5] &&
+             $s5 == $literals[16]);
+
+        test($s6 == "\xcf\xbf" &&
+             $s6 == $sw6 &&
+             $s6 == $literals[6] &&
+             $s6 == $literals[17]);
+
+        test($s7 == "\xd7\xb0" &&
+             $s7 == $sw7 &&
+             $s7 == $literals[7] &&
+             $s7 == $literals[18]);
+
+        test($s8 == "\xf0\x90\x80\x80" &&
+             $s8 == $sw8 &&
+             $s8 == $literals[8] &&
+             $s8 == $literals[19]);
+
+        test($s9 == "\xf0\x9f\x8d\x8c" &&
+             $s9 == $sw9 &&
+             $s9 == $literals[9] &&
+             $s9 == $literals[20]);
+
+        test($s10 == "\xe0\xb6\xa7" &&
+             $s10 == $sw10 &&
+             $s10 == $literals[10] &&
+             $s10 == $literals[21]);
+
+        test($ss0 == "'\"?\\\007\010\f\n\r\t\v" &&
+             $ss0 == $ss1 &&
+             $ss1 == $ss2 &&
+             $ss0 == $literals[22] &&
+             $ss0 == $literals[23] &&
+             $ss0 == $literals[24]);
+
+        test($ss3 == "\\\\U\\u\\" &&
+             $ss3 == $literals[25]);
+
+        test($ss4 == "\\A\\" &&
+             $ss4 == $literals[26]);
+
+        test($ss5 == "\\u0041\\" &&
+             $ss5 == $literals[27]);
+
+        test($su0 == $su1 &&
+             $su0 == $su2 &&
+             $su0 == $literals[28] &&
+             $su0 == $literals[29] &&
+             $su0 == $literals[30]);
+    }
 
     {
         $p->ice_ping();
@@ -186,6 +304,17 @@ function twoways($communicator, $p)
         $r = $p->opFloatDouble(3.402823466E38, 0.0, $f, $d);
         $r = $p->opFloatDouble(-3.402823466E38, 0.0, $f, $d);
 
+        foreach(array(NAN, -NAN) as $val)
+        {
+            $r = $p->opFloatDouble($val, $val, $f, $d);
+            test(is_nan($r) && is_nan($f) && is_nan($d));
+        }
+        foreach(array(INF, -INF) as $val)
+        {
+            $r = $p->opFloatDouble($val, $val, $f, $d);
+            test(is_infinite($r) && is_infinite($f) && is_infinite($d));
+        }
+
         try
         {
             $r = $p->opFloatDouble(3.402823466E38*2, 0.0, $f, $d);
@@ -227,13 +356,15 @@ function twoways($communicator, $p)
     }
 
     {
+        $stringToIdentity = $NS ? "Ice\\stringToIdentity" : "Ice_stringToIdentity";
+
         $r = $p->opMyClass($p, $c1, $c2);
         test(Ice_proxyIdentityAndFacetEqual($c1, $p));
         test(!Ice_proxyIdentityAndFacetEqual($c2, $p));
         test(Ice_proxyIdentityAndFacetEqual($r, $p));
-        test($c1->ice_getIdentity() == $communicator->stringToIdentity("test"));
-        test($c2->ice_getIdentity() == $communicator->stringToIdentity("noSuchIdentity"));
-        test($r->ice_getIdentity() == $communicator->stringToIdentity("test"));
+        test($c1->ice_getIdentity() == $stringToIdentity("test"));
+        test($c2->ice_getIdentity() == $stringToIdentity("noSuchIdentity"));
+        test($r->ice_getIdentity() == $stringToIdentity("test"));
         $r->opVoid();
         $c1->opVoid();
         try
@@ -931,6 +1062,30 @@ function twoways($communicator, $p)
     test(count($p->opByteBoolD1(null)) == 0);
     test(count($p->opStringS2(null)) == 0);
     test(count($p->opByteBoolD2(null)) == 0);
+
+    {
+        $p1 = $p->opMStruct1();
+        $p1->e = $enum3;
+        $p2 = null;
+        $p3 = $p->opMStruct2($p1, $p2);
+        test($p2 == $p1 && $p3 == $p1);
+    }
+
+    {
+        $p->opMSeq1();
+        $p1 = array("test");
+        $p2 = null;
+        $p3 = $p->opMSeq2($p1, $p2);
+        test($p2[0] == "test" && $p3[0] == "test");
+    }
+
+    {
+        $p->opMDict1();
+        $p1 = array("test" => "test");
+        $p2 = null;
+        $p3 = $p->opMDict2($p1, $p2);
+        test($p3["test"] == "test" && $p2["test"] == "test");
+    }
 }
 
 function allTests($communicator)

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -29,38 +29,45 @@ protected:
 
     enum ParamDir { InParam, OutParam };
 
-    
-    ParamDeclList getOutParams(const OperationPtr&);
-    
+    struct DocComment : public IceUtil::SimpleShared
+    {
+        std::string overview;
+        std::map<std::string, std::string> params;
+        std::map<std::string, std::string> exceptions;
+        std::string returns;
+        bool deprecated;
+        std::string deprecateReason;
+        std::string misc;
+    };
+    typedef IceUtil::Handle<DocComment> DocCommentPtr;
+
+    std::string getResultType(const OperationPtr&, const std::string&, bool, bool);
+    void writeResultType(::IceUtilInternal::Output&, const OperationPtr&, const std::string&, const DocCommentPtr&);
+    void writeMarshaledResultType(::IceUtilInternal::Output&, const OperationPtr&, const std::string&,
+                                  const DocCommentPtr&);
+
+    void allocatePatcher(::IceUtilInternal::Output&, const TypePtr&, const std::string&, const std::string&);
+    std::string getPatcher(const TypePtr&, const std::string&, const std::string&, bool);
+
+    std::string getFutureType(const OperationPtr&, const std::string&);
+    std::string getFutureImplType(const OperationPtr&, const std::string&);
+
     //
     // Compose the parameter lists for an operation.
     //
-    std::vector<std::string> getParams(const OperationPtr&, const std::string&, bool, bool);
-    std::vector<std::string> getParamsProxy(const OperationPtr&, const std::string&, bool, bool);
-    std::vector<std::string> getInOutParams(const OperationPtr&, const std::string&, ParamDir, bool, bool);
-    std::vector<std::string> getParamsAsync(const OperationPtr&, const std::string&, bool, bool);
-    std::vector<std::string> getParamsAsyncCB(const OperationPtr&, const std::string&, bool, bool);
-    
-    std::string getAsyncCallbackInterface(const OperationPtr&, const std::string&);
-    std::string getAsyncCallbackBaseClass(const OperationPtr&, bool);
-    std::string getLambdaResposeCB(const OperationPtr&, const std::string&);
-    std::vector<std::string> getParamsAsyncLambda(const OperationPtr&, const std::string&, 
-                                                  bool context = false, bool sentCB = false, 
-                                                  bool optionalMapping = false,
-                                                  bool inParams = true);
-    std::vector<std::string> getArgsAsyncLambda(const OperationPtr&, const std::string&, 
-                                                bool context = false, bool sentCB = false);
+    std::vector<std::string> getParams(const OperationPtr&, const std::string&);
+    std::vector<std::string> getParamsProxy(const OperationPtr&, const std::string&, bool);
 
     //
     // Compose the argument lists for an operation.
     //
     std::vector<std::string> getArgs(const OperationPtr&);
-    std::vector<std::string> getInOutArgs(const OperationPtr&, ParamDir);
-    std::vector<std::string> getArgsAsync(const OperationPtr&);
-    std::vector<std::string> getArgsAsyncCB(const OperationPtr&);
+    std::vector<std::string> getInArgs(const OperationPtr&, bool = false);
 
-    void writeMarshalUnmarshalParams(::IceUtilInternal::Output&, const std::string&, const ParamDeclList&,
-                                     const OperationPtr&, int&, bool, bool, bool = false);
+    void writeMarshalProxyParams(::IceUtilInternal::Output&, const std::string&, const OperationPtr&, bool);
+    void writeUnmarshalProxyResults(::IceUtilInternal::Output&, const std::string&, const OperationPtr&);
+    void writeMarshalServantResults(::IceUtilInternal::Output&, const std::string&, const OperationPtr&,
+                                    const std::string&);
 
     //
     // Generate a throws clause containing only non-local exceptions.
@@ -77,21 +84,17 @@ protected:
     // Marshal/unmarshal a data member.
     //
     void writeMarshalDataMember(::IceUtilInternal::Output&, const std::string&, const DataMemberPtr&, int&);
-    void writeUnmarshalDataMember(::IceUtilInternal::Output&, const std::string&, const DataMemberPtr&, int&,
-                                  bool, int&);
-    void writeStreamMarshalDataMember(::IceUtilInternal::Output&, const std::string&, const DataMemberPtr&, int&);
-    void writeStreamUnmarshalDataMember(::IceUtilInternal::Output&, const std::string&, const DataMemberPtr&, int&,
-                                        bool, int&);
+    void writeUnmarshalDataMember(::IceUtilInternal::Output&, const std::string&, const DataMemberPtr&, int&);
 
     //
-    // Generate a patcher class.
+    // Generate dispatch methods for a class or interface.
     //
-    void writePatcher(::IceUtilInternal::Output&, const std::string&, const DataMemberList&, const DataMemberList&, bool);
+    void writeDispatch(::IceUtilInternal::Output&, const ClassDefPtr&);
 
     //
-    // Generate dispatch and marshalling methods for a class or interface.
+    // Generate marshaling methods for a class or interface.
     //
-    void writeDispatchAndMarshalling(::IceUtilInternal::Output&, const ClassDefPtr&, bool);
+    void writeMarshaling(::IceUtilInternal::Output&, const ClassDefPtr&);
 
     //
     // Write a constant or default value initializer.
@@ -105,18 +108,17 @@ protected:
     void writeDataMemberInitializers(::IceUtilInternal::Output&, const DataMemberList&, const std::string&);
 
     //
-    // Write doc comments.
+    // Handle doc comments.
     //
     static StringList splitComment(const ContainedPtr&);
-    static void writeDocComment(::IceUtilInternal::Output&, const ContainedPtr&,
-                                const std::string&, const std::string& = "");
-    static void writeDocCommentOp(::IceUtilInternal::Output&, const OperationPtr&);
-
-    static void writeDocCommentAsync(::IceUtilInternal::Output&, const OperationPtr&,
-                                     ParamDir, const std::string& = "");
-    static void writeDocCommentAMI(::IceUtilInternal::Output&, const OperationPtr&, ParamDir, const std::string& = "",
-                                   const std::string& = "", const std::string& = "");
-    static void writeDocCommentParam(::IceUtilInternal::Output&, const OperationPtr&, ParamDir, bool = true);
+    DocCommentPtr parseDocComment(const ContainedPtr&);
+    void writeDocCommentLines(::IceUtilInternal::Output&, const std::string&);
+    void writeDocComment(::IceUtilInternal::Output&, const DocCommentPtr&);
+    void writeDocComment(::IceUtilInternal::Output&, const std::string&);
+    void writeProxyDocComment(::IceUtilInternal::Output&, const OperationPtr&, const std::string&, const DocCommentPtr&,
+                              bool, bool);
+    void writeServantDocComment(::IceUtilInternal::Output&, const OperationPtr&, const std::string&,
+                                const DocCommentPtr&, bool);
 };
 
 class Gen : private ::IceUtil::noncopyable
@@ -129,10 +131,8 @@ public:
         const std::string&);
     ~Gen();
 
-    void generate(const UnitPtr&, bool);
-    void generateTie(const UnitPtr&);
+    void generate(const UnitPtr&);
     void generateImpl(const UnitPtr&);
-    void generateImplTie(const UnitPtr&);
 
     static void writeChecksumClass(const std::string&, const std::string&, const ChecksumMap&);
 
@@ -141,27 +141,6 @@ private:
     std::string _base;
     std::vector<std::string> _includePaths;
     std::string _dir;
-
-    class OpsVisitor : public JavaVisitor
-    {
-    public:
-
-        OpsVisitor(const std::string&);
-
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-
-    private:
-        void writeOperations(const ClassDefPtr&, bool);
-    };
-
-    class TieVisitor : public JavaVisitor
-    {
-    public:
-
-        TieVisitor(const std::string&);
-
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-    };
 
     class PackageVisitor : public JavaVisitor
     {
@@ -176,10 +155,11 @@ private:
     {
     public:
 
-        TypesVisitor(const std::string&, bool);
+        TypesVisitor(const std::string&);
 
         virtual bool visitClassDefStart(const ClassDefPtr&);
         virtual void visitClassDefEnd(const ClassDefPtr&);
+        virtual void visitOperation(const OperationPtr&);
         virtual bool visitExceptionStart(const ExceptionPtr&);
         virtual void visitExceptionEnd(const ExceptionPtr&);
         virtual bool visitStructStart(const StructPtr&);
@@ -194,8 +174,6 @@ private:
         // Verifies that a data member method does not conflict with an operation.
         //
         bool validateMethod(const OperationList&, const std::string&, int, const std::string&, const std::string&);
-
-        bool _stream;
     };
 
     class CompactIdVisitor : public JavaVisitor
@@ -207,40 +185,14 @@ private:
         virtual bool visitClassDefStart(const ClassDefPtr&);
     };
 
-    class HolderVisitor : public JavaVisitor
-    {
-    public:
-
-        HolderVisitor(const std::string&);
-
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual bool visitStructStart(const StructPtr&);
-        virtual void visitSequence(const SequencePtr&);
-        virtual void visitDictionary(const DictionaryPtr&);
-        virtual void visitEnum(const EnumPtr&);
-
-    private:
-
-        void writeHolder(const TypePtr&);
-    };
-
     class HelperVisitor : public JavaVisitor
     {
     public:
 
-        HelperVisitor(const std::string&, bool);
+        HelperVisitor(const std::string&);
 
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-        virtual bool visitStructStart(const StructPtr&);
         virtual void visitSequence(const SequencePtr&);
         virtual void visitDictionary(const DictionaryPtr&);
-        virtual void visitEnum(const EnumPtr&);
-
-    private:
-
-        void writeOperation(const ClassDefPtr&, const std::string&, const OperationPtr&, bool);
-
-        bool _stream;
     };
 
     class ProxyVisitor : public JavaVisitor
@@ -258,66 +210,35 @@ private:
     {
     public:
 
-        DispatcherVisitor(const std::string&, bool);
+        DispatcherVisitor(const std::string&);
 
         virtual bool visitClassDefStart(const ClassDefPtr&);
-
-    private:
-
-        bool _stream;
     };
 
-    class BaseImplVisitor : public JavaVisitor
-    {
-    public:
-
-        BaseImplVisitor(const std::string&);
-
-    protected:
-
-        //
-        // Generate code to emit a local variable declaration and initialize it
-        // if necessary.
-        //
-        void writeDecl(::IceUtilInternal::Output&, const std::string&, const std::string&, const TypePtr&,
-                       const StringList&, bool);
-
-        //
-        // Generate code to return a value.
-        //
-        void writeReturn(::IceUtilInternal::Output&, const TypePtr&, bool);
-
-        //
-        // Generate an operation.
-        //
-        void writeOperation(::IceUtilInternal::Output&, const std::string&, const OperationPtr&, bool);
-    };
-
-    class ImplVisitor : public BaseImplVisitor
+    class ImplVisitor : public JavaVisitor
     {
     public:
 
         ImplVisitor(const std::string&);
 
         virtual bool visitClassDefStart(const ClassDefPtr&);
-    };
 
-    class ImplTieVisitor : public BaseImplVisitor
-    {
-    public:
+    protected:
 
-        ImplTieVisitor(const std::string&);
+        //
+        // Returns a default value for the type.
+        //
+        std::string getDefaultValue(const std::string&, const TypePtr&, bool);
 
-        virtual bool visitClassDefStart(const ClassDefPtr&);
-    };
+        //
+        // Generate code to initialize the operation result.
+        //
+        bool initResult(::IceUtilInternal::Output&, const std::string&, const OperationPtr&);
 
-    class AsyncVisitor : public JavaVisitor
-    {
-    public:
-
-        AsyncVisitor(const std::string&);
-
-        virtual void visitOperation(const OperationPtr&);
+        //
+        // Generate an operation.
+        //
+        void writeOperation(::IceUtilInternal::Output&, const std::string&, const OperationPtr&, bool);
     };
 };
 

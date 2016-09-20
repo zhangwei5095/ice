@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -16,12 +16,12 @@
 #include <Ice/Exception.h>
 
 //
-// These macros replace Py_RETURN_FALSE and Py_RETURN TRUE. We use these
+// These macros replace Py_RETURN_FALSE and Py_RETURN_TRUE. We use these
 // instead of the standard ones in order to avoid GCC warnings about
 // strict aliasing and type punning.
 //
-#define PyRETURN_FALSE return Py_INCREF(getFalse()), getFalse()
-#define PyRETURN_TRUE return Py_INCREF(getTrue()), getTrue()
+#define PyRETURN_FALSE return incFalse()
+#define PyRETURN_TRUE return incTrue()
 
 #define PyRETURN_BOOL(b) if(b) PyRETURN_TRUE; else PyRETURN_FALSE
 
@@ -54,6 +54,20 @@ inline PyObject* getTrue()
     PyIntObject* i = &_Py_TrueStruct;
     return reinterpret_cast<PyObject*>(i);
 #endif
+}
+
+inline PyObject* incFalse()
+{
+    PyObject* f = getFalse();
+    Py_INCREF(f);
+    return f;
+}
+
+inline PyObject* incTrue()
+{
+    PyObject* t = getTrue();
+    Py_INCREF(t);
+    return t;
 }
 
 //

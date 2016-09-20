@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -55,7 +55,7 @@ TransientTopicManagerImpl::create(const string& name, const Ice::Current&)
     {
         Ice::Trace out(traceLevels->logger, traceLevels->topicMgrCat);
         out << "creating new topic \"" << name << "\". id: "
-            << _instance->communicator()->identityToString(id);
+            << identityToString(id);
     }
 
     //

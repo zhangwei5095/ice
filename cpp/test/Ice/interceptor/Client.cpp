@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -86,8 +86,8 @@ public:
 
 private:
 
-    int run(const Test::MyObjectPrx&, const InterceptorIPtr&);
-    int runAmd(const Test::MyObjectPrx&, const AMDInterceptorIPtr&);
+    int run(const Test::MyObjectPrxPtr&, const InterceptorIPtr&);
+    int runAmd(const Test::MyObjectPrxPtr&, const AMDInterceptorIPtr&);
 };
 
 #ifndef _WIN32
@@ -152,12 +152,12 @@ Client::run(int, char*[])
     //
     Ice::ObjectAdapterPtr oa = communicator()->createObjectAdapterWithEndpoints("MyOA", "tcp -h localhost");
 
-    Ice::ObjectPtr servant = new MyObjectI;
-    InterceptorIPtr interceptor = new InterceptorI(servant);
-    AMDInterceptorIPtr amdInterceptor = new AMDInterceptorI(servant);
+    Ice::ObjectPtr servant = ICE_MAKE_SHARED(MyObjectI);
+    InterceptorIPtr interceptor = ICE_MAKE_SHARED(InterceptorI, servant);
+    AMDInterceptorIPtr amdInterceptor = ICE_MAKE_SHARED(AMDInterceptorI, servant);
 
-    Test::MyObjectPrx prx = Test::MyObjectPrx::uncheckedCast(oa->addWithUUID(interceptor));
-    Test::MyObjectPrx prxForAMD = Test::MyObjectPrx::uncheckedCast(oa->addWithUUID(amdInterceptor));
+    Test::MyObjectPrxPtr prx = ICE_UNCHECKED_CAST(Test::MyObjectPrx, oa->addWithUUID(interceptor));
+    Test::MyObjectPrxPtr prxForAMD = ICE_UNCHECKED_CAST(Test::MyObjectPrx, oa->addWithUUID(amdInterceptor));
 
     cout << "Collocation optimization on" << endl;
     int rs = run(prx, interceptor);
@@ -177,7 +177,7 @@ Client::run(int, char*[])
 
     cout << "Collocation optimization off" << endl;
     interceptor->clear();
-    prx = Test::MyObjectPrx::uncheckedCast(prx->ice_collocationOptimized(false));
+    prx = ICE_UNCHECKED_CAST(Test::MyObjectPrx, prx->ice_collocationOptimized(false));
     rs = run(prx, interceptor);
     if(rs != 0)
     {
@@ -186,7 +186,7 @@ Client::run(int, char*[])
 
     cout << "Now with AMD" << endl;
     amdInterceptor->clear();
-    prxForAMD = Test::MyObjectPrx::uncheckedCast(prxForAMD->ice_collocationOptimized(false));
+    prxForAMD = ICE_UNCHECKED_CAST(Test::MyObjectPrx, prxForAMD->ice_collocationOptimized(false));
     rs = runAmd(prxForAMD, amdInterceptor);
 
     return rs;
@@ -194,27 +194,27 @@ Client::run(int, char*[])
 
 
 int
-Client::run(const Test::MyObjectPrx& prx, const InterceptorIPtr& interceptor)
+Client::run(const Test::MyObjectPrxPtr& prx, const InterceptorIPtr& interceptor)
 {
     cout << "testing simple interceptor... " << flush;
     test(interceptor->getLastOperation().empty());
     prx->ice_ping();
     test(interceptor->getLastOperation() == "ice_ping");
-    test(interceptor->getLastStatus() == Ice::DispatchOK);
+    test(!interceptor->getLastStatus());
     string typeId = prx->ice_id();
     test(interceptor->getLastOperation() == "ice_id");
-    test(interceptor->getLastStatus() == Ice::DispatchOK);
+    test(!interceptor->getLastStatus());
     test(prx->ice_isA(typeId));
     test(interceptor->getLastOperation() == "ice_isA");
-    test(interceptor->getLastStatus() == Ice::DispatchOK);
+    test(!interceptor->getLastStatus());
     test(prx->add(33, 12) == 45);
     test(interceptor->getLastOperation() == "add");
-    test(interceptor->getLastStatus() == Ice::DispatchOK);
+    test(!interceptor->getLastStatus());
     cout << "ok" << endl;
     cout << "testing retry... " << flush;
     test(prx->addWithRetry(33, 12) == 45);
     test(interceptor->getLastOperation() == "addWithRetry");
-    test(interceptor->getLastStatus() == Ice::DispatchOK);
+    test(!interceptor->getLastStatus());
     cout << "ok" << endl;
     cout << "testing user exception... " << flush;
     try
@@ -227,7 +227,7 @@ Client::run(const Test::MyObjectPrx& prx, const InterceptorIPtr& interceptor)
         // expected
     }
     test(interceptor->getLastOperation() == "badAdd");
-    test(interceptor->getLastStatus() == Ice::DispatchUserException);
+    test(!interceptor->getLastStatus());
     cout << "ok" << endl;
     cout << "testing ONE... " << flush;
 
@@ -268,27 +268,25 @@ Client::run(const Test::MyObjectPrx& prx, const InterceptorIPtr& interceptor)
     cout << "testing simple AMD... " << flush;
     test(prx->amdAdd(33, 12) == 45);
     test(interceptor->getLastOperation() == "amdAdd");
-    test(interceptor->getLastStatus() == Ice::DispatchAsync);
+    test(interceptor->getLastStatus());
     cout << "ok" << endl;
 
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 int
-Client::runAmd(const Test::MyObjectPrx& prx, const AMDInterceptorIPtr& interceptor)
+Client::runAmd(const Test::MyObjectPrxPtr& prx, const AMDInterceptorIPtr& interceptor)
 {
     cout << "testing simple interceptor... " << flush;
     test(interceptor->getLastOperation().empty());
     test(prx->amdAdd(33, 12) == 45);
     test(interceptor->getLastOperation() == "amdAdd");
-    test(interceptor->getLastStatus() == Ice::DispatchAsync);
-    test(interceptor->getActualStatus() == Ice::DispatchOK);
+    test(interceptor->getLastStatus());
     cout << "ok" << endl;
     cout << "testing retry... " << flush;
     test(prx->amdAddWithRetry(33, 12) == 45);
     test(interceptor->getLastOperation() == "amdAddWithRetry");
-    test(interceptor->getLastStatus() == Ice::DispatchAsync);
-    test(interceptor->getActualStatus() == Ice::DispatchOK);
+    test(interceptor->getLastStatus());
     cout << "ok" << endl;
     cout << "testing user exception... " << flush;
     try
@@ -301,8 +299,7 @@ Client::runAmd(const Test::MyObjectPrx& prx, const AMDInterceptorIPtr& intercept
         // expected
     }
     test(interceptor->getLastOperation() == "amdBadAdd");
-    test(interceptor->getLastStatus() == Ice::DispatchAsync);
-    test(interceptor->getActualStatus() == Ice::DispatchUserException);
+    test(interceptor->getLastStatus());
     cout << "ok" << endl;
     cout << "testing ONE... " << flush;
     interceptor->clear();
@@ -316,9 +313,10 @@ Client::runAmd(const Test::MyObjectPrx& prx, const AMDInterceptorIPtr& intercept
         // expected
     }
     test(interceptor->getLastOperation() == "amdNotExistAdd");
-    test(interceptor->getLastStatus() == Ice::DispatchAsync);
-    test(interceptor->getActualStatus() == Ice::DispatchAsync);
+    test(interceptor->getLastStatus());
+
     test(dynamic_cast<Ice::ObjectNotExistException*>(interceptor->getException()) != 0);
+
     cout << "ok" << endl;
     cout << "testing system exception... " << flush;
     interceptor->clear();
@@ -336,9 +334,8 @@ Client::runAmd(const Test::MyObjectPrx& prx, const AMDInterceptorIPtr& intercept
         test(prx->ice_isCollocationOptimized());
     }
     test(interceptor->getLastOperation() == "amdBadSystemAdd");
-    test(interceptor->getLastStatus() == Ice::DispatchAsync);
-    test(interceptor->getActualStatus() == Ice::DispatchAsync);
+    test(interceptor->getLastStatus());
     test(dynamic_cast<MySystemException*>(interceptor->getException()) != 0);
     cout << "ok" << endl;
-    return 0;
+    return EXIT_SUCCESS;
 }

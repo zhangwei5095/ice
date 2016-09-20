@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -164,7 +164,7 @@ IcePy::ServantLocatorWrapper::locate(const Ice::Current& current, Ice::LocalObje
         PyObject* userExceptionType = lookupType("Ice.UserException");
         if(PyObject_IsInstance(ex.ex.get(), userExceptionType))
         {
-            throw ExceptionWriter(current.adapter->getCommunicator(), ex.ex);
+            throw ExceptionWriter(ex.ex);
         }
 
         ex.raise();
@@ -243,7 +243,7 @@ IcePy::ServantLocatorWrapper::finished(const Ice::Current& current, const Ice::O
         PyObject* userExceptionType = lookupType("Ice.UserException");
         if(PyObject_IsInstance(ex.ex.get(), userExceptionType))
         {
-            throw ExceptionWriter(current.adapter->getCommunicator(), ex.ex);
+            throw ExceptionWriter(ex.ex);
         }
 
         ex.raise();

@@ -1,6 +1,6 @@
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -61,6 +61,10 @@ module Ice
     #
     class Exception < ::StandardError
         def ice_name
+            to_s[2..-1]
+        end
+        
+        def ice_id
             to_s
         end
 
@@ -214,6 +218,7 @@ require 'Ice/LocalException.rb'
 require 'Ice/Locator.rb'
 require 'Ice/Logger.rb'
 require 'Ice/ObjectFactory.rb'
+require 'Ice/ValueFactory.rb'
 require 'Ice/Process.rb'
 require 'Ice/Router.rb'
 require 'Ice/Connection.rb'
@@ -339,7 +344,7 @@ module Ice
         def initialize(signalPolicy=HandleSignals)
             @@_signalPolicy = signalPolicy
         end
-        
+
         def main(args, configFile=nil, initData=nil)
             if @@_communicator
                 Ice::getProcessLogger().error($0 + ": only one instance of the Application class can be used")

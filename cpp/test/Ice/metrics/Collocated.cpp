@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -22,17 +22,16 @@ run(int, char**, const Ice::CommunicatorPtr& communicator, const CommunicatorObs
 {
     communicator->getProperties()->setProperty("TestAdapter.Endpoints", "default -p 12010");
     Ice::ObjectAdapterPtr adapter = communicator->createObjectAdapter("TestAdapter");
-    Ice::ObjectPtr object = new MetricsI;
-    adapter->add(object, communicator->stringToIdentity("metrics"));
+    adapter->add(ICE_MAKE_SHARED(MetricsI), Ice::stringToIdentity("metrics"));
     //adapter->activate(); // Don't activate OA to ensure collocation is used.
 
     communicator->getProperties()->setProperty("ControllerAdapter.Endpoints", "default -p 12011");
     Ice::ObjectAdapterPtr controllerAdapter = communicator->createObjectAdapter("ControllerAdapter");
-    controllerAdapter->add(new ControllerI(adapter), communicator->stringToIdentity("controller"));
+    controllerAdapter->add(ICE_MAKE_SHARED(ControllerI, adapter), Ice::stringToIdentity("controller"));
     //controllerAdapter->activate(); // Don't activate OA to ensure collocation is used.
 
-    MetricsPrx allTests(const Ice::CommunicatorPtr&, const CommunicatorObserverIPtr&);
-    MetricsPrx metrics = allTests(communicator, observer);
+    MetricsPrxPtr allTests(const Ice::CommunicatorPtr&, const CommunicatorObserverIPtr&);
+    MetricsPrxPtr metrics = allTests(communicator, observer);
     metrics->shutdown();
     return EXIT_SUCCESS;
 }
@@ -43,10 +42,6 @@ main(int argc, char* argv[])
 #ifdef ICE_STATIC_LIBS
     Ice::registerIceSSL();
 #endif
-
-    int status;
-    Ice::CommunicatorPtr communicator;
-
     try
     {
         Ice::InitializationData initData;
@@ -58,29 +53,14 @@ main(int argc, char* argv[])
         initData.properties->setProperty("Ice.Warn.Dispatch", "0");
         initData.properties->setProperty("Ice.MessageSizeMax", "50000");
         initData.properties->setProperty("Ice.Default.Host", "127.0.0.1");
-        CommunicatorObserverIPtr observer = new CommunicatorObserverI();
+        CommunicatorObserverIPtr observer = ICE_MAKE_SHARED(CommunicatorObserverI);
         initData.observer = observer;
-        communicator = Ice::initialize(argc, argv, initData);
-        status = run(argc, argv, communicator, observer);
+        Ice::CommunicatorHolder ich = Ice::initialize(argc, argv, initData);
+        return run(argc, argv, ich.communicator(), observer);
     }
     catch(const Ice::Exception& ex)
     {
         cerr << ex << endl;
-        status = EXIT_FAILURE;
+        return EXIT_FAILURE;
     }
-
-    if(communicator)
-    {
-        try
-        {
-            communicator->destroy();
-        }
-        catch(const Ice::Exception& ex)
-        {
-            cerr << ex << endl;
-            status = EXIT_FAILURE;
-        }
-    }
-
-    return status;
 }

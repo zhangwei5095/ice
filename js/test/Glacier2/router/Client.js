@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -25,40 +25,43 @@
     var CallbackPrx = Test.CallbackPrx;
     var CallbackReceiverPrx = Test.CallbackReceiverPrx;
 
-    var CallbackReceiverI = function()
+    class CallbackReceiverI extends Test.CallbackReceiver
     {
-        this._callback = false;
-        this._p = new Promise();
-    };
-    CallbackReceiverI.prototype = new Test.CallbackReceiver();
-    CallbackReceiverI.prototype.constructor = CallbackReceiverI;
-
-    CallbackReceiverI.prototype.callback = function(current)
-    {
-        test(!this._callback);
-        this._p.succeed();
-    };
-
-    CallbackReceiverI.prototype.callbackEx = function(current)
-    {
-        this.callback(current);
-        var ex = new Test.CallbackException();
-        ex.someValue = 3.14;
-        ex.someString = "3.14";
-        throw ex;
-    };
-
-    CallbackReceiverI.prototype.callbackOK = function()
-    {
-        var p = new Promise();
-        var self = this;
-        this._p.then(function(){
-            p.succeed();
+        constructor()
+        {
+            super();
             this._callback = false;
-            self._p = new Promise();
-        });
-        return p;
-    };
+            this._p = new Promise();
+        }
+
+
+        callback(current)
+        {
+            test(!this._callback);
+            this._p.resolve();
+        }
+
+        callbackEx(current)
+        {
+            this.callback(current);
+            var ex = new Test.CallbackException();
+            ex.someValue = 3.14;
+            ex.someString = "3.14";
+            throw ex;
+        }
+
+        callbackOK()
+        {
+            var p = new Promise();
+            this._p.then(() =>
+                {
+                    p.resolve();
+                    this._callback = false;
+                    this._p = new Promise();
+                });
+            return p;
+        }
+    }
 
     var allTests = function(out, communicator)
     {
@@ -274,7 +277,7 @@
                 var context = new Ice.Context();
                 context.set("_fwd", "t");
                 var otherCategoryTwoway = CallbackPrx.uncheckedCast(
-                    twoway.ice_identity(communicator.stringToIdentity("c2/callback")));
+                    twoway.ice_identity(Ice.stringToIdentity("c2/callback")));
                 return otherCategoryTwoway.initiateCallback(twowayR, context);
             }
         ).then(
@@ -290,7 +293,7 @@
                 var context = new Ice.Context();
                 context.set("_fwd", "t");
                 var otherCategoryTwoway = CallbackPrx.uncheckedCast(
-                    twoway.ice_identity(communicator.stringToIdentity("c3/callback")));
+                    twoway.ice_identity(Ice.stringToIdentity("c3/callback")));
                 return otherCategoryTwoway.initiateCallback(twowayR, context);
             }
         ).then(
@@ -303,7 +306,7 @@
                 var context = new Ice.Context();
                 context.set("_fwd", "t");
                 var otherCategoryTwoway = CallbackPrx.uncheckedCast(
-                    twoway.ice_identity(communicator.stringToIdentity("_userid/callback")));
+                    twoway.ice_identity(Ice.stringToIdentity("_userid/callback")));
                 return otherCategoryTwoway.initiateCallback(twowayR, context);
             }
         ).then(
@@ -376,7 +379,7 @@
                 test(ex instanceof Ice.LocalException);
                 out.writeLine("ok");
             }
-        );
+        ).catch(e => console.log(e));
     };
 
     var run = function(out, id)

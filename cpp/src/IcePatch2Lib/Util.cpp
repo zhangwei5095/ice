@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -20,8 +20,6 @@
 #include <IceUtil/FileUtil.h>
 #include <IceUtil/SHA1.h>
 #include <IceUtil/Exception.h>
-
-#define ICE_PATCH2_API_EXPORTS
 #include <IcePatch2Lib/Util.h>
 #include <IcePatch2/FileServer.h>
 #include <bzlib.h>
@@ -471,7 +469,7 @@ IcePatch2Internal::readDirectory(const string& pa)
 
     while(true)
     {
-        string name = IceUtil::wstringToString(data.name);
+        string name = wstringToString(data.name);
         assert(!name.empty());
 
         if(name != ".." && name != ".")
@@ -1018,6 +1016,11 @@ getFileInfoSeqInternal(const string& basePath, const string& relPath, int compre
 
 }
 
+IcePatch2Internal::GetFileInfoSeqCB::~GetFileInfoSeqCB()
+{
+    // Out of line to avoid weak vtable
+}
+
 bool
 IcePatch2Internal::getFileInfoSeq(const string& basePath, int compress, GetFileInfoSeqCB* cb,
                                   LargeFileInfoSeq& infoSeq)
@@ -1239,4 +1242,3 @@ IcePatch2Internal::getFileTree0(const LargeFileInfoSeq& infoSeq, FileTree0& tree
         fill(tree0.checksum.begin(), tree0.checksum.end(), 0);
     }
 }
-

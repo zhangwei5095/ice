@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -11,11 +11,12 @@
 #define TEST_I_H
 
 #include <Test.h>
+#include <TestCommon.h>
 
 class TestIntfControllerI;
-typedef IceUtil::Handle<TestIntfControllerI> TestIntfControllerIPtr;
+ICE_DEFINE_PTR(TestIntfControllerIPtr, TestIntfControllerI);
 
-class TestIntfI : virtual public Test::TestIntf, public IceUtil::Monitor<IceUtil::Mutex>
+class TestIntfI : public virtual Test::TestIntf, public IceUtil::Monitor<IceUtil::Mutex>
 {
 public:
 
@@ -24,7 +25,8 @@ public:
     virtual void op(const Ice::Current&);
     virtual int opWithResult(const Ice::Current&);
     virtual void opWithUE(const Ice::Current&);
-    virtual void opWithPayload(const Ice::ByteSeq&, const Ice::Current&);
+    virtual int opWithResultAndUE(const Ice::Current&);
+    virtual void opWithPayload(ICE_IN(Ice::ByteSeq), const Ice::Current&);
     virtual void opBatch(const Ice::Current&);
     virtual Ice::Int opBatchCount(const Ice::Current&);
     virtual void opWithArgs(Ice::Int&, Ice::Int&, Ice::Int&, Ice::Int&, Ice::Int&, Ice::Int&, Ice::Int&,

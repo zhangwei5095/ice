@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -20,7 +20,7 @@ namespace IceSSL
 
     class RFC2253
     {
-        internal class ParseException : System.Exception
+        internal class ParseException : Exception
         {
             internal ParseException()
             {
@@ -32,9 +32,9 @@ namespace IceSSL
             }
 
             internal string
-            ice_name()
+            ice_id()
             {
-                return "RFC2253::ParseException";
+                return "::RFC2253::ParseException";
             }
 
             internal string reason;

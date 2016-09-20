@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -11,6 +11,7 @@
 #define TEST_I_H
 
 #include <Test.h>
+#include <TestCommon.h>
 
 class MetricsI : public Test::Metrics
 {
@@ -26,9 +27,9 @@ class MetricsI : public Test::Metrics
 
     virtual void opWithUnknownException(const Ice::Current&);
 
-    virtual void opByteS(const Test::ByteSeq&, const Ice::Current&);
+    virtual void opByteS(ICE_IN(Test::ByteSeq), const Ice::Current&);
 
-    virtual Ice::ObjectPrx getAdmin(const Ice::Current&);
+    virtual Ice::ObjectPrxPtr getAdmin(const Ice::Current&);
 
     virtual void shutdown(const Ice::Current&);
 };

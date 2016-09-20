@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -412,6 +412,8 @@ proxyAllTests(id<ICECommunicator> communicator)
 
     tprintf("testing proxy methods... ");
     test([[communicator identityToString:[[base ice_identity:[communicator stringToIdentity:@"other"]] ice_getIdentity]]
+             isEqualToString:@"other"]);
+    test([[ICEUtil identityToString:[[base ice_identity:[ICEUtil stringToIdentity:@"other"]] ice_getIdentity]]
              isEqualToString:@"other"]);
     test([[[base ice_facet:@"facet"] ice_getFacet] isEqualToString:@"facet"]);
     test([[[base ice_adapterId:@"id"] ice_getAdapterId] isEqualToString:@"id"]);

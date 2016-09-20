@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -11,38 +11,38 @@
 #define ICE_UTIL_UNICODE_H
 
 #include <IceUtil/Config.h>
-#include <IceUtil/StringConverter.h>
+#include <vector>
 
 namespace IceUtilInternal
 {
 
 //
-// Converts UTF-8 byte-sequences to and from UTF-16 or UTF-32 (with native
-// endianness) depending on sizeof(wchar_t).
+// Convert UTF-8 byte-sequences to and from UTF-16 or UTF-32 (with native endianness)
 //
-// These are thin wrappers over the UTF8/16/32 converters provided by 
-// unicode.org
+// These are wrappers for Unicode's ConvertUTF.h/cpp.
+
 //
-
-enum ConversionResult
-{
-        conversionOK,           /* conversion successful */
-        sourceExhausted,        /* partial character in source, but hit end */
-        targetExhausted,        /* insuff. room in target for conversion */
-        sourceIllegal           /* source sequence is illegal/malformed */
-};
-
-ConversionResult 
+// Convert wstring encoded with UTF-16 or UTF-32 to UTF-8.
+// Returns false if needs for space and true upon success.
+// Throws IllegalConversionException to report error
+//
+bool
 convertUTFWstringToUTF8(const wchar_t*& sourceStart, const wchar_t* sourceEnd, 
-                        IceUtil::Byte*& targetStart, IceUtil::Byte* targetEnd, IceUtil::ConversionFlags flags);
+                        IceUtil::Byte*& targetStart, IceUtil::Byte* targetEnd);
 
-ConversionResult
-convertUTF8ToUTFWstring(const IceUtil::Byte*& sourceStart, const IceUtil::Byte* sourceEnd, 
-                        wchar_t*& targetStart, wchar_t* targetEnd, IceUtil::ConversionFlags flags);
 
-ConversionResult 
+void
 convertUTF8ToUTFWstring(const IceUtil::Byte*& sourceStart, const IceUtil::Byte* sourceEnd, 
-                        std::wstring& target, IceUtil::ConversionFlags flags);
+                        std::wstring& target);
+
+void
+convertUTF8ToUTF16(const std::vector<unsigned char>&, std::vector<unsigned short>&);
+
+void
+convertUTF8ToUTF32(const std::vector<unsigned char>&, std::vector<unsigned int>&);
+
+void
+convertUTF32ToUTF8(const std::vector<unsigned int>&, std::vector<unsigned char>&);
 
 }
 

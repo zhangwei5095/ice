@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -129,6 +129,9 @@ class InitialI(Test.Initial):
     def opStringIntDict(self, p1, current=None):
         return (p1, p1)
 
+    def opIntOneOptionalDict(self, p1, current=None):
+        return (p1, p1)
+
     def opClassAndUnknownOptional(self, p, current=None):
         pass
 
@@ -136,10 +139,37 @@ class InitialI(Test.Initial):
         pass
 
     def returnOptionalClass(self, req, current=None):
-        return Test.OneOptional(5)
-    
+        return Test.OneOptional(53)
+
     def opG(self, g, current=None):
         return g
+
+    def opVoid(self, current=None):
+        pass
+
+    def opMStruct1(self, current):
+        return Test.SmallStruct()
+
+    def opMStruct2(self, p1, current):
+        return (p1, p1)
+
+    def opMSeq1(self, current):
+        return []
+
+    def opMSeq2(self, p1, current):
+        return (p1, p1)
+
+    def opMDict1(self, current):
+        return {}
+
+    def opMDict2(self, p1, current):
+        return (p1, p1)
+
+    def opMG1(self, current):
+        return Test.G()
+
+    def opMG2(self, p1, current):
+        return (p1, p1)
 
     def supportsRequiredParams(self, current=None):
         return False
@@ -150,11 +180,17 @@ class InitialI(Test.Initial):
     def supportsCsharpSerializable(self, current=None):
         return True
 
+    def supportsCppStringView(self, current=None):
+        return False
+
+    def supportsNullOptional(self, current=None):
+        return True
+
 def run(args, communicator):
     communicator.getProperties().setProperty("TestAdapter.Endpoints", "default -p 12010:udp")
     adapter = communicator.createObjectAdapter("TestAdapter")
     initial = InitialI()
-    adapter.add(initial, communicator.stringToIdentity("initial"))
+    adapter.add(initial, Ice.stringToIdentity("initial"))
     adapter.activate()
 
     communicator.waitForShutdown()

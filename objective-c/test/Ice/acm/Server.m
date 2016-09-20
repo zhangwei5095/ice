@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -18,7 +18,7 @@ run(id<ICECommunicator> communicator)
     [[communicator getProperties] setProperty:@"TestAdapter.ACM.Timeout" value:@"0"];
     id<ICEObjectAdapter> adapter = [communicator createObjectAdapter:@"TestAdapter"];
     [adapter add:[RemoteCommunicatorI remoteCommunicator]
-        identity:[communicator stringToIdentity:@"communicator"]];
+        identity:[ICEUtil stringToIdentity:@"communicator"]];
     [adapter activate];
 
     // Disable ready print for further adapters.
@@ -37,6 +37,13 @@ run(id<ICECommunicator> communicator)
 int
 main(int argc, char* argv[])
 {
+#ifdef ICE_STATIC_LIBS
+    ICEregisterIceSSL(YES);
+#if TARGET_OS_IPHONE
+    ICEregisterIceIAP(YES);
+#endif
+#endif
+
     @autoreleasepool
     {
         int status;
@@ -46,8 +53,8 @@ main(int argc, char* argv[])
         {
             ICEInitializationData* initData = [ICEInitializationData initializationData];
             initData.properties = defaultServerProperties(&argc, argv);
-	    [initData.properties setProperty:@"Ice.Warn.Connections" value:@"0"];
-	    [initData.properties setProperty:@"Ice.ACM.Timeout" value:@"1"];
+            [initData.properties setProperty:@"Ice.Warn.Connections" value:@"0"];
+            [initData.properties setProperty:@"Ice.ACM.Timeout" value:@"1"];
 
 #if TARGET_OS_IPHONE
             initData.prefixTable__ = [NSDictionary dictionaryWithObjectsAndKeys:

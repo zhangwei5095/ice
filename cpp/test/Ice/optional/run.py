@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -20,9 +20,10 @@ if len(path) == 0:
 sys.path.append(os.path.join(path[0], "scripts"))
 import TestUtil
 
-print("Running test with compact (default) format.")
-TestUtil.clientServerTest()
-print("Running test with sliced format.")
-TestUtil.clientServerTest(additionalClientOptions="--Ice.Default.SlicedFormat", additionalServerOptions="--Ice.Default.SlicedFormat")
-print("Running test with AMD server.")
-TestUtil.clientServerTest(server = "serveramd")
+TestUtil.queueClientServerTest(configName = "compact", message = "Running test with compact (default) format.")
+TestUtil.queueClientServerTest(configName = "sliced", message = "Running test with sliced format.",
+                               additionalClientOptions="--Ice.Default.SlicedFormat",
+                               additionalServerOptions="--Ice.Default.SlicedFormat")
+TestUtil.queueClientServerTest(configName = "amd", localOnly = True, message = "Running test with AMD server.",
+                               server = TestUtil.getTestExecutable("serveramd"))
+TestUtil.runQueuedTests()

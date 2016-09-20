@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -21,17 +21,22 @@
 @implementation ICEException
 -(id)init
 {
-    return [super initWithName:[self ice_name] reason:nil userInfo:nil];
+    return [super initWithName:[self ice_id] reason:nil userInfo:nil];
 }
 
 -(id)initWithReason:(NSString*)reason
 {
-    return [super initWithName:[self ice_name] reason:reason userInfo:nil];
+    return [super initWithName:[self ice_id] reason:reason userInfo:nil];
 }
 
 -(NSString*)ice_name
 {
-    NSAssert(false, @"ice_name not overriden");
+    return [[self ice_id] substringFromIndex:2];
+}
+
+-(NSString*)ice_id
+{
+    NSAssert(false, @"ice_id not overriden");
     return nil;
 }
 
@@ -864,7 +869,7 @@ localExceptionToString(const Ice::LocalException& ex)
 }
 @end
 
-@implementation ICENoObjectFactoryException (ICEInternal)
+@implementation ICENoValueFactoryException (ICEInternal)
 -(id)initWithLocalException:(const Ice::LocalException&)ex
 {
     self = [super initWithLocalException:ex];
@@ -872,14 +877,14 @@ localExceptionToString(const Ice::LocalException& ex)
     {
         return nil;
     }
-    NSAssert(dynamic_cast<const Ice::NoObjectFactoryException*>(&ex), @"invalid local exception type");
-    const Ice::NoObjectFactoryException& localEx = dynamic_cast<const Ice::NoObjectFactoryException&>(ex);
+    NSAssert(dynamic_cast<const Ice::NoValueFactoryException*>(&ex), @"invalid local exception type");
+    const Ice::NoValueFactoryException& localEx = dynamic_cast<const Ice::NoValueFactoryException&>(ex);
     type = toNSString(localEx.type);
     return self;
 }
 -(void) rethrowCxx
 {
-    throw Ice::NoObjectFactoryException(file, line, fromNSString([self reason_]), fromNSString(type));
+    throw Ice::NoValueFactoryException(file, line, fromNSString([self reason_]), fromNSString(type));
 }
 @end
 

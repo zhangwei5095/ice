@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -13,35 +13,30 @@
 #include <IceUtil/Exception.h>
 #include <IceUtil/FileUtil.h>
 #include <Ice/Initialize.h>
-#include <Ice/Stream.h>
+#include <Ice/OutputStream.h>
+#include <Ice/InputStream.h>
 
 #include <lmdb.h>
 
 #ifndef ICE_DB_API
-#   ifdef ICE_DB_API_EXPORTS
-#       define ICE_DB_API ICE_DECLSPEC_EXPORT
-#   elif defined(ICE_STATIC_LIBS)
+#   if defined(ICE_STATIC_LIBS)
 #       define ICE_DB_API /**/
+#   elif defined(ICE_DB_API_EXPORTS)
+#       define ICE_DB_API ICE_DECLSPEC_EXPORT
 #   else
 #       define ICE_DB_API ICE_DECLSPEC_IMPORT
 #   endif
 #endif
 
 //
-// Automatically link IceDB[D].lib with Visual C++
+// Automatically link IceDB37[D|++11|++11D].lib with Visual C++
 //
 #if !defined(ICE_BUILDING_ICE_DB) && defined(ICE_DB_API_EXPORTS)
 #   define ICE_BUILDING_ICE_DB
 #endif
 
-#ifdef _MSC_VER
-#   if !defined(ICE_BUILDING_ICE_DB)
-#      if defined(_DEBUG) && !defined(ICE_OS_WINRT)
-#          pragma comment(lib, "IceDBD.lib")
-#      else
-#          pragma comment(lib, "IceDB.lib")
-#      endif
-#   endif
+#if defined(_MSC_VER) && !defined(ICE_BUILDING_ICE_DB)
+#   pragma comment(lib, ICE_LIBNAME("IceDB"))
 #endif
 
 namespace IceDB
@@ -58,11 +53,15 @@ class ICE_DB_API LMDBException : public IceUtil::Exception
 public:
 
     LMDBException(const char*, int, int);
+#ifndef ICE_CPP11_COMPILER
     virtual ~LMDBException() throw();
+#endif
 
-    virtual std::string ice_name() const;
+    virtual std::string ice_id() const;
     virtual void ice_print(std::ostream&) const;
+#ifndef ICE_CPP11_MAPPING
     virtual LMDBException* ice_clone() const;
+#endif
     virtual void ice_throw() const;
 
     int error() const;
@@ -82,11 +81,15 @@ class ICE_DB_API KeyTooLongException : public IceUtil::Exception
 public:
 
     KeyTooLongException(const char*, int, size_t);
+#ifndef ICE_CPP11_COMPILER
     virtual ~KeyTooLongException() throw();
+#endif
 
-    virtual std::string ice_name() const;
+    virtual std::string ice_id() const;
     virtual void ice_print(std::ostream&) const;
+#ifndef ICE_CPP11_MAPPING
     virtual KeyTooLongException* ice_clone() const;
+#endif
     virtual void ice_throw() const;
 
 private:
@@ -104,11 +107,15 @@ class ICE_DB_API BadEnvException : public IceUtil::Exception
 public:
 
     BadEnvException(const char*, int, size_t);
+#ifndef ICE_CPP11_COMPILER
     virtual ~BadEnvException() throw();
+#endif
 
-    virtual std::string ice_name() const;
+    virtual std::string ice_id() const;
     virtual void ice_print(std::ostream&) const;
+#ifndef ICE_CPP11_MAPPING
     virtual BadEnvException* ice_clone() const;
+#endif
     virtual void ice_throw() const;
 
 private:
@@ -132,7 +139,7 @@ private:
 //
 // Write [in] T into [in/out] MDB_val using [in] context C
 // [in] MDB_val contains the destination array
-// write returns true on success, and false if the provided 
+// write returns true on success, and false if the provided
 // array is too small.
 // On failure, MDB_val.mv_size contains the marshaled key
 // size if known, and 0 if not know.
@@ -168,7 +175,7 @@ public:
     virtual ~Txn();
 
     void commit();
-    void abort();
+    void rollback();
 
     MDB_txn* mtxn() const;
 
@@ -189,6 +196,8 @@ class ICE_DB_API ReadOnlyTxn : public Txn
 {
 public:
 
+    virtual ~ReadOnlyTxn();
+
     explicit ReadOnlyTxn(const Env&);
 
     void reset();
@@ -198,6 +207,8 @@ public:
 class ICE_DB_API ReadWriteTxn : public Txn
 {
 public:
+
+    virtual ~ReadWriteTxn();
 
     explicit ReadWriteTxn(const Env&);
 };
@@ -247,9 +258,9 @@ public:
     {
         unsigned char kbuf[maxKeySize];
         MDB_val mkey = {maxKeySize, kbuf};
-        
+
         if(Codec<K, C, H>::write(key, mkey, _marshalingContext))
-        {   
+        {
             MDB_val mdata;
             if(DbiBase::get(txn, &mkey, &mdata))
             {
@@ -320,7 +331,7 @@ public:
         else
         {
             return false;
-        }     
+        }
     }
 
     C marshalingContext() const
@@ -410,7 +421,7 @@ public:
         else
         {
             return false;
-        } 
+        }
     }
 
     bool find(const K& key, D& data)
@@ -494,45 +505,44 @@ struct IceContext
 };
 
 template<typename T>
-struct Codec<T, IceContext, Ice::OutputStreamPtr>
+struct Codec<T, IceContext, Ice::OutputStream>
 {
     static void read(T& t, const MDB_val& val, const IceContext& ctx)
     {
-        std::pair<const Ice::Byte*, const Ice::Byte*> buf(static_cast<const Ice::Byte*>(val.mv_data),
-                                                          static_cast<const Ice::Byte*>(val.mv_data) + val.mv_size);
-        Ice::InputStreamPtr in = Ice::wrapInputStream(ctx.communicator, buf, ctx.encoding);
-        in->read(t);
+        std::pair<const Ice::Byte*, const Ice::Byte*> p(static_cast<const Ice::Byte*>(val.mv_data),
+                                                        static_cast<const Ice::Byte*>(val.mv_data) + val.mv_size);
+        Ice::InputStream in(ctx.communicator, ctx.encoding, p);
+        in.read(t);
     }
 
-    static void write(const T& t, MDB_val& val, Ice::OutputStreamPtr& holder, const IceContext& ctx)
+    static void write(const T& t, MDB_val& val, Ice::OutputStream& holder, const IceContext& ctx)
     {
-        holder = Ice::createOutputStream(ctx.communicator, ctx.encoding);
-        holder->write(t);
-        std::pair<const Ice::Byte*, const Ice::Byte*> buf = holder->finished();
-        val.mv_size = buf.second - buf.first;
-        val.mv_data = const_cast<Ice::Byte*>(buf.first);
+        holder.initialize(ctx.communicator, ctx.encoding);
+        holder.write(t);
+        val.mv_size = holder.b.size();
+        val.mv_data = &holder.b[0];
     }
 
     static bool write(const T& t, MDB_val& val, const IceContext& ctx)
     {
-        // Cannot use stack-allocated bytes for now
-        Ice::OutputStreamPtr stream = Ice::createOutputStream(ctx.communicator, ctx.encoding);
-        stream->write(t);
-        std::pair<const Ice::Byte*, const Ice::Byte*> buf = stream->finished();
-        size_t sz = static_cast<size_t>(buf.second - buf.first);
-        if(sz > val.mv_size)
-        {
-            val.mv_size = sz;
-            return false;
-        }
-        else
-        {
-            val.mv_size = sz;
-            memcpy(val.mv_data, buf.first, sz);
-            return true;
-        }
+        const size_t limit = val.mv_size;
+        std::pair<Ice::Byte*, Ice::Byte*> p(reinterpret_cast<Ice::Byte*>(val.mv_data),
+                                            reinterpret_cast<Ice::Byte*>(val.mv_data) + limit);
+        Ice::OutputStream stream(ctx.communicator, ctx.encoding, p);
+        stream.write(t);
+        val.mv_size = stream.b.size();
+        return stream.b.size() > limit ? false : true;
     }
 };
+
+//
+// Returns computed mapSize in bytes.
+// When the input parameter is <= 0, returns a platform-dependent default
+// (currently 0 on Windows and 100 MB on other platforms).
+// Otherwise, returns input parameter * 1 MB.
+//
+
+ICE_DB_API size_t getMapSize(int);
 
 }
 

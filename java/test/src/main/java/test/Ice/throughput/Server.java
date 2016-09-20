@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -12,23 +12,21 @@ package test.Ice.throughput;
 public class Server extends test.Util.Application
 {
     @Override
-    public int
-    run(String[] args)
+    public int run(String[] args)
     {
-        Ice.ObjectAdapter adapter = communicator().createObjectAdapter("Throughput");
-        adapter.add(new ThroughputI(), communicator().stringToIdentity("throughput"));
+        com.zeroc.Ice.ObjectAdapter adapter = communicator().createObjectAdapter("Throughput");
+        adapter.add(new ThroughputI(), com.zeroc.Ice.Util.stringToIdentity("throughput"));
         adapter.activate();
         return WAIT;
     }
     
     @Override
-    protected Ice.InitializationData getInitData(Ice.StringSeqHolder argsH)
+    protected GetInitDataResult getInitData(String[] args)
     {
-        Ice.InitializationData initData = createInitializationData() ;
-        initData.properties = Ice.Util.createProperties(argsH);
-        initData.properties.setProperty("Ice.Package.Demo", "test.Ice.throughput");
-        initData.properties.setProperty("Throughput.Endpoints", "default -p 10000 -h 127.0.0.1");
-        return initData;
+        GetInitDataResult r = super.getInitData(args);
+        r.initData.properties.setProperty("Ice.Package.Demo", "test.Ice.throughput");
+        r.initData.properties.setProperty("Throughput.Endpoints", "default -p 10000 -h 127.0.0.1");
+        return r;
     }
 
     public static void main(String[] args)

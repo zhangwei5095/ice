@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -36,7 +36,7 @@ def runIceGridRegistry():
     cmd = command + ' ' + \
             r' --Ice.ProgramName=registry' + \
             r' --IceGrid.Registry.Client.Endpoints="default -p ' + str(IceGridAdmin.iceGridPort) + '" ' + \
-            r' --IceGrid.Registry.LMDB.Path="' + dataDir + '"'
+            r' --IceGrid.Registry.LMDB.MapSize=1 --IceGrid.Registry.LMDB.Path="' + dataDir + '"'
 
     driverConfig = TestUtil.DriverConfig("server")
     driverConfig.lang = "cpp"

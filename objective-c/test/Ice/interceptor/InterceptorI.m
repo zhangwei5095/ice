@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -33,12 +33,13 @@
 }
 #endif
 
--(BOOL) dispatch:(id<ICERequest>) request
+-(void) dispatch:(id<ICERequest>) request
 {
     ICECurrent* current = [request getCurrent];
 
     ICE_RELEASE(lastOperation);
     lastOperation = ICE_RETAIN(current.operation);
+    lastStatus = NO;
 
     if([lastOperation isEqualToString:@"addWithRetry"])
     {
@@ -66,8 +67,8 @@
         [servant ice_dispatch:request];
     }
 
-    lastStatus = [servant ice_dispatch:request];
-    return lastStatus;
+    [servant ice_dispatch:request];
+    lastStatus = YES;
 }
 
 -(BOOL) getLastStatus

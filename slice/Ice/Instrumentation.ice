@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -14,6 +14,10 @@
 #include <Ice/EndpointF.ice>
 #include <Ice/ConnectionF.ice>
 #include <Ice/Current.ice>
+
+#ifndef __SLICE2JAVA_COMPAT__
+[["java:package:com.zeroc"]]
+#endif
 
 ["objc:prefix:ICE"]
 module Ice
@@ -68,7 +72,8 @@ local interface Observer
  * The thread state enumeration keeps track of the different possible
  * states of Ice threads.
  *
- **/ 
+ **/
+["cpp:unscoped"]
 local enum ThreadState
 {
     /**
@@ -130,7 +135,8 @@ local interface ThreadObserver extends Observer
  *
  * The state of an Ice connection.
  *
- **/ 
+ **/
+["cpp:unscoped"]
 local enum ConnectionState
 {
     /**
@@ -498,4 +504,3 @@ local interface CommunicatorObserver
 };
     
 };
-

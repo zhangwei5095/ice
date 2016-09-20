@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,25 +9,22 @@
 
 package test.Ice.facets;
 
-import test.Ice.facets.Test._FDisp;
+import test.Ice.facets.Test.F;
 
-public final class FI extends _FDisp
+public final class FI implements F
 {
-    public
-    FI()
+    public FI()
     {
     }
 
     @Override
-    public String
-    callE(Ice.Current current)
+    public String callE(com.zeroc.Ice.Current current)
     {
         return "E";
     }
 
     @Override
-    public String
-    callF(Ice.Current current)
+    public String callF(com.zeroc.Ice.Current current)
     {
         return "F";
     }

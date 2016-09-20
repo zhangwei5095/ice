@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -57,8 +57,8 @@ private:
     unsigned int _majority;
     struct ObserverInfo
     {
-        ObserverInfo(int i, const ReplicaObserverPrx& o) :
-            id(i), observer(o) {}
+        ObserverInfo(int i, const ReplicaObserverPrx& o, const Ice::AsyncResultPtr& r = 0) :
+            id(i), observer(o), result (r) {}
         int id;
         ReplicaObserverPrx observer;
         ::Ice::AsyncResultPtr result;

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -113,7 +113,7 @@ currentGetter(CurrentObject* self, void* closure)
 
     assert(self->current);
 
-    long field = reinterpret_cast<long>(closure);
+    Py_ssize_t field = reinterpret_cast<Py_ssize_t>(closure);
     switch(field)
     {
     case CURRENT_ADAPTER:

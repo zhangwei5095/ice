@@ -1,6 +1,6 @@
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -324,7 +324,7 @@ def allTests(communicator):
     outer = Test.Recursive()
     outer.value = recursive1
     initial.pingPong(outer)
-    
+
     g = Test.G()
     g.gg1Opt = Test.G1("gg1Opt")
     g.gg2 = Test.G2(10)
@@ -335,6 +335,9 @@ def allTests(communicator):
     test(r.gg2.a == 10)
     test(r.gg2Opt.a == 20)
     test(r.gg1.a == "gg1")
+
+    initial2 = Test.Initial2Prx.uncheckedCast(base)
+    initial2.opVoid(15, "test")
 
     print("ok")
 
@@ -715,6 +718,15 @@ def allTests(communicator):
     (p2, p3) = initial.end_opStringIntDict(r)
     test(p2 == p1 and p3 == p1)
 
+    (p2, p3) = initial.opIntOneOptionalDict(Ice.Unset)
+    test(p2 is Ice.Unset and p3 is Ice.Unset)
+    p1 = {1:Test.OneOptional(58), 2:Test.OneOptional(59)}
+    (p2, p3) = initial.opIntOneOptionalDict(p1)
+    test(p2[1].a == 58 and p3[1].a == 58);
+    r = initial.begin_opIntOneOptionalDict(p1)
+    (p2, p3) = initial.end_opIntOneOptionalDict(r)
+    test(p2[1].a == 58 and p3[1].a == 58);
+
     print("ok")
 
     sys.stdout.write("testing exception optionals... ")
@@ -779,6 +791,44 @@ def allTests(communicator):
         test(ex.o.a == 53)
         test(ex.ss == "test2")
         test(ex.o2 == ex.o)
+
+    print("ok")
+
+    sys.stdout.write("testing optionals with marshaled results... ")
+    sys.stdout.flush()
+
+    test(initial.opMStruct1() != Ice.Unset);
+    test(initial.opMDict1() != Ice.Unset);
+    test(initial.opMSeq1() != Ice.Unset);
+    test(initial.opMG1() != Ice.Unset);
+
+    (p3, p2) = initial.opMStruct2(Ice.Unset);
+    test(p2 == Ice.Unset and p3 == Ice.Unset);
+
+    p1 = Test.SmallStruct();
+    (p3, p2) = initial.opMStruct2(p1)
+    test(p2 == p1 and p3 == p1)
+
+    (p3, p2) = initial.opMSeq2(Ice.Unset)
+    test(p2 == Ice.Unset and p3 == Ice.Unset)
+
+    p1 = ["hello"]
+    (p3, p2) = initial.opMSeq2(p1);
+    test(p2[0] == "hello" and p3[0] == "hello")
+
+    (p3, p2) = initial.opMDict2(Ice.Unset)
+    test(p2 == Ice.Unset and p3 == Ice.Unset)
+
+    p1 = {"test" : 54}
+    (p3, p2) = initial.opMDict2(p1)
+    test(p2["test"] == 54 and p3["test"] == 54)
+
+    (p3, p2) = initial.opMG2(Ice.Unset)
+    test(p2 == Ice.Unset and p3 == Ice.Unset)
+
+    p1 = Test.G();
+    (p3, p2) = initial.opMG2(p1);
+    test(p2 != Ice.Unset and p3 != Ice.Unset and p3 == p2);
 
     print("ok")
 

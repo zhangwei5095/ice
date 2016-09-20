@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -66,8 +66,8 @@ Server::run(int, char**)
     Ice::ObjectAdapterPtr adapter = communicator()->createObjectAdapter("Server");
     if(communicator()->getProperties()->getPropertyAsInt("AddPermissionsVerifiers") > 0)
     {
-        adapter->add(new ClientPermissionsVerifierI(), communicator()->stringToIdentity("ClientPermissionsVerifier"));
-        adapter->add(new SSLPermissionsVerifierI(), communicator()->stringToIdentity("SSLPermissionsVerifier"));
+        adapter->add(new ClientPermissionsVerifierI(), Ice::stringToIdentity("ClientPermissionsVerifier"));
+        adapter->add(new SSLPermissionsVerifierI(), Ice::stringToIdentity("SSLPermissionsVerifier"));
     }
     adapter->activate();
 

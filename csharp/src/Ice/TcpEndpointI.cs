@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,13 +9,11 @@
 
 namespace IceInternal
 {
-    using System.Diagnostics;
     using System.Collections.Generic;
     using System.Net;
-    using System;
     using System.Globalization;
 
-    sealed class TcpEndpointI : IPEndpointI, WSEndpointDelegate
+    sealed class TcpEndpointI : IPEndpointI
     {
         public TcpEndpointI(ProtocolInstance instance, string ho, int po, EndPoint sourceAddr, int ti, string conId,
                             bool co) :
@@ -32,7 +30,7 @@ namespace IceInternal
             _compress = false;
         }
 
-        public TcpEndpointI(ProtocolInstance instance, BasicStream s) :
+        public TcpEndpointI(ProtocolInstance instance, Ice.InputStream s) :
             base(instance, s)
         {
             _timeout = s.readInt();
@@ -64,43 +62,17 @@ namespace IceInternal
             private IPEndpointI _endpoint;
         }
 
+        public override void streamWriteImpl(Ice.OutputStream s)
+        {
+            base.streamWriteImpl(s);
+            s.writeInt(_timeout);
+            s.writeBool(_compress);
+        }
+
         public override Ice.EndpointInfo getInfo()
         {
             InfoI info = new InfoI(this);
             fillEndpointInfo(info);
-            return info;
-        }
-
-        private sealed class WSInfoI : Ice.WSEndpointInfo
-        {
-            public WSInfoI(IPEndpointI e)
-            {
-                _endpoint = e;
-            }
-
-            public override short type()
-            {
-                return _endpoint.type();
-            }
-
-            public override bool datagram()
-            {
-                return _endpoint.datagram();
-            }
-
-            public override bool secure()
-            {
-                return _endpoint.secure();
-            }
-
-            private IPEndpointI _endpoint;
-        }
-
-        public Ice.EndpointInfo getWSInfo(string resource)
-        {
-            WSInfoI info = new WSInfoI(this);
-            fillEndpointInfo(info);
-            info.resource = resource;
             return info;
         }
 
@@ -150,20 +122,14 @@ namespace IceInternal
 
         public override Acceptor acceptor(string adapterName)
         {
-#if SILVERLIGHT
-            throw new Ice.FeatureNotSupportedException("server endpoint not supported for `" + ToString() + "'");
-#else
             return new TcpAcceptor(this, instance_, host_, port_);
-#endif
         }
 
-#if !SILVERLIGHT
         public TcpEndpointI endpoint(TcpAcceptor acceptor)
         {
             return new TcpEndpointI(instance_, host_, acceptor.effectivePort(), sourceAddr_, _timeout, connectionId_,
                                     _compress);
         }
-#endif
 
         public override string options()
         {
@@ -225,13 +191,6 @@ namespace IceInternal
             }
 
             return base.CompareTo(p);
-        }
-
-        public override void streamWriteImpl(BasicStream s)
-        {
-            base.streamWriteImpl(s);
-            s.writeInt(_timeout);
-            s.writeBool(_compress);
         }
 
         public override void hashInit(ref int h)
@@ -350,7 +309,7 @@ namespace IceInternal
             return endpt;
         }
 
-        public EndpointI read(BasicStream s)
+        public EndpointI read(Ice.InputStream s)
         {
             return new TcpEndpointI(_instance, s);
         }
@@ -360,7 +319,7 @@ namespace IceInternal
             _instance = null;
         }
 
-        public EndpointFactory clone(ProtocolInstance instance)
+        public EndpointFactory clone(ProtocolInstance instance, EndpointFactory del)
         {
             return new TcpEndpointFactory(instance);
         }

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -131,11 +131,11 @@ objectsAllTests(id<ICECommunicator> communicator, BOOL collocated)
     test([((TestObjectsB*)b1.theA).theC isKindOfClass:[TestObjectsC class]]);
     test(((TestObjectsC*)((TestObjectsB*)b1.theA).theC).theB == b1.theA);
     test(b1.preMarshalInvoked);
-    test([(id<TestObjectsB>)b1 postUnmarshalInvoked:nil]);
+    test(b1.postUnmarshalInvoked);
     test(b1.theA.preMarshalInvoked);
-    test([(id<TestObjectsA>)b1.theA postUnmarshalInvoked:nil]);
+    test(b1.theA.postUnmarshalInvoked);
     test(((TestObjectsB*)b1.theA).theC.preMarshalInvoked);
-    test([(id<TestObjectsC>)((TestObjectsB*)b1.theA).theC postUnmarshalInvoked:nil]);
+    test(((TestObjectsB*)b1.theA).theC.postUnmarshalInvoked);
 
     // More tests possible for b2 and d, but I think this is already sufficient.
     test(b2.theA == b2);
@@ -176,13 +176,13 @@ objectsAllTests(id<ICECommunicator> communicator, BOOL collocated)
 //    if(!collocated)
 //    {
     test(d.preMarshalInvoked);
-    test([(id<TestObjectsD>)d postUnmarshalInvoked:nil]);
+    test(d.postUnmarshalInvoked);
     test(d.theA.preMarshalInvoked);
-    test([(id<TestObjectsA>)d.theA postUnmarshalInvoked:nil]);
+    test(d.theA.postUnmarshalInvoked);
     test(d.theB.preMarshalInvoked);
-    test([(id<TestObjectsA>)d.theB postUnmarshalInvoked:nil]);
+    test(d.theB.postUnmarshalInvoked);
     test(d.theB.theC.preMarshalInvoked);
-    test([(id<TestObjectsC>)d.theB.theC postUnmarshalInvoked:nil]);
+    test(d.theB.theC.postUnmarshalInvoked);
 //    }
 
     breakRetainCycleB(b1);
@@ -235,8 +235,15 @@ objectsAllTests(id<ICECommunicator> communicator, BOOL collocated)
     }
     tprintf("ok\n");
 
-//     if(!collocated)
-//     {
+    tprintf("testing marshaled results...");
+    b1 = [initial getMB];
+    test(b1 != nil && b1.theB == b1);
+    b1.theB = nil;
+    b1 = [initial end_getAMDMB:[initial begin_getAMDMB]];
+    test(b1 != nil && b1.theB == b1);
+    b1.theB = nil;
+    tprintf("ok\n");
+
     tprintf("testing UnexpectedObjectException... ");
     ref = @"uoet:default -p 12010";
     base = [communicator stringToProxy:ref];
@@ -507,6 +514,16 @@ objectsAllTests(id<ICECommunicator> communicator, BOOL collocated)
         {
             test(NO);
         }
+        tprintf("ok\n");
+    }
+
+    {
+        tprintf("testing getting ObjectFactory... ");
+        test([communicator findObjectFactory:@"TestOF"] != nil);
+        tprintf("ok\n");
+
+        tprintf("testing getting ObjectFactory as ValueFactory... ");
+        test([[communicator getValueFactoryManager] find:@"TestOF"] != nil);
         tprintf("ok\n");
     }
 

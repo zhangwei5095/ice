@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -71,13 +71,13 @@ ICE_API @interface ICEUtil : NSObject
 +(id<ICECommunicator>) createCommunicator:(int*)argc argv:(char*[])argv initData:(ICEInitializationData *)initData;
 +(id<ICEInputStream>) createInputStream:(id<ICECommunicator>)communicator data:(NSData*)data;
 +(id<ICEInputStream>) createInputStream:(id<ICECommunicator>)c data:(NSData*)data encoding:(ICEEncodingVersion*)e;
-+(id<ICEInputStream>) wrapInputStream:(id<ICECommunicator>)communicator data:(NSData*)data;
-+(id<ICEInputStream>) wrapInputStream:(id<ICECommunicator>)c data:(NSData*)data encoding:(ICEEncodingVersion*)e;
 +(id<ICEOutputStream>) createOutputStream:(id<ICECommunicator>)communicator;
 +(id<ICEOutputStream>) createOutputStream:(id<ICECommunicator>)c encoding:(ICEEncodingVersion*)e;
 +(NSString*) generateUUID;
 +(NSArray*)argsToStringSeq:(int)argc argv:(char*[])argv;
 +(void)stringSeqToArgs:(NSArray*)args argc:(int*)argc argv:(char*[])argv;
++(ICEIdentity*) stringToIdentity:(NSString*)str;
++(NSMutableString*) identityToString:(ICEIdentity*)ident;
 @end
 
 @interface ICEEncodingVersion(StringConv)
@@ -87,3 +87,10 @@ ICE_API @interface ICEUtil : NSObject
 @interface ICEProtocolVersion(StringConv)
 +(ICEProtocolVersion*) protocolVersionWithString:(NSString*)str;
 @end
+
+extern void ICEregisterIceSSL(BOOL);
+extern void ICEregisterIceDiscovery(BOOL);
+extern void ICEregisterIceLocatorDiscovery(BOOL);
+#if defined(__APPLE__) && TARGET_OS_IPHONE > 0
+extern void ICEregisterIceIAP(BOOL);
+#endif

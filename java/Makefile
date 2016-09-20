@@ -1,36 +1,49 @@
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
 #
 # **********************************************************************
 
-ifneq ($(prefix),)
-INSTALL_FLAGS += -Dorg.gradle.project.prefix=$(prefix)
-endif
-
-ifneq ($(DESTDIR),)
-INSTALL_FLAGS += -Dorg.gradle.project.DESTDIR=$(DESTDIR)
-endif
-
 ifeq ($(GRADLE),)
 GRADLE = ./gradlew
 endif
 
+ifneq ($(prefix),)
+  GRADLEOPTS += -Pprefix=$(prefix)
+endif
+
+ifneq ($(DESTDIR),)
+  GRADLEOPTS += -PDESTDIR=$(DESTDIR)
+endif
+
+ifneq ($(install_javadir),)
+  GRADLEOPTS += -Dorg.gradle.project.jarDir=$(install_javadir)
+endif
+
+ifneq ($(install_bindir),)
+  GRADLEOPTS += -Dorg.gradle.project.binDir=$(install_bindir)
+endif
+
 all:
-	$(GRADLE) $(BUILD_FLAGS) build
+	$(GRADLE) $(GRADLEOPTS) build
 
-dist:
-	$(GRADLE) $(BUILD_FLAGS) :Ice:assemble :Glacier2:assemble :IceGrid:assemble \
-		:IceBox:assemble :IceDiscovery:assemble :IcePatch2:assemble :IceStorm:assemble :IceGridGUI:assemble
+tests:
+	$(GRADLE) $(GRADLEOPTS) :test:assemble
 
-clean:
-	$(GRADLE) clean
+srcs:
+	$(GRADLE) $(GRADLEOPTS) dist
+
+distclean clean:
+	$(GRADLE) $(GRADLEOPTS) clean
 
 install::
-	$(GRADLE) $(INSTALL_FLAGS) install
+	$(GRADLE) $(GRADLEOPTS) install
+
+install-icegridgui::
+	$(GRADLE) $(GRADLEOPTS) :IceGridGUI:install
 
 test::
 	@python ./allTests.py

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -35,7 +35,7 @@
     return self;
 }
 
--(BOOL) callDispatch:(ICEServant*)servant
+-(void) callDispatch:(ICEServant*)servant
 {
     if(needReset == NO)
     {
@@ -46,7 +46,7 @@
         [is rewind];
         [os reset:NO];
     }
-    return [servant dispatch__:current is:is os:os];
+    [servant dispatch__:current is:is os:os];
 }
 
 -(void) dealloc

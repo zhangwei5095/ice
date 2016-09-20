@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -43,7 +43,7 @@ public:
     {
         Ice::ObjectAdapterPtr adapter = communicator()->createObjectAdapterWithEndpoints(
             "PermissionsVerifier", "tcp -p 12002");
-        adapter->add(new AdminPermissionsVerifierI, communicator()->stringToIdentity("AdminPermissionsVerifier"));
+        adapter->add(new AdminPermissionsVerifierI, Ice::stringToIdentity("AdminPermissionsVerifier"));
         adapter->activate();
         communicator()->waitForShutdown();
         return EXIT_SUCCESS;

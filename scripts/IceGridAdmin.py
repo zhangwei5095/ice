@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -102,7 +102,7 @@ def startIceGridRegistry(testdir, dynamicRegistration = False):
         cmd = command + ' ' + \
               r' --Ice.ProgramName=' + name + \
               r' --IceGrid.Registry.Client.Endpoints="default -p ' + str(iceGridPort + i) + '" ' + \
-              r' --IceGrid.Registry.LMDB.Path="' + dataDir + '" '
+              r' --IceGrid.Registry.LMDB.MapSize=1 --IceGrid.Registry.LMDB.Path="' + dataDir + '" '
 
         if i > 0:
             cmd += r' --IceGrid.Registry.ReplicaName=' + name + ' ' + getDefaultLocatorProperty()
@@ -140,7 +140,7 @@ def iceGridNodePropertiesOverride():
     # Create property overrides from command line options.
     #
     overrideOptions = ''
-    for opt in shlex.split(TestUtil.getCommandLineProperties("", TestUtil.DriverConfig("server"))):
+    for opt in shlex.split(TestUtil.getCommandLineProperties("", TestUtil.DriverConfig("server"), "")):
        opt = opt.strip().replace("--", "")
        index = opt.find("=")
        if index == -1:
@@ -229,7 +229,7 @@ def iceGridTest(application, additionalOptions = "", applicationOptions = ""):
         return
 
     client = TestUtil.getDefaultClientFile()
-    if TestUtil.getDefaultMapping() != "java":
+    if TestUtil.getDefaultMapping() != "java" and TestUtil.getDefaultMapping() != "java-compat":
         client = os.path.join(testdir, client)
 
     clientOptions = ' ' + getDefaultLocatorProperty() + ' ' + additionalOptions
@@ -283,7 +283,7 @@ def iceGridClientServerTest(additionalClientOptions, additionalServerOptions):
     testdir = os.getcwd()
     server = TestUtil.getDefaultServerFile()
     client = TestUtil.getDefaultClientFile()
-    if TestUtil.getDefaultMapping() != "java":
+    if TestUtil.getDefaultMapping() != "java" and TestUtil.getDefaultMapping() != "java-compat":
         server = os.path.join(testdir, server)
         client = os.path.join(testdir, client)
 

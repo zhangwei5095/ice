@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,7 +8,6 @@
 // **********************************************************************
 
 using System;
-using System.Diagnostics;
 using System.Reflection;
 
 [assembly: CLSCompliant(true)]
@@ -28,9 +27,9 @@ public class Collocated
         Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
         Ice.ObjectAdapter adapter2 = communicator.createObjectAdapter("ControllerAdapter");
 
-        adapter.add(new TestI(), communicator.stringToIdentity("test"));
+        adapter.add(new TestI(), Ice.Util.stringToIdentity("test"));
         //adapter.activate(); // Don't activate OA to ensure collocation is used.
-        adapter2.add(new TestControllerI(adapter), communicator.stringToIdentity("testController"));
+        adapter2.add(new TestControllerI(adapter), Ice.Util.stringToIdentity("testController"));
         //adapter2.activate(); // Don't activate OA to ensure collocation is used.
 
         AllTests.allTests(communicator);
@@ -51,9 +50,9 @@ public class Collocated
             communicator = Ice.Util.initialize(ref args, initData);
             status = run(args, communicator);
         }
-        catch(System.Exception ex)
+        catch(Exception ex)
         {
-            System.Console.Error.WriteLine(ex);
+            Console.Error.WriteLine(ex);
             status = 1;
         }
 
@@ -65,7 +64,7 @@ public class Collocated
             }
             catch(Ice.LocalException ex)
             {
-                System.Console.Error.WriteLine(ex);
+                Console.Error.WriteLine(ex);
                 status = 1;
             }
         }

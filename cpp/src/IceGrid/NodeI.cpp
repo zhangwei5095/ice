@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -1221,6 +1221,16 @@ NodeI::canRemoveServerDirectory(const string& name)
     contents.erase("config");
     contents.erase("distrib");
     contents.erase("revision");
+    contents.erase("data");
+    Ice::StringSeq serviceDataDirs;
+    for(set<string>::const_iterator p = contents.begin(); p != contents.end(); ++p)
+    {
+        if(p->find("data_") != 0)
+        {
+            return false;
+        }
+        serviceDataDirs.push_back(*p);
+    }
     if(!contents.empty())
     {
         return false;
@@ -1235,15 +1245,41 @@ NodeI::canRemoveServerDirectory(const string& name)
         }
     }
 
-    c = readDirectory(_serversDir + "/" + name + "/dbs");
-    for(Ice::StringSeq::const_iterator p = c.begin() ; p != c.end(); ++p)
+    if(IceUtilInternal::directoryExists(_serversDir + "/" + name + "/dbs"))
+    {
+        c = readDirectory(_serversDir + "/" + name + "/dbs");
+        for(Ice::StringSeq::const_iterator p = c.begin() ; p != c.end(); ++p)
+        {
+            try
+            {
+                Ice::StringSeq files = readDirectory(_serversDir + "/" + name + "/dbs/" + *p);
+                files.erase(remove(files.begin(), files.end(), "DB_CONFIG"), files.end());
+                files.erase(remove(files.begin(), files.end(), "__Freeze"), files.end());
+                if(!files.empty())
+                {
+                    return false;
+                }
+            }
+            catch(const string&)
+            {
+                return false;
+            }
+        }
+    }
+
+    if(IceUtilInternal::directoryExists(_serversDir + "/" + name + "/data"))
+    {
+        if(!readDirectory(_serversDir + "/" + name + "/data").empty())
+        {
+            return false;
+        }
+    }
+
+    for(Ice::StringSeq::const_iterator p = serviceDataDirs.begin(); p != serviceDataDirs.end(); ++p)
     {
         try
         {
-            Ice::StringSeq files = readDirectory(_serversDir + "/" + name + "/dbs/" + *p);
-            files.erase(remove(files.begin(), files.end(), "DB_CONFIG"), files.end());
-            files.erase(remove(files.begin(), files.end(), "__Freeze"), files.end());
-            if(!files.empty())
+            if(!readDirectory(_serversDir + "/" + name + "/" + *p).empty())
             {
                 return false;
             }
@@ -1253,7 +1289,6 @@ NodeI::canRemoveServerDirectory(const string& name)
             return false;
         }
     }
-
     return true;
 }
 

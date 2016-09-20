@@ -1,13 +1,11 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
-
-#if !SILVERLIGHT
 
 namespace Ice
 {
@@ -20,7 +18,6 @@ namespace Ice
 
     internal static class NativeMethods
     {
-#if !COMPACT && !UNITY
         //
         // Technically it's not necessary to wrap DllImport in conditional compilation because
         // the binding occurs at run time and it will never be executed on Mono. However, it
@@ -30,7 +27,6 @@ namespace Ice
         [return: MarshalAsAttribute(UnmanagedType.Bool)]
         internal static extern bool
         SetConsoleCtrlHandler(CtrlCEventHandler eh, [MarshalAsAttribute(UnmanagedType.Bool)]bool add);
-#endif
     }
 
     /// <summary>
@@ -224,9 +220,6 @@ namespace Ice
             _application = this;
 
             int status;
-#if COMPACT || UNITY
-            status = doMain(args, initData);
-#else
             if(signalPolicy__ == SignalPolicy.HandleSignals)
             {
                 if(IceInternal.AssemblyUtil.platform_ == IceInternal.AssemblyUtil.Platform.Windows)
@@ -248,7 +241,6 @@ namespace Ice
             {
                 status = doMain(args, initData);
             }
-#endif
 
             return status;
         }
@@ -749,7 +741,6 @@ namespace Ice
 
         private delegate void SignalHandler(int sig);
         private static readonly SignalHandler _handler = new SignalHandler(signalHandler);
-#if !COMPACT && !UNITY
         private Signals _signals;
 
         private interface Signals
@@ -928,9 +919,7 @@ namespace Ice
 #endif
             private SignalHandler _handler;
         }
-#endif
     }
 
     delegate bool CtrlCEventHandler(int sig);
 }
-#endif

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -24,6 +24,7 @@ icebox = TestUtil.getIceBox()
 
 config = os.path.join(os.getcwd(), "config.icebox")
 
+TestUtil.addAdditionalBinDirectories([os.path.join(os.getcwd(), TestUtil.getTestDirectory("testservice"))])
 TestUtil.clientServerTest(additionalServerOptions= '--Ice.Config=\"%s\"' % config, server = icebox)
 
 sys.stdout.write("testing iceboxadmin... ")

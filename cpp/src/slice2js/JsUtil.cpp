@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -102,18 +102,6 @@ fixIds(const StringList& ids)
     return newIds;
 }
 
-static string
-fixSuffix(const string& param)
-{
-    const string thisSuffix = "this.";
-    string p = param;
-    if(p.find(thisSuffix) == 0)
-    {
-        p = "self." + p.substr(thisSuffix.size());
-    }
-    return p;
-}
-
 bool
 Slice::JsGenerator::isClassType(const TypePtr& type)
 {
@@ -192,6 +180,7 @@ Slice::JsGenerator::getOptionalFormat(const TypePtr& type)
             return "Ice.OptionalFormat.VSize";
         }
         case Builtin::KindObject:
+        case Builtin::KindValue:
         {
             return "Ice.OptionalFormat.Class";
         }
@@ -322,7 +311,7 @@ Slice::JsGenerator::typeToString(const TypePtr& type, bool optional)
 }
 
 string
-Slice::JsGenerator::getLocalScope(const string& scope)
+Slice::JsGenerator::getLocalScope(const string& scope, const string& separator)
 {
     assert(!scope.empty());
 
@@ -353,7 +342,7 @@ Slice::JsGenerator::getLocalScope(const string& scope)
     {
         if(i != ids.begin())
         {
-            result << '.';
+            result << separator;
         }
         result << *i;
     }
@@ -503,6 +492,7 @@ Slice::JsGenerator::writeMarshalUnmarshalCode(Output &out,
                 return;
             }
             case Builtin::KindObject:
+            case Builtin::KindValue:
             {
                 // Handle by isClassType below.
                 break;
@@ -557,12 +547,11 @@ Slice::JsGenerator::writeMarshalUnmarshalCode(Output &out,
     {
         if(marshal)
         {
-            out << nl << stream << ".writeObject(" << param << ");";
+            out << nl << stream << ".writeValue(" << param << ");";
         }
         else
         {
-            out << nl << stream << ".readObject(function(__o){ " << fixSuffix(param) << " = __o; }, "
-                << typeToString(type) << ");";
+            out << nl << stream << ".readValue(__o => " << param << " = __o, " << typeToString(type) << ");";
         }
         return;
     }
@@ -596,12 +585,12 @@ Slice::JsGenerator::writeOptionalMarshalUnmarshalCode(Output &out,
     {
         if(marshal)
         {
-            out << nl << stream << ".writeOptObject(" << tag << ", " << param << ");";
+            out << nl << stream << ".writeOptionalValue(" << tag << ", " << param << ");";
         }
         else
         {
-            out << nl << stream << ".readOptObject(" << tag << ", function(__o){ " << fixSuffix(param)
-                << " = __o; }, " << typeToString(type) << ");";
+            out << nl << stream << ".readOptionalValue(" << tag << ", __o => " << param << " = __o, "
+                << typeToString(type) << ");";
         }
         return;
     }
@@ -621,11 +610,11 @@ Slice::JsGenerator::writeOptionalMarshalUnmarshalCode(Output &out,
 
     if(marshal)
     {
-        out << nl << getHelper(type) <<".writeOpt(" << stream << ", " << tag << ", " << param << ");";
+        out << nl << getHelper(type) <<".writeOptional(" << stream << ", " << tag << ", " << param << ");";
     }
     else
     {
-        out << nl << param << " = " << getHelper(type) << ".readOpt(" << stream << ", " << tag << ");";
+        out << nl << param << " = " << getHelper(type) << ".readOptional(" << stream << ", " << tag << ");";
     }
 }
 
@@ -670,6 +659,7 @@ Slice::JsGenerator::getHelper(const TypePtr& type)
                 return "Ice.StringHelper";
             }
             case Builtin::KindObject:
+            case Builtin::KindValue:
             {
                 return "Ice.ObjectHelper";
             }

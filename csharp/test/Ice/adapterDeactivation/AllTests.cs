@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -10,27 +10,9 @@
 using System;
 using Test;
 
-#if SILVERLIGHT
-using System.Net;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Documents;
-using System.Windows.Ink;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
-using System.Windows.Shapes;
-#endif
-
 public class AllTests : TestCommon.TestApp
 {
-
-#if SILVERLIGHT
-    override
-    public void run(Ice.Communicator communicator)
-#else
     public static TestIntfPrx allTests(Ice.Communicator communicator)
-#endif
     {
         Write("testing stringToProxy... ");
         Flush();
@@ -46,7 +28,6 @@ public class AllTests : TestCommon.TestApp
         test(obj.Equals(@base));
         WriteLine("ok");
 
-#if !SILVERLIGHT
         {
             Write("creating/destroying/recreating object adapter... ");
             Flush();
@@ -69,10 +50,11 @@ public class AllTests : TestCommon.TestApp
             adapter.destroy();
             Console.Out.WriteLine("ok");
         }
-#endif
+
         Write("creating/activating/deactivating object adapter in one operation... ");
         Flush();
         obj.transient();
+        obj.end_transient(obj.begin_transient());
         WriteLine("ok");
 
         {
@@ -106,8 +88,6 @@ public class AllTests : TestCommon.TestApp
             WriteLine("ok");
         }
 
-#if !SILVERLIGHT
         return obj;
-#endif
     }
 }

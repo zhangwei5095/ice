@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -29,5 +29,11 @@ import TestUtil, IceGridAdmin
 IceGridAdmin.nreplicas=0
 
 IceGridAdmin.registryOptions += " --Ice.Plugin.RegistryPlugin=RegistryPlugin:createRegistryPlugin"
+IceGridAdmin.registryOptions += " --IceGrid.Registry.DynamicRegistration"
 
-IceGridAdmin.iceGridTest("application.xml", "--Ice.RetryIntervals=\"0 50 100 250\"", "icebox.exe='%s'" % TestUtil.getIceBox())
+
+TestUtil.addAdditionalBinDirectories([os.path.join(os.getcwd(), TestUtil.getTestDirectory("registryplugin"))])
+TestUtil.addAdditionalBinDirectories([os.path.join(os.getcwd(), TestUtil.getTestDirectory("testservice"))])
+
+IceGridAdmin.iceGridTest("application.xml",
+    "--Ice.RetryIntervals=\"0 50 100 250\"", "icebox.exe='%s' server.dir='%s'" % (TestUtil.getIceBox(), TestUtil.getTestDirectory("server")))

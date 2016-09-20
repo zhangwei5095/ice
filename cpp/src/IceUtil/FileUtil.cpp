@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -17,8 +17,12 @@
 #ifdef _WIN32
 #  include <process.h>
 #  include <io.h>
+#  ifndef ICE_OS_WINRT
+#    include <Shlwapi.h>
+#  endif
 #else
 #  include <unistd.h>
+#  include <dirent.h>
 #endif
 
 using namespace std;
@@ -90,6 +94,41 @@ IceUtilInternal::directoryExists(const string& path)
 }
 
 //
+// Determine if a directory exists and is empty.
+//
+#ifndef ICE_OS_WINRT
+bool
+IceUtilInternal::isEmptyDirectory(const string& path)
+{
+#   ifdef _WIN32
+    return PathIsDirectoryEmptyW(stringToWstring(path, IceUtil::getProcessStringConverter()).c_str());
+#   else
+    struct dirent* d;
+    DIR* dir = opendir(path.c_str());
+    if(dir)
+    {
+        bool empty = true;
+        while((d = readdir(dir)))
+        {
+            string name(d->d_name);
+            if(name != "." && name != "..")
+            {
+                empty = false;
+                break;
+            }
+        }
+        closedir(dir);
+        return empty;
+    }
+    else
+    {
+        return false;
+    }
+#   endif
+}
+#endif
+
+//
 // Determine if a regular file exists.
 //
 bool
@@ -115,10 +154,10 @@ IceUtilInternal::freopen(const std::string& path, const std::string& mode, FILE*
     // to Windows API.
     //
     const IceUtil::StringConverterPtr converter = IceUtil::getProcessStringConverter();
-    return _wfreopen(IceUtil::stringToWstring(path, converter).c_str(),
-                     IceUtil::stringToWstring(mode, converter).c_str(), stderr);
+    return _wfreopen(stringToWstring(path, converter).c_str(),
+                     stringToWstring(mode, converter).c_str(), stream);
 #  else
-    return freopen(path.c_str(), mode.c_str(), stderr);
+    return freopen(path.c_str(), mode.c_str(), stream);
 #  endif
 #endif
 }
@@ -135,13 +174,13 @@ IceUtilInternal::stat(const string& path, structstat* buffer)
     // Don't need to use a wide string converter, the wide string is directly passed
     // to Windows API.
     //
-    return _wstat(IceUtil::stringToWstring(path, IceUtil::getProcessStringConverter()).c_str(), buffer);
+    return _wstat(stringToWstring(path, IceUtil::getProcessStringConverter()).c_str(), buffer);
 }
 
 int
 IceUtilInternal::remove(const string& path)
 {
-    return ::_wremove(IceUtil::stringToWstring(path, IceUtil::getProcessStringConverter()).c_str());
+    return ::_wremove(stringToWstring(path, IceUtil::getProcessStringConverter()).c_str());
 }
 
 int
@@ -152,8 +191,8 @@ IceUtilInternal::rename(const string& from, const string& to)
     // to Windows API.
     //
     const IceUtil::StringConverterPtr converter = IceUtil::getProcessStringConverter();
-    return ::_wrename(IceUtil::stringToWstring(from, converter).c_str(), 
-                      IceUtil::stringToWstring(to, converter).c_str());
+    return ::_wrename(stringToWstring(from, converter).c_str(),
+                      stringToWstring(to, converter).c_str());
 }
 
 int
@@ -163,7 +202,7 @@ IceUtilInternal::rmdir(const string& path)
     // Don't need to use a wide string converter, the wide string is directly passed
     // to Windows API.
     //
-    return ::_wrmdir(IceUtil::stringToWstring(path, IceUtil::getProcessStringConverter()).c_str());
+    return ::_wrmdir(stringToWstring(path, IceUtil::getProcessStringConverter()).c_str());
 }
 
 int
@@ -173,7 +212,7 @@ IceUtilInternal::mkdir(const string& path, int)
     // Don't need to use a wide string converter, the wide string is directly passed
     // to Windows API.
     //
-    return ::_wmkdir(IceUtil::stringToWstring(path, IceUtil::getProcessStringConverter()).c_str());
+    return ::_wmkdir(stringToWstring(path, IceUtil::getProcessStringConverter()).c_str());
 }
 
 FILE*
@@ -184,8 +223,8 @@ IceUtilInternal::fopen(const string& path, const string& mode)
     // to Windows API.
     //
     const IceUtil::StringConverterPtr converter = IceUtil::getProcessStringConverter();
-    return ::_wfopen(IceUtil::stringToWstring(path, converter).c_str(), 
-                     IceUtil::stringToWstring(mode, converter).c_str());
+    return ::_wfopen(stringToWstring(path, converter).c_str(),
+                     stringToWstring(mode, converter).c_str());
 }
 
 int
@@ -197,12 +236,12 @@ IceUtilInternal::open(const string& path, int flags)
     //
     if(flags & _O_CREAT)
     {
-        return ::_wopen(IceUtil::stringToWstring(path, IceUtil::getProcessStringConverter()).c_str(), 
+        return ::_wopen(stringToWstring(path, IceUtil::getProcessStringConverter()).c_str(),
                         flags, _S_IREAD | _S_IWRITE);
     }
     else
     {
-        return ::_wopen(IceUtil::stringToWstring(path, IceUtil::getProcessStringConverter()).c_str(), flags);
+        return ::_wopen(stringToWstring(path, IceUtil::getProcessStringConverter()).c_str(), flags);
     }
 }
 
@@ -219,7 +258,7 @@ IceUtilInternal::getcwd(string& cwd)
     {
         return -1;
     }
-    cwd = IceUtil::wstringToString(cwdbuf, IceUtil::getProcessStringConverter());
+    cwd = wstringToString(cwdbuf, IceUtil::getProcessStringConverter());
     return 0;
 }
 #endif
@@ -231,7 +270,7 @@ IceUtilInternal::unlink(const string& path)
     // Don't need to use a wide string converter, the wide string is directly passed
     // to Windows API.
     //
-    return _wunlink(IceUtil::stringToWstring(path, IceUtil::getProcessStringConverter()).c_str());
+    return _wunlink(stringToWstring(path, IceUtil::getProcessStringConverter()).c_str());
 }
 
 int
@@ -253,12 +292,12 @@ IceUtilInternal::FileLock::FileLock(const std::string& path) :
     // to Windows API.
     //
 #ifndef ICE_OS_WINRT
-    _fd = ::CreateFileW(IceUtil::stringToWstring(path, IceUtil::getProcessStringConverter()).c_str(), 
+    _fd = ::CreateFileW(stringToWstring(path, IceUtil::getProcessStringConverter()).c_str(),
                         GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 #else
     CREATEFILE2_EXTENDED_PARAMETERS params;
     params.dwFileAttributes = FILE_ATTRIBUTE_NORMAL;
-    _fd = ::CreateFile2(IceUtil::stringToWstring(path, IceUtil::getProcessStringConverter()).c_str(),
+    _fd = ::CreateFile2(stringToWstring(path, IceUtil::getProcessStringConverter()).c_str(),
                         GENERIC_WRITE, 0, OPEN_ALWAYS, &params);
 #endif
     _path = path;
@@ -293,7 +332,7 @@ IceUtilInternal::FileLock::FileLock(const std::string& path) :
     }
 #endif
     //
-    // In Windows implementation we don't write the process pid to the file, as it is 
+    // In Windows implementation we don't write the process pid to the file, as it is
     // not possible to read the file from other process while it is locked here.
     //
 }
@@ -305,68 +344,13 @@ IceUtilInternal::FileLock::~FileLock()
     unlink(_path);
 }
 
-IceUtilInternal::ifstream::ifstream()
+#ifndef __MINGW32__
+wstring
+IceUtilInternal::streamFilename(const string& filename)
 {
+    return stringToWstring(filename, IceUtil::getProcessStringConverter());
 }
-
-IceUtilInternal::ifstream::ifstream(const string& path, ios_base::openmode mode) : 
-#ifdef  __MINGW32__
-    std::ifstream(path.c_str(), mode)
-#else
-    //
-    // Don't need to use a wide string converter, the wide string is directly passed
-    // to Windows API.
-    //
-    std::ifstream(IceUtil::stringToWstring(path, IceUtil::getProcessStringConverter()).c_str(), mode)
 #endif
-{
-}
-
-void
-IceUtilInternal::ifstream::open(const string& path, ios_base::openmode mode)
-{
-#ifdef  __MINGW32__
-    std::ifstream::open(path.c_str(), mode);
-#else
-    //
-    // Don't need to use a wide string converter, the wide string is directly passed
-    // to Windows API.
-    //
-    std::ifstream::open(IceUtil::stringToWstring(path, IceUtil::getProcessStringConverter()).c_str(), mode);
-#endif
-}
-
-IceUtilInternal::ofstream::ofstream()
-{
-}
-
-IceUtilInternal::ofstream::ofstream(const string& path, ios_base::openmode mode) : 
-#ifdef __MINGW32__
-    std::ofstream(path.c_str(), mode)
-#else
-    //
-    // Don't need to use a wide string converter, the wide string is directly passed
-    // to Windows API.
-    //
-    std::ofstream(IceUtil::stringToWstring(path, IceUtil::getProcessStringConverter()).c_str(), mode)
-#endif
-{
-}
-
-void
-IceUtilInternal::ofstream::open(const string& path, ios_base::openmode mode)
-{
-#ifdef __MINGW32__
-    std::ofstream::open(path.c_str(), mode);
-#else
-    //
-    // Don't need to use a wide string converter, the wide string is directly passed
-    // to Windows API.
-    //
-    std::ofstream::open(IceUtil::stringToWstring(path, IceUtil::getProcessStringConverter()).c_str(), mode);
-#endif
-}
-
 
 #else
 
@@ -462,10 +446,10 @@ IceUtilInternal::FileLock::FileLock(const std::string& path) :
     lock.l_whence = SEEK_SET; // Begining of file
     lock.l_start = 0;
     lock.l_len = 0;
-    
+
     //
-    // F_SETLK tells fcntl to not block if it cannot 
-    // acquire the lock, if the lock cannot be acquired 
+    // F_SETLK tells fcntl to not block if it cannot
+    // acquire the lock, if the lock cannot be acquired
     // it returns -1 without wait.
     //
     if(::fcntl(_fd, F_SETLK, &lock) == -1)
@@ -479,14 +463,14 @@ IceUtilInternal::FileLock::FileLock(const std::string& path) :
     // If there is an error after here, we close the fd,
     // to release the lock.
     //
-    
+
     //
     // Now that we have acquire an excluxive write lock,
     // write the process pid there.
     //
     ostringstream os;
     os << getpid();
-    
+
     if(write(_fd, os.str().c_str(), os.str().size()) == -1)
     {
         IceUtil::FileLockException ex(__FILE__, __LINE__, errno, _path);
@@ -500,34 +484,6 @@ IceUtilInternal::FileLock::~FileLock()
     assert(_fd > -1);
     ::close(_fd);
     unlink(_path);
-}
-
-IceUtilInternal::ifstream::ifstream()
-{
-}
-
-IceUtilInternal::ifstream::ifstream(const string& path, ios_base::openmode mode) : std::ifstream(path.c_str(), mode)
-{
-}
-
-void
-IceUtilInternal::ifstream::open(const string& path, ios_base::openmode mode)
-{
-    std::ifstream::open(path.c_str(), mode);
-}
-
-IceUtilInternal::ofstream::ofstream()
-{
-}
-
-IceUtilInternal::ofstream::ofstream(const string& path, ios_base::openmode mode) : std::ofstream(path.c_str(), mode)
-{
-}
-
-void
-IceUtilInternal::ofstream::open(const string& path, ios_base::openmode mode)
-{
-    std::ofstream::open(path.c_str(), mode);
 }
 
 #endif

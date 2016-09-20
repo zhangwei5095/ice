@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -35,8 +35,14 @@ TestIntfI::opWithUE(const Ice::Current&)
     throw Test::TestIntfException();
 }
 
+int
+TestIntfI::opWithResultAndUE(const Ice::Current&)
+{
+    throw Test::TestIntfException();
+}
+
 void
-TestIntfI::opWithPayload(const Ice::ByteSeq&, const Ice::Current&)
+TestIntfI::opWithPayload(ICE_IN(Ice::ByteSeq), const Ice::Current&)
 {
 }
 

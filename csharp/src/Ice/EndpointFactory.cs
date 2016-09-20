@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -16,10 +16,10 @@ namespace IceInternal
         short type();
         string protocol();
         EndpointI create(List<string> args, bool oaEndpoint);
-        EndpointI read(BasicStream s);
+        EndpointI read(Ice.InputStream s);
         void destroy();
 
-        EndpointFactory clone(ProtocolInstance instance);
+        EndpointFactory clone(ProtocolInstance instance, EndpointFactory del);
     }
 
 }

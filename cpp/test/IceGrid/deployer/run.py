@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -20,9 +20,13 @@ if len(path) == 0:
 sys.path.append(os.path.join(path[0], "scripts"))
 import TestUtil, IceGridAdmin
 
+TestUtil.addAdditionalBinDirectories([os.path.join(os.getcwd(), TestUtil.getTestDirectory("testservice"))])
+serverDir = os.path.join(os.getcwd(), TestUtil.getTestDirectory("server"))
 os.environ["MY_FOO"] = "12"
-IceGridAdmin.iceGridTest("application.xml", '--TestDir="%s"' % os.getcwd(), "icebox.exe='%s'" % TestUtil.getIceBox())
+IceGridAdmin.iceGridTest("application.xml", '--TestDir="%s"' % serverDir, ("icebox.exe='%s' server.dir='%s'" %
+                         (TestUtil.getIceBox(), serverDir)))
 
 # Tests with targets
-IceGridAdmin.iceGridTest("application.xml", '-t --TestDir="%s"' % os.getcwd(),
-                         "icebox.exe='%s' moreservers moreservices moreproperties" % TestUtil.getIceBox())
+IceGridAdmin.iceGridTest("application.xml", '-t --TestDir="%s"' % serverDir,
+                         ("icebox.exe='%s' server.dir='%s' moreservers moreservices moreproperties" %
+                         (TestUtil.getIceBox(), serverDir)))

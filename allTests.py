@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -15,7 +15,7 @@ import TestUtil
 
 testGroups = []
 
-languages = [ "cpp", "java", "python", "ruby", "php", "js" ]
+languages = [ "cpp", "java", "java-compat", "python", "ruby", "php", "js" ]
 if TestUtil.isWin32():
     languages.append("csharp")
 if TestUtil.isDarwin():
@@ -30,7 +30,7 @@ for d in languages:
 
     tests = []
 
-    tests = [ (os.path.join(d, "test", x), y) for x, y in current_mod.tests ]
+    tests = [ (os.path.join(d, "test", os.path.normpath(x)), y) for x, y in current_mod.tests ]
     if len(tests) > 0:
         testGroups.extend(tests)
 

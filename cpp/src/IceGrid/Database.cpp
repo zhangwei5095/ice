@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -30,11 +30,11 @@
 using namespace std;
 using namespace IceGrid;
 
-typedef IceDB::ReadWriteCursor<string, ApplicationInfo, IceDB::IceContext, Ice::OutputStreamPtr> ApplicationMapRWCursor;
-typedef IceDB::ReadOnlyCursor<string, AdapterInfo, IceDB::IceContext, Ice::OutputStreamPtr> AdapterMapROCursor;
-typedef IceDB::Cursor<string, string, IceDB::IceContext, Ice::OutputStreamPtr> AdaptersByGroupMapCursor;
-typedef IceDB::ReadOnlyCursor<string, Ice::Identity, IceDB::IceContext, Ice::OutputStreamPtr> ObjectsByTypeMapROCursor;
-typedef IceDB::ReadOnlyCursor<Ice::Identity, ObjectInfo, IceDB::IceContext, Ice::OutputStreamPtr> ObjectsMapROCursor;
+typedef IceDB::ReadWriteCursor<string, ApplicationInfo, IceDB::IceContext, Ice::OutputStream> ApplicationMapRWCursor;
+typedef IceDB::ReadOnlyCursor<string, AdapterInfo, IceDB::IceContext, Ice::OutputStream> AdapterMapROCursor;
+typedef IceDB::Cursor<string, string, IceDB::IceContext, Ice::OutputStream> AdaptersByGroupMapCursor;
+typedef IceDB::ReadOnlyCursor<string, Ice::Identity, IceDB::IceContext, Ice::OutputStream> ObjectsByTypeMapROCursor;
+typedef IceDB::ReadOnlyCursor<Ice::Identity, ObjectInfo, IceDB::IceContext, Ice::OutputStream> ObjectsMapROCursor;
 
 namespace
 {
@@ -87,14 +87,10 @@ toMap(const IceDB::Txn& txn, const IceDB::Dbi<K, V, C, H>& d)
 }
 
 void
-halt(const Ice::CommunicatorPtr& com, const IceDB::LMDBException& ex)
+logError(const Ice::CommunicatorPtr& com, const IceDB::LMDBException& ex)
 {
-    {
-        Ice::Error error(com->getLogger());
-        error << "fatal exception: " << ex << "\n*** Aborting application ***";
-    }
-
-    abort();
+    Ice::Error error(com->getLogger());
+    error << "LMDB error: " << ex;
 }
 
 void
@@ -217,7 +213,7 @@ Database::Database(const Ice::ObjectAdapterPtr& registryAdapter,
     _serverCache(_communicator, _instanceName, _nodeCache, _adapterCache, _objectCache, _allocatableObjectCache),
     _dbLock(_communicator->getProperties()->getProperty("IceGrid.Registry.LMDB.Path") + "/icedb.lock"),
     _env(_communicator->getProperties()->getProperty("IceGrid.Registry.LMDB.Path"), 8,
-         _communicator->getProperties()->getPropertyAsInt("IceGrid.Registry.LMDB.MapSize") * 1024 * 1024),
+         IceDB::getMapSize(_communicator->getProperties()->getPropertyAsInt("IceGrid.Registry.LMDB.MapSize"))),
     _pluginFacade(RegistryPluginFacadeIPtr::dynamicCast(getRegistryPluginFacade())),
     _lock(0)
 {
@@ -401,7 +397,8 @@ Database::syncApplications(const ApplicationInfoSeq& newApplications, Ice::Long 
         }
         catch(const IceDB::LMDBException& ex)
         {
-            halt(_communicator, ex);
+            logError(_communicator, ex);
+            throw;
         }
 
         ServerEntrySeq entries;
@@ -473,9 +470,14 @@ Database::syncAdapters(const AdapterInfoSeq& adapters, Ice::Long dbSerial)
 
             txn.commit();
         }
+        catch(const IceDB::KeyTooLongException&)
+        {
+            throw;
+        }
         catch(const IceDB::LMDBException& ex)
         {
-            halt(_communicator, ex);
+            logError(_communicator, ex);
+            throw;
         }
 
         if(_traceLevels->adapter > 0)
@@ -512,7 +514,8 @@ Database::syncObjects(const ObjectInfoSeq& objects, Ice::Long dbSerial)
         }
         catch(const IceDB::LMDBException& ex)
         {
-            halt(_communicator, ex);
+            logError(_communicator, ex);
+            throw;
         }
 
         if(_traceLevels->object > 0)
@@ -538,7 +541,8 @@ Database::getApplications(Ice::Long& serial)
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_communicator, ex);
+        logError(_communicator, ex);
+        throw;
     }
     assert(false);
     return ApplicationInfoSeq();
@@ -556,7 +560,8 @@ Database::getAdapters(Ice::Long& serial)
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_communicator, ex);
+        logError(_communicator, ex);
+        throw;
     }
     assert(false);
     return AdapterInfoSeq();
@@ -574,7 +579,8 @@ Database::getObjects(Ice::Long& serial)
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_communicator, ex);
+        logError(_communicator, ex);
+        throw;
     }
     assert(false);
     return ObjectInfoSeq();
@@ -620,13 +626,14 @@ Database::addApplication(const ApplicationInfo& info, AdminSessionI* session, Ic
         for_each(entries.begin(), entries.end(), IceUtil::voidMemFun(&ServerEntry::sync));
         serial = _applicationObserverTopic->applicationAdded(dbSerial, info);
     }
-    catch(const IceDB::KeyTooLongException&)
+    catch(const IceDB::KeyTooLongException& ex)
     {
-        throw DeploymentException("application name is too long: `" + info.descriptor.name + "'");
+        throw DeploymentException("application name `" + info.descriptor.name + "' is too long: " + ex.what());
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_communicator, ex);
+        logError(_communicator, ex);
+        throw;
     }
 
     _applicationObserverTopic->waitForSyncedSubscribers(serial); // Wait for replicas to be updated.
@@ -680,8 +687,9 @@ Database::addApplication(const ApplicationInfo& info, AdminSessionI* session, Ic
             }
             catch(const IceDB::LMDBException& ex)
             {
-                halt(_communicator, ex);
+                logError(_communicator, ex);
             }
+
             _applicationObserverTopic->waitForSyncedSubscribers(serial);
             for_each(entries.begin(), entries.end(), IceUtil::voidMemFun(&ServerEntry::waitForSyncNoThrow));
             finishUpdating(info.descriptor.name);
@@ -733,7 +741,8 @@ Database::updateApplication(const ApplicationUpdateInfo& updt, bool noRestart, A
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_communicator, ex);
+        logError(_communicator, ex);
+        throw;
     }
 
     finishApplicationUpdate(update, oldApp, *previous, *helper, session, noRestart, dbSerial);
@@ -774,7 +783,8 @@ Database::syncApplicationDescriptor(const ApplicationDescriptor& newDesc, bool n
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_communicator, ex);
+        logError(_communicator, ex);
+        throw;
     }
 
     finishApplicationUpdate(update, oldApp, *previous, *helper, session, noRestart);
@@ -819,7 +829,8 @@ Database::instantiateServer(const string& application,
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_communicator, ex);
+        logError(_communicator, ex);
+        throw;
     }
 
     finishApplicationUpdate(update, oldApp, *previous, *helper, session, true);
@@ -874,8 +885,10 @@ Database::removeApplication(const string& name, AdminSessionI* session, Ice::Lon
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_communicator, ex);
+        logError(_communicator, ex);
+        throw;
     }
+
     _applicationObserverTopic->waitForSyncedSubscribers(serial);
 
     if(_master)
@@ -1026,9 +1039,14 @@ Database::setAdapterDirectProxy(const string& adapterId, const string& replicaGr
 
             txn.commit();
         }
+        catch(const IceDB::KeyTooLongException&)
+        {
+            throw;
+        }
         catch(const IceDB::LMDBException& ex)
         {
-            halt(_communicator, ex);
+            logError(_communicator, ex);
+            throw;
         }
 
         if(_traceLevels->adapter > 0)
@@ -1078,7 +1096,7 @@ Database::getAdapterDirectProxy(const string& id, const Ice::EncodingVersion& en
     filterAdapterInfos("", id, _pluginFacade, con, ctx, infos);
     for(unsigned int i = 0; i < infos.size(); ++i)
     {
-        if(infos[i].proxy->ice_getEncodingVersion() < encoding)
+        if(IceInternal::isSupported(encoding, infos[i].proxy->ice_getEncodingVersion()))
         {
             Ice::EndpointSeq edpts = infos[i].proxy->ice_getEndpoints();
             endpoints.insert(endpoints.end(), edpts.begin(), edpts.end());
@@ -1138,9 +1156,14 @@ Database::removeAdapter(const string& adapterId)
 
             txn.commit();
         }
+        catch(const IceDB::KeyTooLongException&)
+        {
+            throw;
+        }
         catch(const IceDB::LMDBException& ex)
         {
-            halt(_communicator, ex);
+            logError(_communicator, ex);
+            throw;
         }
 
         if(_traceLevels->adapter > 0)
@@ -1451,7 +1474,8 @@ Database::addObject(const ObjectInfo& info)
         }
         catch(const IceDB::LMDBException& ex)
         {
-            halt(_communicator, ex);
+            logError(_communicator, ex);
+            throw;
         }
 
         serial = _objectObserverTopic->objectAdded(dbSerial, info);
@@ -1459,7 +1483,7 @@ Database::addObject(const ObjectInfo& info)
         if(_traceLevels->object > 0)
         {
             Ice::Trace out(_traceLevels->logger, _traceLevels->objectCat);
-            out << "added object `" << _communicator->identityToString(id) << "' (serial = `" << dbSerial << "')";
+            out << "added object `" << identityToString(id) << "' (serial = `" << dbSerial << "')";
         }
     }
     _objectObserverTopic->waitForSyncedSubscribers(serial);
@@ -1499,7 +1523,8 @@ Database::addOrUpdateObject(const ObjectInfo& info, Ice::Long dbSerial)
         }
         catch(const IceDB::LMDBException& ex)
         {
-            halt(_communicator, ex);
+            logError(_communicator, ex);
+            throw;
         }
 
         if(update)
@@ -1514,7 +1539,7 @@ Database::addOrUpdateObject(const ObjectInfo& info, Ice::Long dbSerial)
         if(_traceLevels->object > 0)
         {
             Ice::Trace out(_traceLevels->logger, _traceLevels->objectCat);
-            out << (!update ? "added" : "updated") << " object `" << _communicator->identityToString(id) << "' (serial = `" << dbSerial << "')";
+            out << (!update ? "added" : "updated") << " object `" << identityToString(id) << "' (serial = `" << dbSerial << "')";
         }
     }
     _objectObserverTopic->waitForSyncedSubscribers(serial);
@@ -1531,7 +1556,7 @@ Database::removeObject(const Ice::Identity& id, Ice::Long dbSerial)
         if(_objectCache.has(id))
         {
             DeploymentException ex;
-            ex.reason = "removing object `" + _communicator->identityToString(id) + "' is not allowed:\n";
+            ex.reason = "removing object `" + identityToString(id) + "' is not allowed:\n";
             ex.reason += "the object was added with the application descriptor `";
             ex.reason += _objectCache.get(id)->getApplication();
             ex.reason += "'";
@@ -1556,7 +1581,8 @@ Database::removeObject(const Ice::Identity& id, Ice::Long dbSerial)
         }
         catch(const IceDB::LMDBException& ex)
         {
-            halt(_communicator, ex);
+            logError(_communicator, ex);
+            throw;
         }
 
         serial = _objectObserverTopic->objectRemoved(dbSerial, id);
@@ -1564,7 +1590,7 @@ Database::removeObject(const Ice::Identity& id, Ice::Long dbSerial)
         if(_traceLevels->object > 0)
         {
             Ice::Trace out(_traceLevels->logger, _traceLevels->objectCat);
-            out << "removed object `" << _communicator->identityToString(id) << "' (serial = `" << dbSerial << "')";
+            out << "removed object `" << identityToString(id) << "' (serial = `" << dbSerial << "')";
         }
     }
     _objectObserverTopic->waitForSyncedSubscribers(serial);
@@ -1583,7 +1609,7 @@ Database::updateObject(const Ice::ObjectPrx& proxy)
         if(_objectCache.has(id))
         {
             DeploymentException ex;
-            ex.reason = "updating object `" + _communicator->identityToString(id) + "' is not allowed:\n";
+            ex.reason = "updating object `" + identityToString(id) + "' is not allowed:\n";
             ex.reason += "the object was added with the application descriptor `";
             ex.reason += _objectCache.get(id)->getApplication();
             ex.reason += "'";
@@ -1610,14 +1636,15 @@ Database::updateObject(const Ice::ObjectPrx& proxy)
         }
         catch(const IceDB::LMDBException& ex)
         {
-            halt(_communicator, ex);
+            logError(_communicator, ex);
+            throw;
         }
 
         serial = _objectObserverTopic->objectUpdated(dbSerial, info);
         if(_traceLevels->object > 0)
         {
             Ice::Trace out(_traceLevels->logger, _traceLevels->objectCat);
-            out << "updated object `" << _communicator->identityToString(id) << "' (serial = `" << dbSerial << "')";
+            out << "updated object `" << identityToString(id) << "' (serial = `" << dbSerial << "')";
         }
     }
     _objectObserverTopic->waitForSyncedSubscribers(serial);
@@ -1644,8 +1671,10 @@ Database::addOrUpdateRegistryWellKnownObjects(const ObjectInfoSeq& objects)
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_communicator, ex);
+        logError(_communicator, ex);
+        throw;
     }
+
     return _objectObserverTopic->wellKnownObjectsAddedOrUpdated(objects);
 }
 
@@ -1669,8 +1698,10 @@ Database::removeRegistryWellKnownObjects(const ObjectInfoSeq& objects)
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_communicator, ex);
+        logError(_communicator, ex);
+        throw;
     }
+
     return _objectObserverTopic->wellKnownObjectsRemoved(objects);
 }
 
@@ -1802,7 +1833,7 @@ Database::getAllObjectInfos(const string& expression)
     ObjectsMapROCursor cursor(_objects, txn);
     while(cursor.get(id, info, MDB_NEXT))
     {
-        if(expression.empty() || IceUtilInternal::match(_communicator->identityToString(id), expression, true))
+        if(expression.empty() || IceUtilInternal::match(identityToString(id), expression, true))
         {
             infos.push_back(info);
         }
@@ -1849,7 +1880,8 @@ Database::addInternalObject(const ObjectInfo& info, bool replace)
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_communicator, ex);
+        logError(_communicator, ex);
+        throw;
     }
 }
 
@@ -1875,7 +1907,8 @@ Database::removeInternalObject(const Ice::Identity& id)
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_communicator, ex);
+        logError(_communicator, ex);
+        throw;
     }
 }
 
@@ -2056,7 +2089,7 @@ Database::checkObjectForAddition(const Ice::Identity& objectId,
     if(found)
     {
         DeploymentException ex;
-        ex.reason = "object `" + _communicator->identityToString(objectId) + "' is already registered";
+        ex.reason = "object `" + identityToString(objectId) + "' is already registered";
         throw ex;
     }
 }
@@ -2548,7 +2581,8 @@ Database::finishApplicationUpdate(const ApplicationUpdateInfo& update,
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_communicator, ex);
+        logError(_communicator, ex);
+        throw;
     }
 
     _applicationObserverTopic->waitForSyncedSubscribers(serial); // Wait for replicas to be updated.
@@ -2600,7 +2634,7 @@ Database::finishApplicationUpdate(const ApplicationUpdateInfo& update,
                 }
                 catch(const IceDB::LMDBException& ex)
                 {
-                    halt(_communicator, ex);
+                    logError(_communicator, ex);
                 }
 
                 reload(previous, helper, entries, info.uuid, info.revision, noRestart);
@@ -2698,22 +2732,8 @@ Database::updateSerial(const IceDB::ReadWriteTxn& txn, const string& dbName, Ice
 void
 Database::addAdapter(const IceDB::ReadWriteTxn& txn, const AdapterInfo& info)
 {
-    try
-    {
-        _adapters.put(txn, info.id, info);
-    }
-    catch(const IceDB::KeyTooLongException&)
-    {
-        throw Ice::InvalidAdapterException("adapter name is too long: `" + info.id + "'");
-    }
-    try
-    {
-        _adaptersByGroupId.put(txn, info.replicaGroupId, info.id);
-    }
-    catch(const IceDB::KeyTooLongException&)
-    {
-        throw Ice::InvalidAdapterException("replica group id is too long: `" + info.replicaGroupId + "'");
-    }
+    _adapters.put(txn, info.id, info);
+    _adaptersByGroupId.put(txn, info.replicaGroupId, info.id);
 }
 
 void
@@ -2738,18 +2758,19 @@ Database::addObject(const IceDB::ReadWriteTxn& txn, const ObjectInfo& info, bool
         {
             _objects.put(txn, info.proxy->ice_getIdentity(), info);
         }
-        catch(const IceDB::KeyTooLongException&)
+        catch(const IceDB::KeyTooLongException& ex)
         {
-            throw DeploymentException("object identity is too long: `" +
-                                      _communicator->identityToString(info.proxy->ice_getIdentity()) + "'");
+            throw DeploymentException("object identity `" +
+                                      identityToString(info.proxy->ice_getIdentity()) 
+                                      + "' is too long: " + ex.what());
         }
         try
         {
             _objectsByType.put(txn, info.type, info.proxy->ice_getIdentity());
         }
-        catch(const IceDB::KeyTooLongException&)
+        catch(const IceDB::KeyTooLongException& ex)
         {
-            throw DeploymentException("object type is too long: `" + info.type + "'");
+            throw DeploymentException("object type `" + info.type + "' is too long: " + ex.what());
         }
     }
 }

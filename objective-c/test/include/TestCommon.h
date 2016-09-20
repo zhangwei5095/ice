@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -12,11 +12,13 @@
 #import <objc/Ice/Config.h>
 
 #ifndef TEST_API
-#   ifdef TEST_API_EXPORTS
+#   if defined(ICE_STATIC_LIBS)
+#       define TEST_API /**/
+#   elif defined(TEST_API_EXPORTS)
 #       define TEST_API ICE_DECLSPEC_EXPORT
-#    else
+#   else
 #       define TEST_API ICE_DECLSPEC_IMPORT
-#    endif
+#   endif
 #endif
 
 TEST_API @interface TestFailedException : NSException

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -156,7 +156,7 @@ class ICE_PATCH2_API GetFileInfoSeqCB
 {
 public:
 
-    virtual ~GetFileInfoSeqCB() { }
+    virtual ~GetFileInfoSeqCB();
 
     virtual bool remove(const std::string&) = 0;
     virtual bool checksum(const std::string&) = 0;

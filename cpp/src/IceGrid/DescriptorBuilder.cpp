@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -10,6 +10,7 @@
 #include <Ice/Communicator.h>
 #include <Ice/LoggerUtil.h>
 #include <Ice/LocalException.h>
+#include <Ice/Initialize.h>
 #include <IceGrid/DescriptorBuilder.h>
 #include <IceGrid/Util.h>
 
@@ -318,7 +319,7 @@ ApplicationDescriptorBuilder::addObject(const XmlAttributesHelper& attrs)
 {
     ObjectDescriptor object;
     object.type = attrs("type", "");
-    object.id = _communicator->stringToIdentity(attrs("identity"));
+    object.id = Ice::stringToIdentity(attrs("identity"));
     object.proxyOptions = attrs("proxy-options", "");
     if(attrs.contains("property"))
     {
@@ -697,7 +698,7 @@ CommunicatorDescriptorBuilder::addObject(const XmlAttributesHelper& attrs)
 {
     ObjectDescriptor object;
     object.type = attrs("type", "");
-    object.id = _communicator->stringToIdentity(attrs("identity"));
+    object.id = Ice::stringToIdentity(attrs("identity"));
     object.proxyOptions = attrs("proxy-options", "");
     if(attrs.contains("property"))
     {
@@ -711,7 +712,7 @@ CommunicatorDescriptorBuilder::addAllocatable(const XmlAttributesHelper& attrs)
 {
     ObjectDescriptor object;
     object.type = attrs("type", "");
-    object.id = _communicator->stringToIdentity(attrs("identity"));
+    object.id = Ice::stringToIdentity(attrs("identity"));
     object.proxyOptions = attrs("proxy-options", "");
     if(attrs.contains("property"))
     {

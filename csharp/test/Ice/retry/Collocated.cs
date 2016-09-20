@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,7 +8,6 @@
 // **********************************************************************
 
 using System;
-using System.Diagnostics;
 using System.Reflection;
 
 [assembly: CLSCompliant(true)]
@@ -22,7 +21,7 @@ public class Collocated
     private static void setupObjectAdapter(Ice.Communicator communicator)
     {
         Ice.ObjectAdapter adapter = communicator.createObjectAdapter("");
-        adapter.add(new RetryI(), communicator.stringToIdentity("retry"));
+        adapter.add(new RetryI(), Ice.Util.stringToIdentity("retry"));
     }
 
     public static int run(string[] args, Ice.Communicator communicator, Ice.Communicator communicator2)
@@ -70,7 +69,7 @@ public class Collocated
 
             status = run(args, communicator, communicator2);
         }
-        catch(System.Exception ex)
+        catch(Exception ex)
         {
             Console.Error.WriteLine(ex);
             status = 1;

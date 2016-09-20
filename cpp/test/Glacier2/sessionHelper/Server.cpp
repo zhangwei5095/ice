@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -59,7 +59,7 @@ SessionHelperServer::run(int, char**)
 
     communicator()->getProperties()->setProperty("CallbackAdapter.Endpoints", "default -p 12010");
     Ice::ObjectAdapterPtr adapter = communicator()->createObjectAdapter("CallbackAdapter");
-    adapter->add(new CallbackI(), communicator()->stringToIdentity("callback"));
+    adapter->add(new CallbackI(), Ice::stringToIdentity("callback"));
     adapter->activate();
     communicator()->waitForShutdown();
 

@@ -1,6 +1,6 @@
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -52,7 +52,7 @@ def testExceptions(obj, collocated):
         obj.userException()
         test(False)
     except Ice.UnknownUserException as ex:
-        test(ex.unknown.find("Test::TestIntfUserException") >= 0)
+        test(ex.unknown.find("::Test::TestIntfUserException") >= 0)
     except Ice.OperationNotExistException:
         pass
     except AttributeError:
@@ -148,7 +148,7 @@ def allTests(communicator, collocated):
         obj.ice_ids()
         test(False)
     except Ice.UnknownUserException as ex:
-        test(ex.unknown == "Test::TestIntfUserException")
+        test(ex.unknown == "::Test::TestIntfUserException")
     except:
         test(False)
 
@@ -157,7 +157,7 @@ def allTests(communicator, collocated):
         obj.ice_ids()
         test(False)
     except Ice.UnknownUserException as ex:
-        test(ex.unknown == "Test::TestIntfUserException")
+        test(ex.unknown == "::Test::TestIntfUserException")
     except:
         test(False)
     print("ok")
@@ -222,5 +222,5 @@ def allTests(communicator, collocated):
     except:
         test(False)
     print("ok")
-    
+
     return obj

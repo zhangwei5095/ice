@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -24,17 +24,15 @@ public class InitBean implements Init
     private @EJB Service service;
 
     @PostConstruct
-    public void 
-    create()
+    public void create()
     {
-        IceAdapter.add(new ServiceI(service), new Ice.Identity("service", "ejb1"));
+        IceAdapter.add(new ServiceI(service), new com.zeroc.Ice.Identity("service", "ejb1"));
     }
 
     @PreDestroy
-    public void 
-    destroy()
+    public void destroy()
     {
-        IceAdapter.remove(new Ice.Identity("service", "ejb1"));
+        IceAdapter.remove(new com.zeroc.Ice.Identity("service", "ejb1"));
     }
 
     public void 

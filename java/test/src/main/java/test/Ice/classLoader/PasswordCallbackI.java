@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,7 +9,7 @@
 
 package test.Ice.classLoader;
 
-public class PasswordCallbackI implements IceSSL.PasswordCallback
+public class PasswordCallbackI implements com.zeroc.IceSSL.PasswordCallback
 {
     @Override
     public char[] getPassword(String alias)

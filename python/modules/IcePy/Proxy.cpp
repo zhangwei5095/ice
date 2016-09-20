@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -145,9 +145,7 @@ proxyCompare(ProxyObject* p1, PyObject* other, int op)
         }
     }
 
-    PyObject* r = result ? getTrue() : getFalse();
-    Py_INCREF(r);
-    return r;
+    return result ? incTrue() : incFalse();
 }
 
 #ifdef WIN32
@@ -1598,8 +1596,8 @@ proxyIceTimeout(ProxyObject* self, PyObject* args)
     }
     catch(const IceUtil::IllegalArgumentException& ex)
     {
-    	PyErr_Format(PyExc_RuntimeError, "%s", STRCAST(ex.reason().c_str()));
-	   return 0;
+        PyErr_Format(PyExc_RuntimeError, "%s", STRCAST(ex.reason().c_str()));
+        return 0;
     }
     catch(const Ice::Exception& ex)
     {

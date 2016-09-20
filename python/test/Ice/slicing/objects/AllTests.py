@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -10,7 +10,7 @@
 
 import Ice, gc, sys, threading
 
-Ice.loadSlice('-I. --all Forward.ice ClientPrivate.ice')
+Ice.loadSlice('-I. --all ClientPrivate.ice')
 import Test
 
 def test(b):
@@ -68,14 +68,14 @@ class Callback(CallbackBase):
         test(False)
 
     def exception_SBSUnknownDerivedAsSBaseCompact(self, ex):
-        test(isinstance(ex, Ice.NoObjectFactoryException))
+        test(isinstance(ex, Ice.NoValueFactoryException))
         self.called()
 
     def response_SUnknownAsObject10(self, o):
         test(False)
 
     def exception_SUnknownAsObject10(self, exc):
-        test(exc.ice_name() == "Ice::NoObjectFactoryException")
+        test(exc.ice_id() == "::Ice::NoValueFactoryException")
         self.called()
 
     def response_SUnknownAsObject11(self, o):
@@ -224,7 +224,7 @@ class Callback(CallbackBase):
         self.called()
 
     def exception_throwBaseAsBase(self, ex):
-        test(ex.ice_name() == "Test::BaseException")
+        test(ex.ice_id() == "::Test::BaseException")
         e = ex
         test(isinstance(e, Test.BaseException))
         test(e.sbe == "sbe")
@@ -234,7 +234,7 @@ class Callback(CallbackBase):
         self.called()
 
     def exception_throwDerivedAsBase(self, ex):
-        test(ex.ice_name() == "Test::DerivedException")
+        test(ex.ice_id() == "::Test::DerivedException")
         e = ex
         test(isinstance(e, Test.DerivedException))
         test(e.sbe == "sbe")
@@ -250,7 +250,7 @@ class Callback(CallbackBase):
         self.called()
 
     def exception_throwDerivedAsDerived(self, ex):
-        test(ex.ice_name() == "Test::DerivedException")
+        test(ex.ice_id() == "::Test::DerivedException")
         e = ex
         test(isinstance(e, Test.DerivedException))
         test(e.sbe == "sbe")
@@ -266,7 +266,7 @@ class Callback(CallbackBase):
         self.called()
 
     def exception_throwUnknownDerivedAsBase(self, ex):
-        test(ex.ice_name() == "Test::BaseException")
+        test(ex.ice_id() == "::Test::BaseException")
         e = ex
         test(isinstance(e, Test.BaseException))
         test(e.sbe == "sbe")
@@ -359,14 +359,10 @@ class PNodeI(Test.PNode):
     def __del__(self):
         PNodeI.counter = PNodeI.counter - 1
 
-class NodeFactoryI(Ice.ObjectFactory):
-    def create(self, id):
-        if id == Test.PNode.ice_staticId():
-            return PNodeI()
-        return None
-
-    def destroy(self):
-        pass
+def NodeFactoryI(id):
+    if id == Test.PNode.ice_staticId():
+        return PNodeI()
+    return None
 
 class PreservedI(Test.Preserved):
     counter = 0
@@ -377,14 +373,10 @@ class PreservedI(Test.Preserved):
     def __del__(self):
         PreservedI.counter = PreservedI.counter - 1
 
-class PreservedFactoryI(Ice.ObjectFactory):
-    def create(self, id):
-        if id == Test.Preserved.ice_staticId():
-            return PreservedI()
-        return None
-
-    def destroy(self):
-        pass
+def PreservedFactoryI(id):
+    if id == Test.Preserved.ice_staticId():
+        return PreservedI()
+    return None
 
 def allTests(communicator):
     obj = communicator.stringToProxy("Test:default -p 12010")
@@ -492,7 +484,7 @@ def allTests(communicator):
             test(False)
         except Ice.OperationNotExistException:
             pass
-        except Ice.NoObjectFactoryException:
+        except Ice.NoValueFactoryException:
             # Expected.
             pass
         except:
@@ -530,7 +522,7 @@ def allTests(communicator):
         test(isinstance(o, Ice.UnknownSlicedObject))
         test(o.unknownTypeId == "::Test::SUnknown")
         t.checkSUnknown(o)
-    except Ice.NoObjectFactoryException:
+    except Ice.NoValueFactoryException:
         test(t.ice_getEncodingVersion() == Ice.Encoding_1_0)
     except Ice.Exception:
         test(False)
@@ -1358,7 +1350,7 @@ def allTests(communicator):
         t.throwBaseAsBase()
         test(False)
     except Test.BaseException as e:
-        test(e.ice_name() == "Test::BaseException")
+        test(e.ice_id() == "::Test::BaseException")
         test(e.sbe == "sbe")
         test(e.pb)
         test(e.pb.sb == "sb")
@@ -1380,7 +1372,7 @@ def allTests(communicator):
         t.throwDerivedAsBase()
         test(False)
     except Test.DerivedException as e:
-        test(e.ice_name() == "Test::DerivedException")
+        test(e.ice_id() == "::Test::DerivedException")
         test(e.sbe == "sbe")
         test(e.pb)
         test(e.pb.sb == "sb1")
@@ -1408,7 +1400,7 @@ def allTests(communicator):
         t.throwDerivedAsDerived()
         test(False)
     except Test.DerivedException as e:
-        test(e.ice_name() == "Test::DerivedException")
+        test(e.ice_id() == "::Test::DerivedException")
         test(e.sbe == "sbe")
         test(e.pb)
         test(e.pb.sb == "sb1")
@@ -1436,7 +1428,7 @@ def allTests(communicator):
         t.throwUnknownDerivedAsBase()
         test(False)
     except Test.BaseException as e:
-        test(e.ice_name() == "Test::BaseException")
+        test(e.ice_id() == "::Test::BaseException")
         test(e.sbe == "sbe")
         test(e.pb)
         test(e.pb.sb == "sb d2")
@@ -1579,7 +1571,7 @@ def allTests(communicator):
             t.ice_encodingVersion(Ice.Encoding_1_0).checkPBSUnknown(p)
     except Ice.OperationNotExistException:
         pass
-    
+
     print("ok")
 
     sys.stdout.write("preserved classes (AMI)... ")
@@ -1674,7 +1666,7 @@ def allTests(communicator):
         # UCNode. This provides an easy way to determine how many
         # unmarshaled instances currently exist.
         #
-        communicator.addObjectFactory(NodeFactoryI(), Test.PNode.ice_staticId())
+        communicator.getValueFactoryManager().add(NodeFactoryI, Test.PNode.ice_staticId())
 
         #
         # Relay a graph through the server. This test uses a preserved class
@@ -1761,7 +1753,7 @@ def allTests(communicator):
         # Preserved. This provides an easy way to determine how many
         # unmarshaled instances currently exist.
         #
-        communicator.addObjectFactory(PreservedFactoryI(), Test.Preserved.ice_staticId())
+        communicator.getValueFactoryManager().add(PreservedFactoryI, Test.Preserved.ice_staticId())
 
         #
         # Obtain a preserved object from the server where the most-derived

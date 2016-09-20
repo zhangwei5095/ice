@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -16,6 +16,7 @@
 #include <IceUtil/StringUtil.h>
 #include <IceUtil/Mutex.h>
 #include <IceUtil/MutexPtrLock.h>
+#include <IceUtil/StringConverter.h>
 #include <Slice/Checksum.h>
 #include <Slice/Preprocessor.h>
 #include <Slice/FileTracker.h>
@@ -392,10 +393,10 @@ CodeVisitor::visitClassDefStart(const ClassDefPtr& p)
         _out << nl << "return $proxy->ice_uncheckedCast('" << scoped << "', $facet);";
         _out << eb;
 
-	_out << sp << nl << "public static function ice_staticId()";
-	_out << sb;
-	_out << nl << "return '" << scoped << "';";
-	_out << eb;
+        _out << sp << nl << "public static function ice_staticId()";
+        _out << sb;
+        _out << nl << "return '" << scoped << "';";
+        _out << eb;
 
         _out << eb;
     }
@@ -684,11 +685,11 @@ CodeVisitor::visitExceptionStart(const ExceptionPtr& p)
     _out << eb;
 
     //
-    // ice_name
+    // ice_id
     //
-    _out << sp << nl << "public function ice_name()";
+    _out << sp << nl << "public function ice_id()";
     _out << sb;
-    _out << nl << "return '" << scoped.substr(2) << "';";
+    _out << nl << "return '" << scoped << "';";
     _out << eb;
 
     //
@@ -905,6 +906,7 @@ CodeVisitor::visitDictionary(const DictionaryPtr& p)
         case Slice::Builtin::KindObject:
         case Slice::Builtin::KindObjectProxy:
         case Slice::Builtin::KindLocalObject:
+        case Slice::Builtin::KindValue:
             assert(false);
         }
     }
@@ -1098,6 +1100,7 @@ CodeVisitor::writeType(const TypePtr& p)
                 break;
             }
             case Builtin::KindObject:
+            case Builtin::KindValue:
             {
                 _out << "$Ice__t_Object";
                 break;
@@ -1164,6 +1167,7 @@ CodeVisitor::writeDefaultValue(const DataMemberPtr& m)
             case Builtin::KindObject:
             case Builtin::KindObjectProxy:
             case Builtin::KindLocalObject:
+            case Builtin::KindValue:
             {
                 _out << "null";
                 break;
@@ -1270,9 +1274,10 @@ CodeVisitor::writeConstantValue(const TypePtr& type, const SyntaxTreeBasePtr& va
 
                 _out << "\"";                                       // Opening "
 
-                for(string::const_iterator c = value.begin(); c != value.end(); ++c)
+                for(size_t i = 0; i < value.size();)
                 {
-                    switch(*c)
+                    char c = value[i];
+                    switch(c)
                     {
                     case '$':
                     {
@@ -1286,8 +1291,63 @@ CodeVisitor::writeConstantValue(const TypePtr& type, const SyntaxTreeBasePtr& va
                     }
                     case '\\':
                     {
-                        _out << "\\\\";
-                        break;
+
+                        string s = "\\";
+                        size_t j = i + 1;
+                        for(; j < value.size(); ++j)
+                        {
+                            if(value[j] != '\\')
+                            {
+                                break;
+                            }
+                            s += "\\";
+                        }
+
+                        //
+                        // An even number of slash \ will escape the backslash and
+                        // the codepoint will be interpreted as its charaters
+                        //
+                        // \\u00000041  - ['\\', 'u', '0', '0', '0', '0', '0', '0', '4', '1']
+                        // \\\u00000041 - ['\\', 'A'] (41 is the codepoint for 'A')
+                        //
+                        if(s.size() % 2 != 0 && (value[j] == 'U' || value[j] == 'u'))
+                        {
+                            //
+                            // Convert codepoint to UTF8 bytes and write the escaped bytes
+                            //
+                            _out << s.substr(0, s.size() - 1);
+
+                            size_t sz = value[j] == 'U' ? 8 : 4;
+                            string codepoint = value.substr(j + 1, sz);
+                            assert(codepoint.size() ==  sz);
+
+                            IceUtil::Int64 v = IceUtilInternal::strToInt64(codepoint.c_str(), 0, 16);
+
+
+                            vector<unsigned int> u32buffer;
+                            u32buffer.push_back(static_cast<unsigned int>(v));
+
+                            vector<unsigned char> u8buffer = fromUTF32(u32buffer);
+
+                            ostringstream s;
+                            for(vector<unsigned char>::const_iterator q = u8buffer.begin(); q != u8buffer.end(); ++q)
+                            {
+                                s << "\\";
+                                s.fill('0');
+                                s.width(3);
+                                s << oct;
+                                s << static_cast<unsigned int>(*q);
+                            }
+                            _out << s.str();
+
+                            i = j + 1 + sz;
+                        }
+                        else
+                        {
+                            _out << s;
+                            i = j;
+                        }
+                        continue;
                     }
                     case '\r':
                     {
@@ -1304,11 +1364,6 @@ CodeVisitor::writeConstantValue(const TypePtr& type, const SyntaxTreeBasePtr& va
                         _out << "\\t";
                         break;
                     }
-                    case '\b':
-                    {
-                        _out << "\\b";
-                        break;
-                    }
                     case '\f':
                     {
                         _out << "\\f";
@@ -1316,9 +1371,9 @@ CodeVisitor::writeConstantValue(const TypePtr& type, const SyntaxTreeBasePtr& va
                     }
                     default:
                     {
-                        if(charSet.find(*c) == charSet.end())
+                        if(charSet.find(c) == charSet.end())
                         {
-                            unsigned char uc = *c;              // Char may be signed, so make it positive.
+                            unsigned char uc = c;              // Char may be signed, so make it positive.
                             stringstream s;
                             s << "\\";                          // Print as octal if not in basic source character set.
                             s.flags(ios_base::oct);
@@ -1329,11 +1384,12 @@ CodeVisitor::writeConstantValue(const TypePtr& type, const SyntaxTreeBasePtr& va
                         }
                         else
                         {
-                            _out << *c;                         // Print normally if in basic source character set.
+                            _out << c;                          // Print normally if in basic source character set.
                         }
                         break;
                     }
                     }
+                    ++i;
                 }
 
                 _out << "\"";                                   // Closing "
@@ -1342,6 +1398,7 @@ CodeVisitor::writeConstantValue(const TypePtr& type, const SyntaxTreeBasePtr& va
             case Slice::Builtin::KindObject:
             case Slice::Builtin::KindObjectProxy:
             case Slice::Builtin::KindLocalObject:
+            case Slice::Builtin::KindValue:
                 assert(false);
             }
         }
@@ -1521,7 +1578,7 @@ printHeader(IceUtilInternal::Output& out)
     static const char* header =
 "// **********************************************************************\n"
 "//\n"
-"// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.\n"
+"// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.\n"
 "//\n"
 "// This copy of Ice is licensed to you under the terms described in the\n"
 "// ICE_LICENSE file included in this distribution.\n"
@@ -1577,7 +1634,7 @@ usage(const char* n)
         "Options:\n"
         "-h, --help           Show this message.\n"
         "-v, --version        Display the Ice version.\n"
-        "--validate               Validate command line options.\n"
+        "--validate           Validate command line options.\n"
         "-DNAME               Define NAME as 1.\n"
         "-DNAME=DEF           Define NAME as DEF.\n"
         "-UNAME               Remove any definition for NAME.\n"

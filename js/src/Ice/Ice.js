@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,7 +8,7 @@
 // **********************************************************************
 
 
-var __M = require("../Ice/ModuleRegistry").Ice.__M;
+const __M = require("../Ice/ModuleRegistry").Ice.__M;
 
 module.exports.Ice = __M.require(module,
     [
@@ -37,8 +37,9 @@ module.exports.Ice = __M.require(module,
         "../Ice/ObjectFactory",
         "../Ice/Buffer",
         "../Ice/ArrayUtil",
-        "../Ice/UnknownSlicedObject",
-        "../Ice/Process"
+        "../Ice/UnknownSlicedValue",
+        "../Ice/Process",
+        "../Ice/MapUtil"
     ]).Ice;
 
 module.exports.IceMX = require("../Ice/Metrics").IceMX;

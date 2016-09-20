@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -23,16 +23,16 @@ Slice::FileException::FileException(const char* file, int line, const string& r)
 {
 }
 
+#ifndef ICE_CPP11_COMPILER
 Slice::FileException::~FileException() throw()
 {
 }
-
-const char* Slice::FileException::_name = "Slice::FileException";
+#endif
 
 string
-Slice::FileException::ice_name() const
+Slice::FileException::ice_id() const
 {
-    return _name;
+    return "::Slice::FileException";
 }
 
 void
@@ -42,11 +42,13 @@ Slice::FileException::ice_print(ostream& out) const
     out << ": " << _reason;
 }
 
+#ifndef ICE_CPP11_MAPPING
 Slice::FileException*
 Slice::FileException::ice_clone() const
 {
     return new FileException(*this);
 }
+#endif
 
 void
 Slice::FileException::ice_throw() const

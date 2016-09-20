@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -18,9 +18,12 @@ using namespace IceGrid;
 namespace
 {
 
-RegistryPluginFacadePtr pluginFacade;
-
-};
+#ifdef ICE_CPP11_MAPPING
+std::shared_ptr<RegistryPluginFacade> pluginFacade;
+#else
+RegistryPluginFacade* pluginFacade = 0;
+#endif
+}
 
 namespace IceGrid
 {
@@ -38,5 +41,17 @@ IceGrid::getRegistryPluginFacade()
 void
 IceGrid::setRegistryPluginFacade(const RegistryPluginFacadePtr& facade)
 {
+#ifdef ICE_CPP11_MAPPING
     pluginFacade = facade;
+#else
+    if(pluginFacade)
+    {
+        pluginFacade->__decRef();
+    }
+    pluginFacade = facade.get();
+    if(pluginFacade)
+    {
+        pluginFacade->__incRef();
+    }
+#endif
 }

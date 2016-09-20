@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,7 +9,7 @@
 
 #import <acm/TestI.h>
 
-@interface ConnectionCallbackI : NSObject<ICEConnectionCallback>
+@interface ConnectionCallbackI : NSObject
 {
     NSCondition* _cond;
     int _count;
@@ -36,9 +36,6 @@
     --_count;
     [_cond signal];
     [_cond unlock];
-}
--(void) closed:(id<ICEConnection>)c
-{
 }
 -(void) waitForCount:(int)count
 {
@@ -107,7 +104,7 @@
     }
     _adapter = ICE_RETAIN(adapter);
     _testIntf = ICE_RETAIN([TestACMTestIntfPrx uncheckedCast:[_adapter add:[TestACMTestIntfI testIntf]
-                                                    identity:[[_adapter getCommunicator] stringToIdentity:@"test"]]]);
+                                                    identity:[ICEUtil stringToIdentity:@"test"]]]);
     [_adapter activate];
 
     return self;
@@ -198,7 +195,11 @@
 -(void) waitForHeartbeat:(int)count current:(ICECurrent*)current
 {
     ConnectionCallbackI* callback = [ConnectionCallbackI new];
-    [current.con setCallback:callback];
+
+    [current.con setHeartbeatCallback:^(id<ICEConnection> c)
+    {
+        [callback heartbeat:c];
+    }];
     [callback waitForCount:count];
     ICE_RELEASE(callback);
 }

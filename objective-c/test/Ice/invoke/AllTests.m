@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -166,10 +166,12 @@ invokeAllTests(id<ICECommunicator> communicator)
         }
     }
 
+    for(int i = 0; i < 2; ++i)
     {
         NSData* inEncaps = [NSData data];
         NSMutableData* outEncaps;
-        if([cl ice_invoke:@"opException" mode:ICENormal inEncaps:inEncaps outEncaps:&outEncaps])
+        ICEContext* ctx = i == 0 ? nil : @{ @"raise": @"" };
+        if([cl ice_invoke:@"opException" mode:ICENormal inEncaps:inEncaps outEncaps:&outEncaps context:ctx])
         {
             test(NO);
         }

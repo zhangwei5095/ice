@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -11,8 +11,9 @@
 #define TESTI_H
 
 #include <ServerPrivate.h>
+#include <TestCommon.h>
 
-class TestI : virtual public Test::TestIntf
+class TestI : public virtual Test::TestIntf
 {
 public:
 
@@ -38,14 +39,14 @@ public:
     virtual void knownPreservedAsBase(const ::Ice::Current&);
     virtual void knownPreservedAsKnownPreserved(const ::Ice::Current&);
 
-    virtual void relayKnownPreservedAsBase(const ::Test::RelayPrx&, const ::Ice::Current&);
-    virtual void relayKnownPreservedAsKnownPreserved(const ::Test::RelayPrx&, const ::Ice::Current&);
+    virtual void relayKnownPreservedAsBase(ICE_IN(::Test::RelayPrxPtr), const ::Ice::Current&);
+    virtual void relayKnownPreservedAsKnownPreserved(ICE_IN(::Test::RelayPrxPtr), const ::Ice::Current&);
 
     virtual void unknownPreservedAsBase(const ::Ice::Current&);
     virtual void unknownPreservedAsKnownPreserved(const ::Ice::Current&);
 
-    virtual void relayUnknownPreservedAsBase(const ::Test::RelayPrx&, const ::Ice::Current&);
-    virtual void relayUnknownPreservedAsKnownPreserved(const ::Test::RelayPrx&, const ::Ice::Current&);
+    virtual void relayUnknownPreservedAsBase(ICE_IN(::Test::RelayPrxPtr), const ::Ice::Current&);
+    virtual void relayUnknownPreservedAsKnownPreserved(ICE_IN(::Test::RelayPrxPtr), const ::Ice::Current&);
 
     virtual void shutdown(const ::Ice::Current&);
 };

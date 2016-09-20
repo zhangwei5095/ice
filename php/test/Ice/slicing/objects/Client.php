@@ -9,7 +9,6 @@ if(!extension_loaded("ice"))
 
 $NS = function_exists("Ice\\initialize");
 require_once ($NS ? 'Ice_ns.php' : 'Ice.php');
-require_once 'Forward.php';
 require_once 'ClientPrivate.php';
 
 function test($b)
@@ -17,7 +16,8 @@ function test($b)
     if(!$b)
     {
         $bt = debug_backtrace();
-        die("\ntest failed in ".$bt[0]["file"]." line ".$bt[0]["line"]."\n");
+        echo "\ntest failed in ".$bt[0]["file"]." line ".$bt[0]["line"]."\n";
+        exit(1);
     }
 }
 
@@ -102,7 +102,7 @@ function allTests($communicator)
         }
         catch(Exception $ex)
         {
-            test(get_class($ex) == ($NS ? "Ice\\NoObjectFactoryException" : "Ice_NoObjectFactoryException"));
+            test(get_class($ex) == ($NS ? "Ice\\NoValueFactoryException" : "Ice_NoValueFactoryException"));
         }
     }
     echo "ok\n";
@@ -122,7 +122,7 @@ function allTests($communicator)
         }
         catch(Exception $b)
         {
-            $excls = $NS ? "Ice\\NoObjectFactoryException" : "Ice_NoObjectFactoryException";
+            $excls = $NS ? "Ice\\NoValueFactoryException" : "Ice_NoValueFactoryException";
             if($b instanceof $excls)
             {
                 test($test->ice_getEncodingVersion() == $Ice_Encoding_1_0);

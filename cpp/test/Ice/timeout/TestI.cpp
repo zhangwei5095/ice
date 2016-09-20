@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -42,12 +42,12 @@ TimeoutI::op(const Ice::Current&)
 }
 
 void
-TimeoutI::sendData(const Test::ByteSeq&, const Ice::Current&)
+TimeoutI::sendData(ICE_IN(Test::ByteSeq), const Ice::Current&)
 {
 }
 
 void
-TimeoutI::sleep(Ice::Int to, const Ice::Current&)
+TimeoutI::sleep(Ice::Int to, const Ice::Current& c)
 {
     IceUtil::ThreadControl::sleep(IceUtil::Time::milliSeconds(to));
 }

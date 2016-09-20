@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -11,13 +11,9 @@ namespace IceInternal
 {
 
     using System;
-    using System.Collections;
     using System.Collections.Generic;
     using System.Diagnostics;
-    using System.Net.Sockets;
-    using System.Threading;
     using System.Text;
-    using IceUtilInternal;
 
     public class MultiDictionary<K, V> : Dictionary<K, ICollection<V>>
     {
@@ -28,7 +24,7 @@ namespace IceInternal
             if(!this.TryGetValue(key, out list))
             {
                 list = new List<V>();
-                this.Add(key, list);
+                Add(key, list);
             }
             list.Add(value);
         }
@@ -40,7 +36,7 @@ namespace IceInternal
             list.Remove(value);
             if(list.Count == 0)
             {
-                this.Remove(key);
+                Remove(key);
             }
         }
     }
@@ -147,7 +143,6 @@ namespace IceInternal
                 _monitor.destroy();
             }
         }
-
 
         public void create(EndpointI[] endpts, bool hasMore, Ice.EndpointSelectionType selType,
                            CreateConnectionCallback callback)
@@ -261,7 +256,7 @@ namespace IceInternal
             }
         }
 
-        public void flushAsyncBatchRequests(CommunicatorFlushBatch outAsync)
+        public void flushAsyncBatchRequests(CommunicatorFlushBatchAsync outAsync)
         {
             ICollection<Ice.ConnectionI> c = new List<Ice.ConnectionI>();
 
@@ -848,23 +843,9 @@ namespace IceInternal
 
             public void connectionStartFailed(Ice.ConnectionI connection, Ice.LocalException ex)
             {
-                if(_observer != null)
-                {
-                    _observer.failed(ex.ice_name());
-                    _observer.detach();
-                }
-                _factory.handleConnectionException(ex, _hasMore || _iter < _connectors.Count);
-                if(ex is Ice.CommunicatorDestroyedException) // No need to continue.
-                {
-                    _factory.finishGetConnection(_connectors, ex, this);
-                }
-                else if(_iter < _connectors.Count) // Try the next connector.
+                if(connectionStartFailedImpl(ex))
                 {
                     nextConnector();
-                }
-                else
-                {
-                    _factory.finishGetConnection(_connectors, ex, this);
                 }
             }
 
@@ -1023,52 +1004,81 @@ namespace IceInternal
 
             internal void nextConnector()
             {
-                Ice.ConnectionI connection = null;
-                try
+                while(true)
                 {
-                    Debug.Assert(_iter < _connectors.Count);
-                    _current = _connectors[_iter++];
-
-                    Ice.Instrumentation.CommunicatorObserver obsv = _factory._instance.initializationData().observer;
-                    if(obsv != null)
+                    try
                     {
-                        _observer = obsv.getConnectionEstablishmentObserver(_current.endpoint,
-                                                                            _current.connector.ToString());
-                        if(_observer != null)
+                        Debug.Assert(_iter < _connectors.Count);
+                        _current = _connectors[_iter++];
+
+                        Ice.Instrumentation.CommunicatorObserver obsv = _factory._instance.initializationData().observer;
+                        if(obsv != null)
                         {
-                            _observer.attach();
+                            _observer = obsv.getConnectionEstablishmentObserver(_current.endpoint,
+                                                                                _current.connector.ToString());
+                            if(_observer != null)
+                            {
+                                _observer.attach();
+                            }
+                        }
+
+                        if(_factory._instance.traceLevels().network >= 2)
+                        {
+                            StringBuilder s = new StringBuilder("trying to establish ");
+                            s.Append(_current.endpoint.protocol());
+                            s.Append(" connection to ");
+                            s.Append(_current.connector.ToString());
+                            _factory._instance.initializationData().logger.trace(
+                                                _factory._instance.traceLevels().networkCat, s.ToString());
+                        }
+
+                        Ice.ConnectionI connection = _factory.createConnection(_current.connector.connect(), _current);
+                        connection.start(this);
+                    }
+                    catch(Ice.LocalException ex)
+                    {
+                        if(_factory._instance.traceLevels().network >= 2)
+                        {
+                            StringBuilder s = new StringBuilder("failed to establish ");
+                            s.Append(_current.endpoint.protocol());
+                            s.Append(" connection to ");
+                            s.Append(_current.connector.ToString());
+                            s.Append("\n");
+                            s.Append(ex);
+                            _factory._instance.initializationData().logger.trace(
+                                                _factory._instance.traceLevels().networkCat, s.ToString());
+                        }
+
+                        if(connectionStartFailedImpl(ex))
+                        {
+                            continue;
                         }
                     }
-
-                    if(_factory._instance.traceLevels().network >= 2)
-                    {
-                        StringBuilder s = new StringBuilder("trying to establish ");
-                        s.Append(_current.endpoint.protocol());
-                        s.Append(" connection to ");
-                        s.Append(_current.connector.ToString());
-                        _factory._instance.initializationData().logger.trace(
-                                            _factory._instance.traceLevels().networkCat, s.ToString());
-                    }
-
-                    connection = _factory.createConnection(_current.connector.connect(), _current);
-                    connection.start(this);
+                    break;
                 }
-                catch(Ice.LocalException ex)
+            }
+
+            private bool connectionStartFailedImpl(Ice.LocalException ex)
+            {
+                if(_observer != null)
                 {
-                    if(_factory._instance.traceLevels().network >= 2)
-                    {
-                        StringBuilder s = new StringBuilder("failed to establish ");
-                        s.Append(_current.endpoint.protocol());
-                        s.Append(" connection to ");
-                        s.Append(_current.connector.ToString());
-                        s.Append("\n");
-                        s.Append(ex);
-                        _factory._instance.initializationData().logger.trace(
-                                            _factory._instance.traceLevels().networkCat, s.ToString());
-                    }
-
-                    connectionStartFailed(connection, ex);
+                    _observer.failed(ex.ice_id());
+                    _observer.detach();
                 }
+                _factory.handleConnectionException(ex, _hasMore || _iter < _connectors.Count);
+                if(ex is Ice.CommunicatorDestroyedException) // No need to continue.
+                {
+                    _factory.finishGetConnection(_connectors, ex, this);
+                }
+                else if(_iter < _connectors.Count) // Try the next connector.
+                {
+                    return true;
+                }
+                else
+                {
+                    _factory.finishGetConnection(_connectors, ex, this);
+                }
+                return false;
             }
 
             private OutgoingConnectionFactory _factory;
@@ -1246,7 +1256,7 @@ namespace IceInternal
             }
         }
 
-        public void flushAsyncBatchRequests(CommunicatorFlushBatch outAsync)
+        public void flushAsyncBatchRequests(CommunicatorFlushBatchAsync outAsync)
         {
             //
             // connections() is synchronized, no need to synchronize here.
@@ -1288,9 +1298,7 @@ namespace IceInternal
                 }
                 finally
                 {
-#if !COMPACT && !SILVERLIGHT
                     System.Environment.FailFast(s);
-#endif
                 }
                 return false;
             }
@@ -1314,9 +1322,7 @@ namespace IceInternal
                     }
                     finally
                     {
-#if !COMPACT && !SILVERLIGHT
                         System.Environment.FailFast(s);
-#endif
                     }
                     return false;
                 }
@@ -1394,9 +1400,7 @@ namespace IceInternal
                             }
                             finally
                             {
-#if !COMPACT && !SILVERLIGHT
                                 System.Environment.FailFast(s);
-#endif
                             }
                         }
 
@@ -1710,13 +1714,13 @@ namespace IceInternal
                     _adapter.getThreadPool().unregister(this, SocketOperation.Read);
                 }
             }
-            catch(SystemException ex)
+            catch(SystemException)
             {
                 if(_acceptor != null)
                 {
                     _acceptor.close();
                 }
-                throw ex;
+                throw;
             }
         }
 

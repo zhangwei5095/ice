@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -312,9 +312,9 @@ Ice::Application::main(int argc, char* argv[], const char* configFile)
         IceInternal::Application::_appName = argv[0];
     }
 
-    if(argc > 0 && argv[0] && LoggerIPtr::dynamicCast(getProcessLogger()))
+    if(argc > 0 && argv[0] && ICE_DYNAMIC_CAST(LoggerI, getProcessLogger()))
     {
-        setProcessLogger(new LoggerI(argv[0], "", true, IceUtil::getProcessStringConverter()));
+        setProcessLogger(ICE_MAKE_SHARED(LoggerI, argv[0], "", true));
     }
 
     InitializationData initData;
@@ -364,12 +364,12 @@ Ice::Application::main(int argc, wchar_t* argv[], const Ice::InitializationData&
 int
 Ice::Application::main(int argc, char* argv[], const InitializationData& initializationData)
 {
-    if(argc > 0 && argv[0] && LoggerIPtr::dynamicCast(getProcessLogger()))
+    if(argc > 0 && argv[0] && ICE_DYNAMIC_CAST(LoggerI, getProcessLogger()))
     {
         const bool convert = initializationData.properties ?
                 initializationData.properties->getPropertyAsIntWithDefault("Ice.LogStdErr.Convert", 1) > 0 &&
                 initializationData.properties->getProperty("Ice.StdErr").empty() : true;
-        setProcessLogger(new LoggerI(argv[0], "", convert, IceUtil::getProcessStringConverter()));
+        setProcessLogger(ICE_MAKE_SHARED(LoggerI, argv[0], "", convert));
     }
 
     if(IceInternal::Application::_communicator != 0)
@@ -655,14 +655,13 @@ Ice::Application::doMain(int argc, char* argv[], const InitializationData& initD
         // If the process logger is the default logger, we now replace it with a
         // a logger which is using the program name for the prefix.
         //
-        if(initData.properties->getProperty("Ice.ProgramName") != "" && LoggerIPtr::dynamicCast(getProcessLogger()))
+        if(initData.properties->getProperty("Ice.ProgramName") != "" && ICE_DYNAMIC_CAST(LoggerI, getProcessLogger()))
         {
             const bool convert =
                 initData.properties->getPropertyAsIntWithDefault("Ice.LogStdErr.Convert", 1) > 0 &&
                 initData.properties->getProperty("Ice.StdErr").empty();
 
-            setProcessLogger(new LoggerI(initData.properties->getProperty("Ice.ProgramName"), "", convert,
-                                         IceUtil::getProcessStringConverter()));
+            setProcessLogger(ICE_MAKE_SHARED(LoggerI, initData.properties->getProperty("Ice.ProgramName"), "", convert));
         }
 
         IceInternal::Application::_communicator = initialize(argc, argv, initData);

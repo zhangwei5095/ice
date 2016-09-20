@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -28,6 +28,37 @@
 
 namespace IceSSL
 {
+
+#ifdef ICE_CPP11_MAPPING
+//
+// Adapts the C++11 functions to C++98-like callbacks
+//
+class CertificateVerifier
+{
+public:
+
+    CertificateVerifier(std::function<bool(const std::shared_ptr<NativeConnectionInfo>&)>);
+    bool verify(const NativeConnectionInfoPtr&);
+
+private:
+
+    std::function<bool(const std::shared_ptr<NativeConnectionInfo>&)> _verify;
+};
+using CertificateVerifierPtr = std::shared_ptr<CertificateVerifier>;
+
+class PasswordPrompt
+{
+public:
+
+    PasswordPrompt(std::function<std::string()>);
+    std::string getPassword();
+
+private:
+
+    std::function<std::string()> _prompt;
+};
+using PasswordPromptPtr = std::shared_ptr<PasswordPrompt>;
+#endif
 
 //
 // Constants for X509 certificate alt names (AltNameOther, AltNameORAddress, AltNameEDIPartyName and
@@ -150,27 +181,23 @@ toCFString(const std::string& s)
 std::string errorToString(CFErrorRef);
 std::string errorToString(OSStatus);
 
+#if !defined(__APPLE__) || TARGET_OS_IPHONE == 0
 //
 // Retrieve a certificate property
 //
 CFDictionaryRef getCertificateProperty(SecCertificateRef, CFTypeRef);
-
-//
-// Read a private key from an file and associate it to the given certificate.
-//
-SecIdentityRef loadPrivateKey(const std::string&, SecCertificateRef, SecKeychainRef, const std::string&,
-                              const PasswordPromptPtr&, int);
+#endif
 
 //
 // Read certificate from a file.
 //
-CFArrayRef loadCertificateChain(const std::string&, const std::string&, SecKeychainRef, const std::string&,
-                                const PasswordPromptPtr&, int);
+CFArrayRef loadCertificateChain(const std::string&, const std::string&, const std::string&, const std::string&,
+                                const std::string&, const PasswordPromptPtr&, int);
 
 SecCertificateRef loadCertificate(const std::string&);
 CFArrayRef loadCACertificates(const std::string&);
 
-SecCertificateRef findCertificate(SecKeychainRef, const std::string&);
+CFArrayRef findCertificateChain(const std::string&, const std::string&, const std::string&);
 
 #elif defined(ICE_USE_SCHANNEL)
 std::vector<PCCERT_CONTEXT>

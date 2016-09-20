@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,7 +8,6 @@
 // **********************************************************************
 
 using System;
-using System.Diagnostics;
 using System.Reflection;
 
 [assembly: CLSCompliant(true)]
@@ -54,9 +53,9 @@ public class Server
         Ice.ObjectAdapter adapter2 = communicator.createObjectAdapter("TestAdapter2");
         Ice.ObjectAdapter adapter3 = communicator.createObjectAdapter("TestAdapter3");
         Ice.Object obj = new ThrowerI();
-        adapter.add(obj, communicator.stringToIdentity("thrower"));
-        adapter2.add(obj, communicator.stringToIdentity("thrower"));
-        adapter3.add(obj, communicator.stringToIdentity("thrower"));
+        adapter.add(obj, Ice.Util.stringToIdentity("thrower"));
+        adapter2.add(obj, Ice.Util.stringToIdentity("thrower"));
+        adapter3.add(obj, Ice.Util.stringToIdentity("thrower"));
         adapter.activate();
         adapter2.activate();
         adapter3.activate();

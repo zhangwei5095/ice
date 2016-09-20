@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,7 +8,6 @@
 // **********************************************************************
 
 using System;
-using System.Diagnostics;
 using System.Reflection;
 
 [assembly: CLSCompliant(true)]
@@ -23,7 +22,7 @@ public class Server
     {
         communicator.getProperties().setProperty("TestAdapter.Endpoints", "default -p 12010");
         Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
-        adapter.add(new MyClassI(), communicator.stringToIdentity("test"));
+        adapter.add(new MyClassI(), Ice.Util.stringToIdentity("test"));
         adapter.activate();
 
         communicator.waitForShutdown();
@@ -38,18 +37,10 @@ public class Server
         try
         {
             Ice.InitializationData data = new Ice.InitializationData();
-#if COMPACT
-            //
-            // When using Ice for .NET Compact Framework, we need to specify
-            // the assembly so that Ice can locate classes and exceptions.
-            //
-            data.properties = Ice.Util.createProperties();
-            data.properties.setProperty("Ice.FactoryAssemblies", "serveramd");
-#endif
             communicator = Ice.Util.initialize(ref args, data);
             status = run(args, communicator);
         }
-        catch(System.Exception ex)
+        catch(Exception ex)
         {
             Console.Error.WriteLine(ex);
             status = 1;

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -44,7 +44,7 @@ IceInternal::ServantManager::addServant(const ObjectPtr& object, const Identity&
         {
             AlreadyRegisteredException ex(__FILE__, __LINE__);
             ex.kindOfObject = "servant";
-            ex.id = _instance->identityToString(ident);
+            ex.id = Ice::identityToString(ident);
             if(!facet.empty())
             {
                 string fs = nativeToUTF8(facet, _instance->getStringConverter());
@@ -104,7 +104,7 @@ IceInternal::ServantManager::removeServant(const Identity& ident, const string& 
     {
         NotRegisteredException ex(__FILE__, __LINE__);
         ex.kindOfObject = "servant";
-        ex.id = _instance->identityToString(ident);
+        ex.id = Ice::identityToString(ident);
         if(!facet.empty())
         {
             string fs = nativeToUTF8(facet, _instance->getStringConverter());
@@ -178,7 +178,7 @@ IceInternal::ServantManager::removeAllFacets(const Identity& ident)
     {
         NotRegisteredException ex(__FILE__, __LINE__);
         ex.kindOfObject = "servant";
-        ex.id = _instance->identityToString(ident);
+        ex.id = Ice::identityToString(ident);
         throw ex;
     }
 

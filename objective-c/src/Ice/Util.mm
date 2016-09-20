@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -254,7 +254,7 @@ toObjCException(const std::exception& ex)
     const Ice::LocalException* lex = dynamic_cast<const Ice::LocalException*>(&ex);
     if(lex)
     {
-        std::string typeId = std::string("ICE") + lex->ice_name().substr(5);
+        std::string typeId = std::string("ICE") + lex->ice_id().substr(7);
         Class c = objc_getClass(typeId.c_str());
         if(c != nil)
         {
@@ -408,9 +408,9 @@ IceObjC::Exception::~Exception() throw()
 }
 
 std::string
-IceObjC::Exception::ice_name() const
+IceObjC::Exception::ice_id() const
 {
-    return "IceObjC::Exception";
+    return "::IceObjC::Exception";
 }
 
 void
@@ -455,14 +455,14 @@ toObjC(const Ice::ObjectPtr& object)
         return nil;
     }
 
-    IceObjC::ObjectWrapperPtr wrapper = IceObjC::ObjectWrapperPtr::dynamicCast(object);
+    IceObjC::ServantWrapperPtr wrapper = IceObjC::ServantWrapperPtr::dynamicCast(object);
     if(wrapper)
     {
         //
         // Given object is an Objective-C servant wrapped into a C++
         // object, return the wrapped Objective-C object.
         //
-        return [[wrapper->getObject() retain] autorelease];
+        return [[wrapper->getServant() retain] autorelease];
     }
     else if(Ice::NativePropertiesAdminPtr::dynamicCast(object))
     {
@@ -470,13 +470,13 @@ toObjC(const Ice::ObjectPtr& object)
         // Given object is a properties admin facet, return the
         // Objective-C wrapper.
         //
-        return [ICENativePropertiesAdmin objectWrapperWithCxxObject:object.get()];
+        return [ICENativePropertiesAdmin servantWrapperWithCxxObject:object.get()];
     }
     else
     {
         //
         // Given object is a C++ servant, return an Objective-C wrapper.
         //
-        return [ICEObjectWrapper objectWrapperWithCxxObject:object.get()];
+        return [ICEServantWrapper servantWrapperWithCxxObject:object.get()];
     }
 }

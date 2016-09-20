@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -45,8 +45,8 @@ public:
     TestI(const Ice::ObjectAdapterPtr&, const Ice::ObjectAdapterPtr&, const ServerLocatorRegistryPtr&);
 
     virtual void shutdown(const Ice::Current&);
-    virtual ::Test::HelloPrx getHello(const Ice::Current&);
-    virtual ::Test::HelloPrx getReplicatedHello(const Ice::Current&);
+    virtual ::Test::HelloPrxPtr getHello(const Ice::Current&);
+    virtual ::Test::HelloPrxPtr getReplicatedHello(const Ice::Current&);
     virtual void migrateHello(const Ice::Current&);
 
 private:

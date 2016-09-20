@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -17,6 +17,42 @@ using namespace std;
 namespace
 {
 
+enum ThrowType { LocalException, UserException, StandardException, OtherException };
+
+#ifdef ICE_CPP11_MAPPING
+ThrowType throwEx[] = { LocalException, UserException, StandardException, OtherException };
+auto thrower = [](ThrowType t)
+    {
+        switch(t)
+        {
+            case LocalException:
+            {
+                throw Ice::ObjectNotExistException(__FILE__, __LINE__);
+                break;
+            }
+            case UserException:
+            {
+                throw Test::TestIntfException();
+                break;
+            }
+            case StandardException:
+            {
+                throw ::std::bad_alloc();
+                break;
+            }
+            case OtherException:
+            {
+                throw 99;
+                break;
+            }
+            default:
+            {
+                assert(false);
+                break;
+            }
+        }
+    };
+#else
 struct Cookie : public Ice::LocalObject
 {
     Cookie(int i) : val(i)
@@ -455,8 +491,10 @@ public:
         called();
     }
 
-    void noEx(const Ice::Exception&)
+    void noEx(const Ice::Exception& ex)
     {
+        cout << ex << endl;
+        cout << ex.ice_stackTrace() << endl;
         test(false);
     }
 };
@@ -735,8 +773,6 @@ private:
 };
 typedef IceUtil::Handle<FlushExCallback> FlushExCallbackPtr;
 
-enum ThrowType { LocalException, UserException, StandardException, OtherException };
-
 class Thrower : public CallbackBase
 {
 public:
@@ -829,7 +865,7 @@ private:
             }
             case OtherException:
             {
-                    throw 99;
+                throw 99;
                 break;
             }
             default:
@@ -843,19 +879,1372 @@ private:
     ThrowType _t;
 };
 typedef IceUtil::Handle<Thrower> ThrowerPtr;
+#endif
 
 }
 
 void
 allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
 {
-    string sref = "test:default -p 12010";
+    const string protocol = communicator->getProperties()->getProperty("Ice.Default.Protocol");
+
+#ifdef ICE_CPP11_MAPPING
+    string sref = "test:" + getTestEndpoint(communicator, 0);
+    auto obj = communicator->stringToProxy(sref);
+    test(obj);
+
+    auto p = Ice::uncheckedCast<Test::TestIntfPrx>(obj);
+
+    sref = "testController:" + getTestEndpoint(communicator, 1);
+    obj = communicator->stringToProxy(sref);
+    test(obj);
+
+    auto testController = Ice::uncheckedCast<Test::TestIntfControllerPrx>(obj);
+
+    Ice::Context ctx;
+    cout << "testing lambda API... " << flush;
+    {
+        {
+            p->ice_isAAsync(Test::TestIntf::ice_staticId(), nullptr);
+        }
+        {
+            promise<bool> promise;
+            p->ice_isAAsync(Test::TestIntf::ice_staticId(),
+                [&](bool value)
+                {
+                    promise.set_value(value);
+                });
+            test(promise.get_future().get());
+        }
+        {
+            promise<bool> promise;
+            p->ice_isAAsync(Test::TestIntf::ice_staticId(),
+                [&](bool value)
+                {
+                    promise.set_value(value);
+                },
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                });
+            test(promise.get_future().get());
+        }
+
+        {
+            promise<bool> promise;
+            p->ice_isAAsync(Test::TestIntf::ice_staticId(),
+                [&](bool value)
+                {
+                    promise.set_value(value);
+                },
+                nullptr, nullptr, ctx);
+            test(promise.get_future().get());
+        }
+
+
+        {
+            p->ice_pingAsync(nullptr);
+        }
+        {
+            promise<void> promise;
+            p->ice_pingAsync(
+                [&]()
+                {
+                    promise.set_value();
+                });
+            promise.get_future().get();
+        }
+        {
+            promise<void> promise;
+            p->ice_pingAsync(
+                [&]()
+                {
+                    promise.set_value();
+                },
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                });
+            promise.get_future().get();
+        }
+        {
+            promise<void> promise;
+            p->ice_pingAsync(
+                [&]()
+                {
+                    promise.set_value();
+                },
+                nullptr, nullptr, ctx);
+            promise.get_future().get();
+        }
+
+        {
+            p->ice_idAsync(nullptr);
+        }
+        {
+            promise<string> promise;
+            p->ice_idAsync(
+                [&](const string& id)
+                {
+                    promise.set_value(id);
+                });
+            test(promise.get_future().get() == Test::TestIntf::ice_staticId());
+        }
+        {
+            promise<string> promise;
+            p->ice_idAsync(
+                [&](const string& id)
+                {
+                    promise.set_value(id);
+                },
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                });
+            test(promise.get_future().get() == Test::TestIntf::ice_staticId());
+        }
+        {
+            promise<string> promise;
+            p->ice_idAsync(
+                [&](const string& id)
+                {
+                    promise.set_value(id);
+                },
+                nullptr, nullptr, ctx);
+            test(promise.get_future().get() == Test::TestIntf::ice_staticId());
+        }
+
+        {
+            p->ice_idsAsync(nullptr);
+        }
+        {
+            promise<vector<string>> promise;
+            p->ice_idsAsync(
+                [&](const vector<string>& ids)
+                {
+                    promise.set_value(ids);
+                });
+            test(promise.get_future().get().size() == 2);
+        }
+        {
+            promise<vector<string>> promise;
+            p->ice_idsAsync(
+                [&](const vector<string>& ids)
+                {
+                    promise.set_value(ids);
+                },
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                });
+            test(promise.get_future().get().size() == 2);
+        }
+        {
+            promise<vector<string>> promise;
+            p->ice_idsAsync(
+                [&](const vector<string>& ids)
+                {
+                    promise.set_value(ids);
+                },
+                nullptr, nullptr, ctx);
+            test(promise.get_future().get().size() == 2);
+        }
+
+        if(!collocated)
+        {
+            {
+                p->ice_getConnectionAsync(nullptr);
+            }
+            {
+                promise<Ice::ConnectionPtr> promise;
+                p->ice_getConnectionAsync(
+                    [&](const Ice::ConnectionPtr& connection)
+                    {
+                        promise.set_value(connection);
+                    });
+                test(promise.get_future().get());
+            }
+            {
+                promise<Ice::ConnectionPtr> promise;
+                p->ice_getConnectionAsync(
+                    [&](const Ice::ConnectionPtr& connection)
+                    {
+                        promise.set_value(connection);
+                    },
+                    [&](const exception_ptr& ex)
+                    {
+                        promise.set_exception(ex);
+                    });
+                test(promise.get_future().get());
+            }
+        }
+
+        {
+            p->opAsync(nullptr);
+        }
+        {
+            promise<void> promise;
+            p->opAsync(
+                [&]()
+                {
+                    promise.set_value();
+                });
+            promise.get_future().get();
+        }
+        {
+            promise<void> promise;
+            p->opAsync(
+                [&]()
+                {
+                    promise.set_value();
+                },
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                });
+            promise.get_future().get();
+        }
+        {
+            promise<void> promise;
+            p->opAsync(
+                [&]()
+                {
+                    promise.set_value();
+                },
+                nullptr, nullptr, ctx);
+            promise.get_future().get();
+        }
+
+        {
+            p->opWithResultAsync(nullptr);
+        }
+        {
+            promise<int> promise;
+            p->opWithResultAsync(
+                [&](int result)
+                {
+                    promise.set_value(result);
+                });
+            test(promise.get_future().get() == 15);
+        }
+        {
+            promise<int> promise;
+            p->opWithResultAsync(
+                [&](int result)
+                {
+                    promise.set_value(result);
+                },
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                });
+            test(promise.get_future().get() == 15);
+        }
+        {
+            promise<int> promise;
+            p->opWithResultAsync(
+                [&](int result)
+                {
+                    promise.set_value(result);
+                },
+                nullptr, nullptr, ctx);
+            test(promise.get_future().get() == 15);
+        }
+
+        {
+            p->opWithUEAsync(nullptr);
+        }
+        {
+            promise<void> promise;
+            p->opWithUEAsync(
+                nullptr,
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                });
+
+            try
+            {
+                promise.get_future().get();
+                test(false);
+            }
+            catch(const Test::TestIntfException&)
+            {
+            }
+        }
+        {
+            promise<void> promise;
+            p->opWithUEAsync(
+                [&]()
+                {
+                    promise.set_value();
+                },
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                });
+
+            try
+            {
+                promise.get_future().get();
+                test(false);
+            }
+            catch(const Test::TestIntfException&)
+            {
+            }
+        }
+        {
+            promise<void> promise;
+            p->opWithUEAsync(
+                nullptr,
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                },
+                nullptr, ctx);
+
+            try
+            {
+                promise.get_future().get();
+                test(false);
+            }
+            catch(const Test::TestIntfException&)
+            {
+            }
+        }
+
+        {
+            p->opWithResultAndUEAsync(nullptr);
+        }
+        {
+            promise<void> promise;
+            p->opWithResultAndUEAsync(
+                nullptr,
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                });
+
+            try
+            {
+                promise.get_future().get();
+                test(false);
+            }
+            catch(const Test::TestIntfException&)
+            {
+            }
+            catch(const Ice::OperationNotExistException&)
+            {
+            }
+        }
+        {
+            promise<void> promise;
+            p->opWithResultAndUEAsync(
+                [&](int)
+                {
+                    promise.set_value();
+                },
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                });
+
+            try
+            {
+                promise.get_future().get();
+                test(false);
+            }
+            catch(const Test::TestIntfException&)
+            {
+            }
+            catch(const Ice::OperationNotExistException&)
+            {
+            }
+        }
+        {
+            promise<void> promise;
+            p->opWithResultAndUEAsync(
+                nullptr,
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                },
+                nullptr, ctx);
+
+            try
+            {
+                promise.get_future().get();
+                test(false);
+            }
+            catch(const Test::TestIntfException&)
+            {
+            }
+            catch(const Ice::OperationNotExistException&)
+            {
+            }
+        }
+
+    }
+    cout << "ok" << endl;
+
+    cout << "testing future API... " << flush;
+    {
+
+        test(p->ice_isAAsync(Test::TestIntf::ice_staticId()).get());
+        test(p->ice_isAAsync(Test::TestIntf::ice_staticId(), ctx).get());
+
+        p->ice_pingAsync().get();
+        p->ice_pingAsync(ctx).get();
+
+        test(p->ice_idsAsync().get().size() == 2);
+        test(p->ice_idsAsync(ctx).get().size() == 2);
+
+        if(!collocated)
+        {
+            test(p->ice_getConnectionAsync().get());
+        }
+
+        p->opAsync().get();
+        p->opAsync(ctx).get();
+
+        test(p->opWithResultAsync().get() == 15);
+        test(p->opWithResultAsync(ctx).get() == 15);
+
+        try
+        {
+            p->opWithUEAsync().get();
+            test(false);
+        }
+        catch(const Test::TestIntfException&)
+        {
+        }
+
+        try
+        {
+            p->opWithUEAsync(ctx).get();
+            test(false);
+        }
+        catch(const Test::TestIntfException&)
+        {
+        }
+
+        try
+        {
+            p->opWithResultAndUEAsync().get();
+            test(false);
+        }
+        catch(const Test::TestIntfException&)
+        {
+        }
+        catch(const Ice::OperationNotExistException&)
+        {
+        }
+
+        try
+        {
+            p->opWithResultAndUEAsync(ctx).get();
+            test(false);
+        }
+        catch(const Test::TestIntfException&)
+        {
+        }
+        catch(const Ice::OperationNotExistException&)
+        {
+        }
+    }
+    cout << "ok" << endl;
+
+    cout << "testing local exceptions with lambda API... " << flush;
+    {
+        auto indirect = Ice::uncheckedCast<Test::TestIntfPrx>(p->ice_adapterId("dummy"));
+
+        {
+            promise<void> promise;
+            indirect->opAsync(
+                [&]()
+                {
+                    promise.set_value();
+                },
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                });
+            try
+            {
+                promise.get_future().get();
+                test(false);
+            }
+            catch(const Ice::NoEndpointException&)
+            {
+            }
+        }
+
+        {
+            try
+            {
+                promise<int> promise;
+                p->ice_oneway()->opWithResultAsync(
+                    [&](int value)
+                    {
+                        promise.set_value(value);
+                    },
+                    [&](const exception_ptr& ex)
+                    {
+                        promise.set_exception(ex);
+                    });
+                test(false);
+            }
+            catch(const IceUtil::IllegalArgumentException&)
+            {
+            }
+        }
+
+        //
+        // Check that CommunicatorDestroyedException is raised directly.
+        //
+        if(p->ice_getConnection() && protocol != "bt")
+        {
+            Ice::InitializationData initData;
+            initData.properties = communicator->getProperties()->clone();
+            Ice::CommunicatorPtr ic = Ice::initialize(initData);
+            auto obj = ic->stringToProxy(p->ice_toString());
+            auto p2 = Ice::checkedCast<Test::TestIntfPrx>(obj);
+            ic->destroy();
+
+            try
+            {
+                promise<void> promise;
+                p2->opAsync(
+                    [&]()
+                    {
+                        promise.set_value();
+                    },
+                    [&](const exception_ptr& ex)
+                    {
+                        promise.set_exception(ex);
+                    });
+                test(false);
+            }
+            catch(const Ice::CommunicatorDestroyedException&)
+            {
+                // Expected.
+            }
+        }
+    }
+    cout << "ok" << endl;
+
+    cout << "testing local exceptions with future API... " << flush;
+    {
+        auto indirect = Ice::uncheckedCast<Test::TestIntfPrx>(p->ice_adapterId("dummy"));
+        auto r = indirect->opAsync();
+        try
+        {
+            r.get();
+            test(false);
+        }
+        catch(const Ice::NoEndpointException&)
+        {
+        }
+
+
+        try
+        {
+            p->ice_oneway()->opWithResultAsync().get();
+            test(false);
+        }
+        catch(const IceUtil::IllegalArgumentException&)
+        {
+        }
+
+        //
+        // Check that CommunicatorDestroyedException is raised directly.
+        //
+        if(p->ice_getConnection())
+        {
+            Ice::InitializationData initData;
+            initData.properties = communicator->getProperties()->clone();
+            Ice::CommunicatorPtr ic = Ice::initialize(initData);
+            auto obj = ic->stringToProxy(p->ice_toString());
+            auto p2 = Ice::checkedCast<Test::TestIntfPrx>(obj);
+            ic->destroy();
+
+            try
+            {
+                p2->opAsync();
+                test(false);
+            }
+            catch(const Ice::CommunicatorDestroyedException&)
+            {
+                // Expected.
+            }
+        }
+    }
+    cout << "ok" << endl;
+
+    cout << "testing exception callback with lambda API... " << flush;
+    {
+        auto i = Ice::uncheckedCast<Test::TestIntfPrx>(p->ice_adapterId("dummy"));
+
+        {
+            promise<bool> promise;
+            i->ice_isAAsync(Test::TestIntf::ice_staticId(),
+                [&](bool value)
+                {
+                    promise.set_value(value);
+                },
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                });
+            try
+            {
+                promise.get_future().get();
+                test(false);
+            }
+            catch(const Ice::NoEndpointException&)
+            {
+            }
+        }
+
+        {
+            promise<void> promise;
+            i->opAsync(
+                [&]()
+                {
+                    promise.set_value();
+                },
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                });
+
+            try
+            {
+                promise.get_future().get();
+                test(false);
+            }
+            catch(const Ice::NoEndpointException&)
+            {
+            }
+        }
+
+        {
+            promise<void> promise;
+            i->opWithUEAsync(
+                [&]()
+                {
+                    promise.set_value();
+                },
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                });
+
+            try
+            {
+                promise.get_future().get();
+                test(false);
+            }
+            catch(const Ice::NoEndpointException&)
+            {
+            }
+        }
+
+        // Ensures no exception is called when response is received
+        {
+            promise<bool> promise;
+            p->ice_isAAsync(
+                Test::TestIntf::ice_staticId(),
+                [&](bool value)
+                {
+                    promise.set_value(value);
+                },
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                });
+            try
+            {
+                test(promise.get_future().get());
+            }
+            catch(...)
+            {
+                test(false);
+            }
+        }
+
+        {
+            promise<void> promise;
+            p->opAsync(
+                [&]()
+                {
+                    promise.set_value();
+                },
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                });
+            try
+            {
+                promise.get_future().get();
+            }
+            catch(...)
+            {
+                test(false);
+            }
+        }
+
+        // If response is a user exception, it should be received.
+        {
+            promise<void> promise;
+            p->opWithUEAsync(
+                [&]()
+                {
+                    promise.set_value();
+                },
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                });
+
+            try
+            {
+                promise.get_future().get();
+                test(false);
+            }
+            catch(const Test::TestIntfException&)
+            {
+            }
+        }
+    }
+    cout << "ok" << endl;
+
+    cout << "testing sent callback with lambda API... " << flush;
+    {
+        {
+            promise<bool> response;
+            promise<bool> sent;
+
+            p->ice_isAAsync("",
+                [&](bool value)
+                {
+                    response.set_value(value);
+                },
+                [&](const exception_ptr& ex)
+                {
+                    response.set_exception(ex);
+                },
+                [&](bool sentAsync)
+                {
+                    sent.set_value(sentAsync);
+                });
+
+            sent.get_future().get();
+            response.get_future().get();
+        }
+
+        {
+            promise<void> response;
+            promise<bool> sent;
+
+            p->ice_pingAsync(
+                [&]()
+                {
+                    response.set_value();
+                },
+                [&](const exception_ptr& ex)
+                {
+                    response.set_exception(ex);
+                },
+                [&](bool sentAsync)
+                {
+                    sent.set_value(sentAsync);
+                });
+
+            sent.get_future().get();
+            response.get_future().get();
+        }
+
+        {
+            promise<string> response;
+            promise<bool> sent;
+
+            p->ice_idAsync(
+                [&](string value)
+                {
+                    response.set_value(value);
+                },
+                [&](const exception_ptr& ex)
+                {
+                    response.set_exception(ex);
+                },
+                [&](bool sentAsync)
+                {
+                    sent.set_value(sentAsync);
+                });
+
+            sent.get_future().get();
+            response.get_future().get();
+        }
+
+        {
+            promise<vector<string>> response;
+            promise<bool> sent;
+
+            p->ice_idsAsync(
+                [&](vector<string> value)
+                {
+                    response.set_value(value);
+                },
+                [&](const exception_ptr& ex)
+                {
+                    response.set_exception(ex);
+                },
+                [&](bool sentAsync)
+                {
+                    sent.set_value(sentAsync);
+                });
+
+            sent.get_future().get();
+            response.get_future().get();
+        }
+
+        {
+            promise<void> response;
+            promise<bool> sent;
+
+            p->opAsync(
+                [&]()
+                {
+                    response.set_value();
+                },
+                [&](const exception_ptr& ex)
+                {
+                    response.set_exception(ex);
+                },
+                [&](bool sentAsync)
+                {
+                    sent.set_value(sentAsync);
+                });
+
+            sent.get_future().get();
+            response.get_future().get();
+        }
+
+        vector<future<bool>> futures;
+        Ice::ByteSeq seq;
+        seq.resize(1024);
+        testController->holdAdapter();
+        try
+        {
+            while(true)
+            {
+                auto s = make_shared<promise<bool>>();
+                auto f = s->get_future();
+                p->opWithPayloadAsync(
+                    seq,
+                    [](){},
+                    [s](const exception_ptr& ex)
+                    {
+                        s->set_exception(ex);
+                    },
+                    [s](bool value)
+                    {
+                        s->set_value(value);
+                    });
+
+                if(f.wait_for(chrono::seconds(0)) != future_status::ready || !f.get())
+                {
+                    break;
+                }
+                futures.push_back(move(f));
+            }
+        }
+        catch(...)
+        {
+            testController->resumeAdapter();
+            throw;
+        }
+        testController->resumeAdapter();
+    }
+    cout << "ok" << endl;
+
+    cout << "testing unexpected exceptions from callback... " << flush;
+    {
+        auto q = Ice::uncheckedCast<Test::TestIntfPrx>(p->ice_adapterId("dummy"));
+
+        for(int i = 0; i < 4; ++i)
+        {
+            {
+                promise<void> promise;
+                p->opAsync(
+                    [&, i]()
+                    {
+                        promise.set_value();
+                        thrower(throwEx[i]);
+                    },
+                    [&](const exception_ptr& ex)
+                    {
+                        test(false);
+                    });
+
+                try
+                {
+                    promise.get_future().get();
+                }
+                catch(const exception& ex)
+                {
+                    cerr << ex.what() << endl;
+                    test(false);
+                }
+            }
+
+            {
+                promise<void> promise;
+                p->opAsync(nullptr, nullptr,
+                    [&, i](bool)
+                    {
+                        promise.set_value();
+                        thrower(throwEx[i]);
+                    });
+
+                try
+                {
+                    promise.get_future().get();
+                }
+                catch(const exception&)
+                {
+                    test(false);
+                }
+            }
+        }
+    }
+    cout << "ok" << endl;
+
+    cout << "testing batch requests with proxy... " << flush;
+    {
+        {
+            test(p->opBatchCount() == 0);
+            auto b1 = p->ice_batchOneway();
+            b1->opBatch();
+            b1->opBatch();
+            auto id = this_thread::get_id();
+            promise<void> promise;
+            b1->ice_flushBatchRequestsAsync(
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                },
+                [&](bool sentSynchronously)
+                {
+                    test((sentSynchronously && id == this_thread::get_id()) ||
+                         (!sentSynchronously && id != this_thread::get_id()));
+                    promise.set_value();
+                });
+            promise.get_future().get();
+            test(p->waitForBatch(2));
+        }
+
+        if(p->ice_getConnection() && protocol != "bt")
+        {
+            test(p->opBatchCount() == 0);
+            auto b1 = p->ice_batchOneway();
+            b1->opBatch();
+            b1->ice_getConnection()->close(false);
+
+            auto id = this_thread::get_id();
+            promise<void> promise;
+            b1->ice_flushBatchRequestsAsync(
+                [&](const exception_ptr& ex)
+                {
+                    promise.set_exception(ex);
+                },
+                [&](bool sentSynchronously)
+                {
+                    test((sentSynchronously && id == this_thread::get_id()) ||
+                         (!sentSynchronously && id != this_thread::get_id()));
+                    promise.set_value();
+                });
+            promise.get_future().get();
+            test(p->waitForBatch(1));
+        }
+    }
+    cout << "ok" << endl;
+
+    if(p->ice_getConnection()) // No collocation optimization
+    {
+        cout << "testing batch requests with connection... " << flush;
+        {
+            {
+                test(p->opBatchCount() == 0);
+                auto b1 = Ice::uncheckedCast<Test::TestIntfPrx>(
+                    p->ice_getConnection()->createProxy(p->ice_getIdentity())->ice_batchOneway());
+                b1->opBatch();
+                b1->opBatch();
+
+                auto id = this_thread::get_id();
+                promise<void> promise;
+
+                b1->ice_getConnection()->flushBatchRequestsAsync(
+                    [&](const exception_ptr& ex)
+                    {
+                        promise.set_exception(ex);
+                    },
+                    [&](bool sentSynchronously)
+                    {
+                        test((sentSynchronously && id == this_thread::get_id()) ||
+                            (!sentSynchronously && id != this_thread::get_id()));
+                        promise.set_value();
+                    });
+                promise.get_future().get();
+                test(p->waitForBatch(2));
+            }
+
+            {
+                // Ensure it also works with a twoway proxy
+                auto id = this_thread::get_id();
+                promise<void> promise;
+                p->ice_getConnection()->flushBatchRequestsAsync(
+                    [&](const exception_ptr& ex)
+                    {
+                        promise.set_exception(ex);
+                    },
+                    [&](bool sentSynchronously)
+                    {
+                        test((sentSynchronously && id == this_thread::get_id()) ||
+                            (!sentSynchronously && id != this_thread::get_id()));
+                        promise.set_value();
+                    });
+                promise.get_future().get();
+            }
+
+            if(protocol != "bt")
+            {
+                test(p->opBatchCount() == 0);
+                auto b1 = Ice::uncheckedCast<Test::TestIntfPrx>(
+                    p->ice_getConnection()->createProxy(p->ice_getIdentity())->ice_batchOneway());
+                b1->opBatch();
+                b1->ice_getConnection()->close(false);
+
+                promise<void> promise;
+                b1->ice_getConnection()->flushBatchRequestsAsync(
+                    [&](exception_ptr ex)
+                    {
+                        promise.set_exception(move(ex));
+                    },
+                    [&](bool)
+                    {
+                        promise.set_value();
+                    });
+
+                try
+                {
+                    promise.get_future().get();
+                    test(false);
+                }
+                catch(const Ice::LocalException&)
+                {
+                }
+                test(p->opBatchCount() == 0);
+            }
+        }
+        cout << "ok" << endl;
+
+        cout << "testing batch requests with communicator... " << flush;
+        {
+            {
+                //
+                // 1 connection. Test future
+                //
+                test(p->opBatchCount() == 0);
+                auto b1 = Ice::uncheckedCast<Test::TestIntfPrx>(
+                    p->ice_getConnection()->createProxy(p->ice_getIdentity())->ice_batchOneway());
+                b1->opBatch();
+                b1->opBatch();
+
+                communicator->flushBatchRequestsAsync().get();
+                test(p->waitForBatch(2));
+            }
+
+            {
+                //
+                // 1 connection.
+                //
+                test(p->opBatchCount() == 0);
+                auto b1 = Ice::uncheckedCast<Test::TestIntfPrx>(
+                    p->ice_getConnection()->createProxy(p->ice_getIdentity())->ice_batchOneway());
+                b1->opBatch();
+                b1->opBatch();
+
+                promise<void> promise;
+                auto id = this_thread::get_id();
+                communicator->flushBatchRequestsAsync(
+                    [&](exception_ptr ex)
+                    {
+                        promise.set_exception(move(ex));
+                    },
+                    [&](bool sentSynchronously)
+                    {
+                        test((sentSynchronously && id == this_thread::get_id()) ||
+                             (!sentSynchronously && id != this_thread::get_id()));
+                        promise.set_value();
+                    });
+                promise.get_future().get();
+                test(p->waitForBatch(2));
+            }
+
+            if(protocol != "bt")
+            {
+                //
+                // Exception - 1 connection.
+                //
+                test(p->opBatchCount() == 0);
+                auto b1 = Ice::uncheckedCast<Test::TestIntfPrx>(
+                    p->ice_getConnection()->createProxy(p->ice_getIdentity())->ice_batchOneway());
+                b1->opBatch();
+                b1->ice_getConnection()->close(false);
+
+                promise<void> promise;
+                auto id = this_thread::get_id();
+                communicator->flushBatchRequestsAsync(
+                    [&](exception_ptr ex)
+                    {
+                        promise.set_exception(move(ex));
+                    },
+                    [&](bool sentSynchronously)
+                    {
+                        test((sentSynchronously && id == this_thread::get_id()) ||
+                             (!sentSynchronously && id != this_thread::get_id()));
+                        promise.set_value();
+                    });
+                promise.get_future().get(); // Exceptions are ignored!
+                test(p->opBatchCount() == 0);
+            }
+
+            if(protocol != "bt")
+            {
+                //
+                // 2 connections.
+                //
+                test(p->opBatchCount() == 0);
+                auto b1 = Ice::uncheckedCast<Test::TestIntfPrx>(
+                    p->ice_getConnection()->createProxy(p->ice_getIdentity())->ice_batchOneway());
+                auto b2 = Ice::uncheckedCast<Test::TestIntfPrx>(
+                    p->ice_connectionId("2")->ice_getConnection()->createProxy(
+                        p->ice_getIdentity())->ice_batchOneway());
+                b2->ice_getConnection(); // Ensure connection is established.
+                b1->opBatch();
+                b1->opBatch();
+                b2->opBatch();
+                b2->opBatch();
+
+                promise<void> promise;
+                auto id = this_thread::get_id();
+                communicator->flushBatchRequestsAsync(
+                    [&](exception_ptr ex)
+                    {
+                        promise.set_exception(move(ex));
+                    },
+                    [&](bool sentSynchronously)
+                    {
+                        test((sentSynchronously && id == this_thread::get_id()) ||
+                             (!sentSynchronously && id != this_thread::get_id()));
+                        promise.set_value();
+                    });
+                promise.get_future().get();
+                test(p->waitForBatch(4));
+            }
+
+            if(protocol != "bt")
+            {
+                //
+                // 2 connections - 2 failures.
+                //
+                // The sent callback should be invoked even if all connections fail.
+                //
+                test(p->opBatchCount() == 0);
+                auto b1 = Ice::uncheckedCast<Test::TestIntfPrx>(
+                    p->ice_getConnection()->createProxy(p->ice_getIdentity())->ice_batchOneway());
+                auto b2 = Ice::uncheckedCast<Test::TestIntfPrx>(
+                    p->ice_connectionId("2")->ice_getConnection()->createProxy(
+                        p->ice_getIdentity())->ice_batchOneway());
+
+                b2->ice_getConnection(); // Ensure connection is established.
+                b1->opBatch();
+                b2->opBatch();
+                b1->ice_getConnection()->close(false);
+                b2->ice_getConnection()->close(false);
+
+                promise<void> promise;
+                auto id = this_thread::get_id();
+                communicator->flushBatchRequestsAsync(
+                    [&](exception_ptr ex)
+                    {
+                        promise.set_exception(move(ex));
+                    },
+                    [&](bool sentSynchronously)
+                    {
+                        test((sentSynchronously && id == this_thread::get_id()) ||
+                             (!sentSynchronously && id != this_thread::get_id()));
+                        promise.set_value();
+                    });
+                promise.get_future().get(); // Exceptions are ignored!
+                test(p->opBatchCount() == 0);
+            }
+        }
+        cout << "ok" << endl;
+
+        cout << "testing cancel operations... " << flush;
+        {
+            if(p->ice_getConnection())
+            {
+                testController->holdAdapter();
+                {
+                    promise<void> promise;
+                    auto cancel = p->ice_pingAsync(
+                        [&]()
+                        {
+                            promise.set_value();
+                        },
+                        [&](exception_ptr ex)
+                        {
+                            promise.set_exception(ex);
+                        });
+                    cancel();
+
+                    try
+                    {
+                        promise.get_future().get();
+                        test(false);
+                    }
+                    catch(const Ice::InvocationCanceledException&)
+                    {
+                    }
+                    catch(...)
+                    {
+                        testController->resumeAdapter();
+                        throw;
+                    }
+                }
+
+                {
+                    promise<void> promise;
+                    auto cancel = p->ice_idAsync(
+                        [&](string)
+                        {
+                            promise.set_value();
+                        },
+                        [&](exception_ptr ex)
+                        {
+                            promise.set_exception(ex);
+                        });
+                    cancel();
+
+                    try
+                    {
+                        promise.get_future().get();
+                        test(false);
+                    }
+                    catch(const Ice::InvocationCanceledException&)
+                    {
+                    }
+                    catch(...)
+                    {
+                        testController->resumeAdapter();
+                        throw;
+                    }
+                }
+                testController->resumeAdapter();
+            }
+        }
+        cout << "ok" << endl;
+
+        if(p->ice_getConnection() && protocol != "bt")
+        {
+            cout << "testing close connection with sending queue... " << flush;
+            {
+                Ice::ByteSeq seq;
+                seq.resize(1024 * 10);
+                for(Ice::ByteSeq::iterator q = seq.begin(); q != seq.end(); ++q)
+                {
+                    *q = static_cast<Ice::Byte>(IceUtilInternal::random(255));
+                }
+
+
+                // Send multiple opWithPayload, followed by a close and followed by multiple opWithPaylod.
+                // The goal is to make sure that none of the opWithPayload fail even if the server closes
+                // the connection gracefully in between.
+
+                int maxQueue = 2;
+                bool done = false;
+                while(!done && maxQueue < 5000)
+                {
+                    done = true;
+                    p->ice_ping();
+                    vector<future<void>> results;
+                    for(int i = 0; i < maxQueue; ++i)
+                    {
+                        auto s = make_shared<promise<void>>();
+                        p->opWithPayloadAsync(seq,
+                                              [s]() { s->set_value(); },
+                                              [s](exception_ptr ex) { s->set_exception(ex); });
+                        results.push_back(s->get_future());
+                    }
+                    atomic_flag sent = ATOMIC_FLAG_INIT;
+                    p->closeAsync(false, nullptr, nullptr, [&sent](bool) { sent.test_and_set(); });
+                    if(!sent.test_and_set())
+                    {
+                        for(int i = 0; i < maxQueue; i++)
+                        {
+                            auto s = make_shared<promise<void>>();
+                            atomic_flag sent = ATOMIC_FLAG_INIT;
+                            p->opWithPayloadAsync(seq,
+                                                  [s]() { s->set_value(); },
+                                                  [s](exception_ptr ex) { s->set_exception(ex); },
+                                                  [&sent](bool) { sent.test_and_set(); });
+                            results.push_back(s->get_future());
+                            if(sent.test_and_set())
+                            {
+                                done = false;
+                                maxQueue *= 2;
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        maxQueue *= 2;
+                        done = false;
+                    }
+
+                    for(vector<future<void>>::iterator p = results.begin(); p != results.end(); ++p)
+                    {
+                        try
+                        {
+                            p->get();
+                        }
+                        catch(const Ice::LocalException&)
+                        {
+                            test(false);
+                        }
+                    }
+                }
+            }
+            cout << "ok" << endl;
+        }
+
+    }
+
+    p->shutdown();
+
+#else
+    string sref = "test:" + getTestEndpoint(communicator, 0);
     Ice::ObjectPrx obj = communicator->stringToProxy(sref);
     test(obj);
 
     Test::TestIntfPrx p = Test::TestIntfPrx::uncheckedCast(obj);
 
-    sref = "testController:default -p 12011";
+    sref = "testController:" + getTestEndpoint(communicator, 1);
     obj = communicator->stringToProxy(sref);
     test(obj);
 
@@ -1003,56 +2392,6 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
     }
     cout << "ok" << endl;
 
-#ifdef ICE_CPP11
-    cout << "testing C++11 async callback... " << flush;
-    {
-        AsyncCallbackPtr cb = new AsyncCallback();
-        Ice::Context ctx;
-
-        p->begin_ice_isA(Test::TestIntf::ice_staticId(), [=](const ::Ice::AsyncResultPtr& r){ cb->isA(r); });
-        cb->check();
-        p->begin_ice_isA(Test::TestIntf::ice_staticId(), ctx, [=](const ::Ice::AsyncResultPtr& r){ cb->isA(r); });
-        cb->check();
-
-        p->begin_ice_ping([=](const ::Ice::AsyncResultPtr& r){ cb->ping(r); });
-        cb->check();
-        p->begin_ice_ping(ctx, [=](const ::Ice::AsyncResultPtr& r){ cb->ping(r); });
-        cb->check();
-
-        p->begin_ice_id([=](const ::Ice::AsyncResultPtr& r){ cb->id(r); });
-        cb->check();
-        p->begin_ice_id(ctx, [=](const ::Ice::AsyncResultPtr& r){ cb->id(r); });
-        cb->check();
-
-        p->begin_ice_ids([=](const ::Ice::AsyncResultPtr& r){ cb->ids(r); });
-        cb->check();
-        p->begin_ice_ids(ctx, [=](const ::Ice::AsyncResultPtr& r){ cb->ids(r); });
-        cb->check();
-
-        if(!collocated)
-        {
-            p->begin_ice_getConnection([=](const ::Ice::AsyncResultPtr& r){ cb->connection(r); });
-            cb->check();
-        }
-
-        p->begin_op([=](const ::Ice::AsyncResultPtr& r){ cb->op(r); });
-        cb->check();
-        p->begin_op(ctx, [=](const ::Ice::AsyncResultPtr& r){ cb->op(r); });
-        cb->check();
-
-        p->begin_opWithResult([=](const ::Ice::AsyncResultPtr& r){ cb->opWithResult(r); });
-        cb->check();
-        p->begin_opWithResult(ctx, [=](const ::Ice::AsyncResultPtr& r){ cb->opWithResult(r); });
-        cb->check();
-
-        p->begin_opWithUE([=](const ::Ice::AsyncResultPtr& r){ cb->opWithUE(r); });
-        cb->check();
-        p->begin_opWithUE(ctx, [=](const ::Ice::AsyncResultPtr& r){ cb->opWithUE(r); });
-        cb->check();
-    }
-    cout << "ok" << endl;
-#endif
-
     cout << "testing response callback... " << flush;
     {
         ResponseCallbackPtr cb = new ResponseCallback();
@@ -1148,63 +2487,6 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
     }
     cout << "ok" << endl;
 
-#ifdef ICE_CPP11
-    cout << "testing C++11 response callback... " << flush;
-    {
-        ResponseCallbackPtr cb = new ResponseCallback();
-        Ice::Context ctx;
-
-        p->begin_ice_isA(Test::TestIntf::ice_staticId(), [=](bool is){ cb->isA(is); });
-        cb->check();
-
-        p->begin_ice_isA(Test::TestIntf::ice_staticId(), ctx, [=](bool is){ cb->isA(is); });
-        cb->check();
-
-        p->begin_ice_ping([=](){ cb->ping(); });
-        cb->check();
-
-        p->begin_ice_ping(ctx, [=](){ cb->ping(); });
-        cb->check();
-
-        p->begin_ice_id([=](const string& id){ cb->id(id); });
-        cb->check();
-
-        p->begin_ice_id(ctx, [=](const string& id){ cb->id(id); });
-        cb->check();
-
-        p->begin_ice_ids([=](const Ice::StringSeq& ids){ cb->ids(ids); });
-        cb->check();
-
-        p->begin_ice_ids(ctx, [=](const Ice::StringSeq& ids){ cb->ids(ids); });
-        cb->check();
-
-        if(!collocated)
-        {
-            p->begin_ice_getConnection([=](const Ice::ConnectionPtr& conn){ cb->connection(conn); });
-            cb->check();
-        }
-
-        p->begin_op([=](){ cb->op(); });
-        cb->check();
-
-        p->begin_op(ctx, [=](){ cb->op(); });
-        cb->check();
-
-        p->begin_opWithResult([=](int ret){ cb->opWithResult(ret); });
-        cb->check();
-
-        p->begin_opWithResult(ctx, [=](int ret){ cb->opWithResult(ret); });
-        cb->check();
-
-        p->begin_opWithUE([](){ test(false); }, [=](const Ice::Exception& ex){ cb->opWithUE(ex); });
-        cb->check();
-
-        p->begin_opWithUE(ctx, [](){ test(false); }, [=](const Ice::Exception& ex){ cb->opWithUE(ex); });
-        cb->check();
-    }
-    cout << "ok" << endl;
-#endif
-
     cout << "testing local exceptions... " << flush;
     {
         Test::TestIntfPrx indirect = Test::TestIntfPrx::uncheckedCast(p->ice_adapterId("dummy"));
@@ -1233,7 +2515,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
         //
         // Check that CommunicatorDestroyedException is raised directly.
         //
-        if(p->ice_getConnection())
+        if(p->ice_getConnection() && protocol != "bt")
         {
             Ice::InitializationData initData;
             initData.properties = communicator->getProperties()->clone();
@@ -1342,37 +2624,6 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
     }
     cout << "ok" << endl;
 
-#ifdef ICE_CPP11
-    cout << "testing local exceptions with C++11 response callback... " << flush;
-    {
-        Test::TestIntfPrx i = Test::TestIntfPrx::uncheckedCast(p->ice_adapterId("dummy"));
-        ExceptionCallbackPtr cb = new ExceptionCallback();
-
-        i->begin_ice_isA(Test::TestIntf::ice_staticId(), std::function<void (bool)>([](bool){ test(false); }), [=](const Ice::Exception& ex){ cb->ex(ex); });
-        cb->check();
-
-        i->begin_ice_ping([](){ test(false); }, [=](const Ice::Exception& ex){ cb->ex(ex); });
-        cb->check();
-
-        i->begin_ice_id([](const string&){ test(false); }, [=](const Ice::Exception& ex){ cb->ex(ex); });
-        cb->check();
-
-        i->begin_ice_ids([](const Ice::StringSeq&){ test(false); }, [=](const Ice::Exception& ex){ cb->ex(ex); });
-        cb->check();
-
-        if(!collocated)
-        {
-            i->begin_ice_getConnection([](const Ice::ConnectionPtr&){ test(false); },
-                                       [=](const Ice::Exception& ex){ cb->ex(ex); });
-            cb->check();
-        }
-
-        i->begin_op([](){ test(false); }, [=](const Ice::Exception& ex){ cb->ex(ex); });
-        cb->check();
-    }
-    cout << "ok" << endl;
-#endif
-
     cout << "testing exception callback... " << flush;
     {
         Test::TestIntfPrx i = Test::TestIntfPrx::uncheckedCast(p->ice_adapterId("dummy"));
@@ -1421,38 +2672,6 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
         cbWC->check();
     }
     cout << "ok" << endl;
-
-#ifdef ICE_CPP11
-    cout << "testing C++11 exception callback... " << flush;
-    {
-        Test::TestIntfPrx i = Test::TestIntfPrx::uncheckedCast(p->ice_adapterId("dummy"));
-        ExceptionCallbackPtr cb = new ExceptionCallback();
-
-        i->begin_ice_isA(Test::TestIntf::ice_staticId(), nullptr, [=](const Ice::Exception& ex){cb->ex(ex); });
-        cb->check();
-
-        if(!collocated)
-        {
-            i->begin_ice_getConnection(nullptr, [=](const Ice::Exception& ex){ cb->ex(ex); });
-            cb->check();
-        }
-
-        i->begin_op(nullptr, [=](const Ice::Exception& ex){ cb->ex(ex); });
-        cb->check();
-
-        i->begin_opWithUE(nullptr, [=](const Ice::Exception& ex){ cb->ex(ex); });
-        cb->check();
-
-        // Ensures no exception is called when response is received
-        p->begin_ice_isA(Test::TestIntf::ice_staticId(), nullptr, [=](const Ice::Exception& ex){ cb->noEx(ex); });
-        p->begin_op(nullptr, [=](const Ice::Exception& ex){ cb->noEx(ex); });
-
-        // If response is a user exception, it should be received.
-        p->begin_opWithUE(nullptr, [=](const Ice::Exception& ex){ cb->opWithUE(ex); });
-        cb->check();
-    }
-    cout << "ok" << endl;
-#endif
 
     cout << "testing sent callback... " << flush;
     {
@@ -1529,75 +2748,6 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
         }
     }
     cout << "ok" << endl;
-
-#ifdef ICE_CPP11
-    cout << "testing C++11 sent callback... " << flush;
-    {
-        SentCallbackPtr cb = new SentCallback;
-
-        p->begin_ice_isA("", [=](bool v){ cb->isA(v); },
-                             [=](const Ice::Exception& ex){ cb->ex(ex); },
-                             [=](bool sent){ cb->sent(sent); });
-        cb->check();
-
-        p->begin_ice_ping([=](){ cb->ping(); },
-                          [=](const Ice::Exception& ex){ cb->ex(ex); },
-                          [=](bool sent){ cb->sent(sent); });
-        cb->check();
-
-        p->begin_ice_id([=](const string& id){ cb->id(id); },
-                        [=](const Ice::Exception& ex){ cb->ex(ex); },
-                        [=](bool sent){ cb->sent(sent); });
-        cb->check();
-
-        p->begin_ice_ids([=](const Ice::StringSeq& ids){ cb->ids(ids); },
-                         [=](const Ice::Exception& ex){ cb->ex(ex); },
-                         [=](bool sent){ cb->sent(sent); });
-        cb->check();
-
-
-        p->begin_op([=](){ cb->op(); },
-                    [=](const Ice::Exception& ex){ cb->ex(ex); },
-                    [=](bool sent){ cb->sent(sent); });
-        cb->check();
-
-        p->begin_op([=](){ cb->op(); },
-                    nullptr,
-                    [=](bool sent){ cb->sent(sent); });
-        cb->check();
-
-        p->begin_op(nullptr,
-                    [=](const Ice::Exception& ex){ cb->ex(ex); },
-                    [=](bool sent){ cb->sent(sent); });
-        cb->check();
-
-        vector<SentCallbackPtr> cbs;
-        Ice::ByteSeq seq;
-        seq.resize(1024);
-        testController->holdAdapter();
-        try
-        {
-            cb = new SentCallback();
-            while(p->begin_opWithPayload(seq, nullptr, [=](const Ice::Exception& ex){ cb->ex(ex); },
-                                                       [=](bool sent){ cb->sent(sent); })->sentSynchronously())
-            {
-                cbs.push_back(cb);
-                cb = new SentCallback();
-            }
-        }
-        catch(...)
-        {
-            testController->resumeAdapter();
-            throw;
-        }
-        testController->resumeAdapter();
-        for(vector<SentCallbackPtr>::const_iterator r = cbs.begin(); r != cbs.end(); r++)
-        {
-            (*r)->check();
-        }
-    }
-    cout << "ok" << endl;
-#endif
 
     cout << "testing illegal arguments... " << flush;
     {
@@ -1746,32 +2896,6 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
     }
     cout << "ok" << endl;
 
-#ifdef ICE_CPP11
-    cout << "testing unexpected exceptions from C++11 callback... " << flush;
-    {
-        Test::TestIntfPrx q = Test::TestIntfPrx::uncheckedCast(p->ice_adapterId("dummy"));
-        ThrowType throwEx[] = { LocalException, UserException, StandardException, OtherException };
-
-        for(int i = 0; i < 4; ++i)
-        {
-            ThrowerPtr cb = new Thrower(throwEx[i]);
-
-            p->begin_op([=](){ cb->op(); }, [=](const Ice::Exception& ex){ cb->noEx(ex); });
-            cb->check();
-
-            p->begin_op([=](){ cb->op(); }, [=](const Ice::Exception& ex){ cb->ex(ex); });
-            cb->check();
-
-            p->begin_op([=](){ cb->noOp(); }, [=](const Ice::Exception& ex){ cb->noEx(ex); }, [=](bool sent){ cb->sent(sent); });
-            cb->check();
-
-            q->begin_op(nullptr, [=](const Ice::Exception& ex){ cb->ex(ex); });
-            cb->check();
-        }
-    }
-    cout << "ok" << endl;
-#endif
-
     cout << "testing batch requests with proxy... " << flush;
     {
         test(p->ice_batchOneway()->begin_ice_flushBatchRequests()->sentSynchronously());
@@ -1812,6 +2936,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
 
         if(p->ice_getConnection())
         {
+            if(protocol != "bt")
             {
                 //
                 // AsyncResult exception without cookie.
@@ -1829,6 +2954,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
                 test(p->waitForBatch(1));
             }
 
+            if(protocol != "bt")
             {
                 //
                 // AsyncResult exception with cookie.
@@ -1878,7 +3004,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
             test(p->waitForBatch(2));
         }
 
-        if(p->ice_getConnection())
+        if(p->ice_getConnection() && protocol != "bt")
         {
             {
                 //
@@ -1916,45 +3042,6 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
         }
     }
     cout << "ok" << endl;
-
-#ifdef ICE_CPP11
-    cout << "testing C++11 batch requests with proxy... " << flush;
-    {
-
-        {
-            test(p->opBatchCount() == 0);
-            Test::TestIntfPrx b1 = p->ice_batchOneway();
-            b1->opBatch();
-            b1->opBatch();
-            FlushCallbackPtr cb = new FlushCallback();
-            Ice::AsyncResultPtr r = b1->begin_ice_flushBatchRequests(
-                [=](const Ice::Exception& ex){ cb->exception(ex);},
-                [=](bool sent){ cb->sent(sent); });
-
-            cb->check();
-            test(r->isSent());
-            test(r->isCompleted());
-            test(p->waitForBatch(2));
-        }
-
-        if(p->ice_getConnection())
-        {
-            test(p->opBatchCount() == 0);
-            Test::TestIntfPrx b1 = p->ice_batchOneway();
-            b1->opBatch();
-            b1->ice_getConnection()->close(false);
-            FlushCallbackPtr cb = new FlushCallback();
-            Ice::AsyncResultPtr r = b1->begin_ice_flushBatchRequests(
-                [=](const Ice::Exception& ex){ cb->exception(ex);},
-                [=](bool sent){ cb->sent(sent); });
-            cb->check();
-            test(r->isSent());
-            test(r->isCompleted());
-            test(p->waitForBatch(1));
-        }
-    }
-    cout << "ok" << endl;
-#endif
 
     if(p->ice_getConnection()) // No collocation optimization
     {
@@ -2004,6 +3091,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
                 test(p->waitForBatch(2));
             }
 
+            if(protocol != "bt")
             {
                 //
                 // AsyncResult exception without cookie.
@@ -2022,6 +3110,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
                 test(p->opBatchCount() == 0);
             }
 
+            if(protocol != "bt")
             {
                 //
                 // AsyncResult exception with cookie.
@@ -2073,6 +3162,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
                 test(p->waitForBatch(2));
             }
 
+            if(protocol != "bt")
             {
                 //
                 // Exception without cookie.
@@ -2092,6 +3182,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
                 test(p->opBatchCount() == 0);
             }
 
+            if(protocol != "bt")
             {
                 //
                 // Exception with cookie.
@@ -2110,52 +3201,6 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
             }
         }
         cout << "ok" << endl;
-
-#ifdef ICE_CPP11
-        cout << "testing C++11 batch requests with connection... " << flush;
-        {
-            if(p->ice_getConnection())
-            {
-                //
-                // Without cookie.
-                //
-                test(p->opBatchCount() == 0);
-                Test::TestIntfPrx b1 = Test::TestIntfPrx::uncheckedCast(
-                    p->ice_getConnection()->createProxy(p->ice_getIdentity())->ice_batchOneway());
-                b1->opBatch();
-                b1->opBatch();
-                FlushCallbackPtr cb = new FlushCallback();
-                Ice::AsyncResultPtr r = b1->ice_getConnection()->begin_flushBatchRequests(
-                    [=](const Ice::Exception& ex){ cb->exception(ex);},
-                    [=](bool sent){ cb->sent(sent); });
-                cb->check();
-                test(r->isSent());
-                test(r->isCompleted());
-                test(p->waitForBatch(2));
-            }
-
-            if(p->ice_getConnection())
-            {
-                //
-                // Exception without cookie.
-                //
-                test(p->opBatchCount() == 0);
-                Test::TestIntfPrx b1 = Test::TestIntfPrx::uncheckedCast(
-                    p->ice_getConnection()->createProxy(p->ice_getIdentity())->ice_batchOneway());
-                b1->opBatch();
-                b1->ice_getConnection()->close(false);
-                FlushExCallbackPtr cb = new FlushExCallback();
-                Ice::AsyncResultPtr r = b1->ice_getConnection()->begin_flushBatchRequests(
-                    [=](const Ice::Exception& ex){ cb->exception(ex);},
-                    [=](bool sent){ cb->sent(sent); });
-                cb->check();
-                test(!r->isSent());
-                test(r->isCompleted());
-                test(p->opBatchCount() == 0);
-            }
-        }
-        cout << "ok" << endl;
-#endif
 
         cout << "testing batch requests with communicator... " << flush;
         {
@@ -2195,6 +3240,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
                 test(p->waitForBatch(2));
             }
 
+            if(protocol != "bt")
             {
                 //
                 // AsyncResult exception without cookie - 1 connection.
@@ -2213,6 +3259,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
                 test(p->opBatchCount() == 0);
             }
 
+            if(protocol != "bt")
             {
                 //
                 // AsyncResult exception with cookie - 1 connection.
@@ -2229,6 +3276,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
                 test(p->opBatchCount() == 0);
             }
 
+            if(protocol != "bt")
             {
                 //
                 // AsyncResult - 2 connections.
@@ -2253,6 +3301,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
                 test(p->waitForBatch(4));
             }
 
+            if(protocol != "bt")
             {
                 //
                 // AsyncResult exception - 2 connections - 1 failure.
@@ -2280,6 +3329,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
                 test(p->waitForBatch(1));
             }
 
+            if(protocol != "bt")
             {
                 //
                 // AsyncResult exception - 2 connections - 2 failures.
@@ -2343,6 +3393,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
                 test(p->waitForBatch(2));
             }
 
+            if(protocol != "bt")
             {
                 //
                 // Exception without cookie - 1 connection.
@@ -2362,6 +3413,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
                 test(p->opBatchCount() == 0);
             }
 
+            if(protocol != "bt")
             {
                 //
                 // Exception with cookie - 1 connection.
@@ -2379,6 +3431,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
                 test(p->opBatchCount() == 0);
             }
 
+            if(protocol != "bt")
             {
                 //
                 // 2 connections.
@@ -2405,6 +3458,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
                 test(p->waitForBatch(4));
             }
 
+            if(protocol != "bt")
             {
                 //
                 // Exception - 2 connections - 1 failure.
@@ -2433,6 +3487,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
                 test(p->waitForBatch(1));
             }
 
+            if(protocol != "bt")
             {
                 //
                 // Exception - 2 connections - 2 failures.
@@ -2462,132 +3517,6 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
             }
         }
         cout << "ok" << endl;
-
-#ifdef ICE_CPP11
-        cout << "testing C++11 batch requests with communicator... " << flush;
-        {
-            {
-                //
-                // Without cookie - 1 connection.
-                //
-                test(p->opBatchCount() == 0);
-                Test::TestIntfPrx b1 = Test::TestIntfPrx::uncheckedCast(
-                    p->ice_getConnection()->createProxy(p->ice_getIdentity())->ice_batchOneway());
-                b1->opBatch();
-                b1->opBatch();
-                FlushCallbackPtr cb = new FlushCallback();
-                Ice::AsyncResultPtr r = communicator->begin_flushBatchRequests(
-                    [=](const Ice::Exception& ex){ cb->exception(ex);},
-                    [=](bool sent){ cb->sent(sent); });
-                cb->check();
-                test(r->isSent());
-                test(r->isCompleted());
-                test(p->waitForBatch(2));
-            }
-
-            {
-                //
-                // Exception without cookie - 1 connection.
-                //
-                test(p->opBatchCount() == 0);
-                Test::TestIntfPrx b1 = Test::TestIntfPrx::uncheckedCast(
-                    p->ice_getConnection()->createProxy(p->ice_getIdentity())->ice_batchOneway());
-                b1->opBatch();
-                b1->ice_getConnection()->close(false);
-                FlushCallbackPtr cb = new FlushCallback();
-                Ice::AsyncResultPtr r = communicator->begin_flushBatchRequests(
-                    [=](const Ice::Exception& ex){ cb->exception(ex);},
-                    [=](bool sent){ cb->sent(sent); });
-                cb->check();
-                test(r->isSent()); // Exceptions are ignored!
-                test(r->isCompleted());
-                test(p->opBatchCount() == 0);
-            }
-
-            {
-                //
-                // 2 connections.
-                //
-                test(p->opBatchCount() == 0);
-                Test::TestIntfPrx b1 = Test::TestIntfPrx::uncheckedCast(
-                    p->ice_getConnection()->createProxy(p->ice_getIdentity())->ice_batchOneway());
-                Test::TestIntfPrx b2 = Test::TestIntfPrx::uncheckedCast(
-                    p->ice_connectionId("2")->ice_getConnection()->createProxy(
-                        p->ice_getIdentity())->ice_batchOneway());
-
-                b2->ice_getConnection(); // Ensure connection is established.
-                b1->opBatch();
-                b1->opBatch();
-                b2->opBatch();
-                b2->opBatch();
-                FlushCallbackPtr cb = new FlushCallback();
-                Ice::AsyncResultPtr r = communicator->begin_flushBatchRequests(
-                    [=](const Ice::Exception& ex){ cb->exception(ex);},
-                    [=](bool sent){ cb->sent(sent); });
-                cb->check();
-                test(r->isSent());
-                test(r->isCompleted());
-                test(p->waitForBatch(4));
-            }
-
-            {
-                //
-                // Exception - 2 connections - 1 failure.
-                //
-                // All connections should be flushed even if there are failures on some connections.
-                // Exceptions should not be reported.
-                //
-                test(p->opBatchCount() == 0);
-                Test::TestIntfPrx b1 = Test::TestIntfPrx::uncheckedCast(
-                    p->ice_getConnection()->createProxy(p->ice_getIdentity())->ice_batchOneway());
-                Test::TestIntfPrx b2 = Test::TestIntfPrx::uncheckedCast(
-                    p->ice_connectionId("2")->ice_getConnection()->createProxy(
-                        p->ice_getIdentity())->ice_batchOneway());
-
-                b2->ice_getConnection(); // Ensure connection is established.
-                b1->opBatch();
-                b2->opBatch();
-                b1->ice_getConnection()->close(false);
-                FlushCallbackPtr cb = new FlushCallback();
-                Ice::AsyncResultPtr r = communicator->begin_flushBatchRequests(
-                    [=](const Ice::Exception& ex){ cb->exception(ex);},
-                    [=](bool sent){ cb->sent(sent); });
-                cb->check();
-                test(r->isSent()); // Exceptions are ignored!
-                test(r->isCompleted());
-                test(p->waitForBatch(1));
-            }
-
-            {
-                //
-                // Exception - 2 connections - 2 failures.
-                //
-                // The sent callback should be invoked even if all connections fail.
-                //
-                test(p->opBatchCount() == 0);
-                Test::TestIntfPrx b1 = Test::TestIntfPrx::uncheckedCast(
-                    p->ice_getConnection()->createProxy(p->ice_getIdentity())->ice_batchOneway());
-                Test::TestIntfPrx b2 = Test::TestIntfPrx::uncheckedCast(
-                    p->ice_connectionId("2")->ice_getConnection()->createProxy(
-                        p->ice_getIdentity())->ice_batchOneway());
-
-                b2->ice_getConnection(); // Ensure connection is established.
-                b1->opBatch();
-                b2->opBatch();
-                b1->ice_getConnection()->close(false);
-                b2->ice_getConnection()->close(false);
-                FlushCallbackPtr cb = new FlushCallback();
-                Ice::AsyncResultPtr r = communicator->begin_flushBatchRequests(
-                    [=](const Ice::Exception& ex){ cb->exception(ex);},
-                    [=](bool sent){ cb->sent(sent); });
-                cb->check();
-                test(r->isSent()); // Exceptions are ignored!
-                test(r->isCompleted());
-                test(p->opBatchCount() == 0);
-            }
-        }
-        cout << "ok" << endl;
-#endif
     }
     cout << "testing AsyncResult operations... " << flush;
     {
@@ -2784,7 +3713,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
     }
     cout << "ok" << endl;
 
-    if(p->ice_getConnection())
+    if(p->ice_getConnection() && protocol != "bt")
     {
         cout << "testing close connection with sending queue... " << flush;
         {
@@ -2802,7 +3731,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
             //
             int maxQueue = 2;
             bool done = false;
-            while(!done && maxQueue < 50)
+            while(!done && maxQueue < 5000)
             {
                 done = true;
                 p->ice_ping();
@@ -2830,6 +3759,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
                     maxQueue *= 2;
                     done = false;
                 }
+
                 for(vector<Ice::AsyncResultPtr>::const_iterator p = results.begin(); p != results.end(); ++p)
                 {
                     (*p)->waitForCompleted();
@@ -2846,5 +3776,7 @@ allTests(const Ice::CommunicatorPtr& communicator, bool collocated)
         }
         cout << "ok" << endl;
     }
+
     p->shutdown();
+#endif
 }

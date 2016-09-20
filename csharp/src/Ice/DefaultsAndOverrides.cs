@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -107,16 +107,12 @@ namespace IceInternal
                 overrideCloseTimeoutValue = -1;
             }
 
-#if COMPACT
-            overrideCompress = false;
-            overrideCompressValue = false;
-#else
             val = properties.getProperty("Ice.Override.Compress");
             if(val.Length > 0)
             {
                 overrideCompress = true;
                 overrideCompressValue = properties.getPropertyAsInt("Ice.Override.Compress") > 0;
-                if(!BasicStream.compressible() && overrideCompressValue)
+                if(!BZip2.supported() && overrideCompressValue)
                 {
                     string lib = AssemblyUtil.runtime_ == AssemblyUtil.Runtime.Mono ? "bzip2 library" : "bzip2.dll";
                     Console.Error.WriteLine("warning: " + lib + " not found, Ice.Override.Compress ignored.");
@@ -125,10 +121,9 @@ namespace IceInternal
             }
             else
             {
-                overrideCompress = !BasicStream.compressible();
+                overrideCompress = !BZip2.supported();
                 overrideCompressValue = false;
             }
-#endif
 
             val = properties.getProperty("Ice.Override.Secure");
             if(val.Length > 0)

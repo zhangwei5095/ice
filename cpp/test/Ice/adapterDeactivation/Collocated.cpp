@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -21,12 +21,18 @@ using namespace Test;
 int
 run(int, char**, const Ice::CommunicatorPtr& communicator)
 {
-    communicator->getProperties()->setProperty("TestAdapter.Endpoints", "default -p 12010");
+    communicator->getProperties()->setProperty("TestAdapter.Endpoints", getTestEndpoint(communicator, 0));
+
+    //
+    // 2 threads are necessary to dispatch the collocated transient() call with AMI
+    //
+    communicator->getProperties()->setProperty("TestAdapter.ThreadPool.Size", "2");
+
     Ice::ObjectAdapterPtr adapter = communicator->createObjectAdapter("TestAdapter");
-    ServantLocatorPtr locator = new ServantLocatorI;
+    ServantLocatorPtr locator = ICE_MAKE_SHARED(ServantLocatorI);
     adapter->addServantLocator(locator, "");
 
-    TestIntfPrx allTests(const CommunicatorPtr&);
+    TestIntfPrxPtr allTests(const CommunicatorPtr&);
     allTests(communicator);
 
     adapter->waitForDeactivate();
@@ -40,32 +46,14 @@ main(int argc, char* argv[])
     Ice::registerIceSSL();
 #endif
 
-    int status;
-    Ice::CommunicatorPtr communicator;
-
     try
     {
-        communicator = Ice::initialize(argc, argv);
-        status = run(argc, argv, communicator);
+        Ice::CommunicatorHolder ich = Ice::initialize(argc, argv);
+        return run(argc, argv, ich.communicator());
     }
     catch(const Ice::Exception& ex)
     {
         cerr << ex << endl;
-        status = EXIT_FAILURE;
+        return  EXIT_FAILURE;
     }
-
-    if(communicator)
-    {
-        try
-        {
-            communicator->destroy();
-        }
-        catch(const Ice::Exception& ex)
-        {
-            cerr << ex << endl;
-            status = EXIT_FAILURE;
-        }
-    }
-
-    return status;
 }

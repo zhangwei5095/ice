@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -85,6 +85,17 @@ typedef VALUE(*ICE_RUBY_ENTRY_POINT)(...);
 
 #ifndef RFLOAT_VALUE
 #   define RFLOAT_VALUE(v) RFLOAT(v)->value
+#endif
+
+//
+// The RARRAY_AREF and RARRAY_ASET macros were added in Ruby 2.1.
+//
+#ifndef RARRAY_AREF
+#   define RARRAY_AREF(a, i) (RARRAY_PTR(a)[i])
+#endif
+
+#ifndef RARRAY_ASET
+#   define RARRAY_ASET(a, i, v) RARRAY_PTR(a)[i] = v
 #endif
 
 #endif

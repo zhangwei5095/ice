@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -66,8 +66,8 @@ run(id<ICECommunicator> communicator)
 
     [adapter addServantLocator:ICE_AUTORELEASE([[ServantLocatorI alloc] init:@""]) category:@""];
     [adapter addServantLocator:ICE_AUTORELEASE([[ServantLocatorI alloc] init:@"category"]) category:@"category"];
-    [adapter add:[TestServantLocatorTestIntfI testIntf] identity:[communicator stringToIdentity:@"asm"]];
-    [adapter add:[TestActivationI testActivation] identity:[communicator stringToIdentity:@"test/activation"]];
+    [adapter add:[TestServantLocatorTestIntfI testIntf] identity:[ICEUtil stringToIdentity:@"asm"]];
+    [adapter add:[TestActivationI testActivation] identity:[ICEUtil stringToIdentity:@"test/activation"]];
     [adapter activate];
 
     serverReady(communicator);
@@ -83,6 +83,13 @@ run(id<ICECommunicator> communicator)
 int
 main(int argc, char* argv[])
 {
+#ifdef ICE_STATIC_LIBS
+    ICEregisterIceSSL(YES);
+#if TARGET_OS_IPHONE
+    ICEregisterIceIAP(YES);
+#endif
+#endif
+
     @autoreleasepool
     {
         int status;

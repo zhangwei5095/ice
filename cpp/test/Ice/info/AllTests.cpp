@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -15,19 +15,53 @@
 using namespace std;
 using namespace Test;
 
+namespace
+{
+
+Ice::TCPEndpointInfoPtr
+getTCPEndpointInfo(const Ice::EndpointInfoPtr& info)
+{
+    for(Ice::EndpointInfoPtr p = info; p; p = p->underlying)
+    {
+        Ice::TCPEndpointInfoPtr tcpInfo = ICE_DYNAMIC_CAST(Ice::TCPEndpointInfo, p);
+        if(tcpInfo)
+        {
+            return tcpInfo;
+        }
+    }
+    return ICE_NULLPTR;
+}
+
+Ice::TCPConnectionInfoPtr
+getTCPConnectionInfo(const Ice::ConnectionInfoPtr& info)
+{
+    for(Ice::ConnectionInfoPtr p = info; p; p = p->underlying)
+    {
+        Ice::TCPConnectionInfoPtr tcpInfo = ICE_DYNAMIC_CAST(Ice::TCPConnectionInfo, p);
+        if(tcpInfo)
+        {
+            return tcpInfo;
+        }
+    }
+    return ICE_NULLPTR;
+}
+
+}
+
 void
 allTests(const Ice::CommunicatorPtr& communicator)
 {
     cout << "testing proxy endpoint information... " << flush;
     {
-        Ice::ObjectPrx p1 =
+        Ice::ObjectPrxPtr p1 =
             communicator->stringToProxy("test -t:default -h tcphost -p 10000 -t 1200 -z --sourceAddress 10.10.10.10:"
                                         "udp -h udphost -p 10001 --interface eth0 --ttl 5 --sourceAddress 10.10.10.10:"
                                         "opaque -e 1.8 -t 100 -v ABCD");
 
         Ice::EndpointSeq endps = p1->ice_getEndpoints();
 
-        Ice::IPEndpointInfoPtr ipEndpoint = Ice::IPEndpointInfoPtr::dynamicCast(endps[0]->getInfo());
+        Ice::EndpointInfoPtr info = endps[0]->getInfo();
+        Ice::TCPEndpointInfoPtr ipEndpoint = getTCPEndpointInfo(info);
         test(ipEndpoint);
         test(ipEndpoint->host == "tcphost");
         test(ipEndpoint->port == 10000);
@@ -38,15 +72,16 @@ allTests(const Ice::CommunicatorPtr& communicator)
         test(ipEndpoint->compress);
         test(!ipEndpoint->datagram());
         test((ipEndpoint->type() == Ice::TCPEndpointType && !ipEndpoint->secure()) ||
-             (ipEndpoint->type() == IceSSL::EndpointType && ipEndpoint->secure()) ||
+             (ipEndpoint->type() == Ice::SSLEndpointType && ipEndpoint->secure()) ||
              (ipEndpoint->type() == Ice::WSEndpointType && !ipEndpoint->secure()) ||
              (ipEndpoint->type() == Ice::WSSEndpointType && ipEndpoint->secure()));
-        test((ipEndpoint->type() == Ice::TCPEndpointType && Ice::TCPEndpointInfoPtr::dynamicCast(ipEndpoint)) ||
-             (ipEndpoint->type() == IceSSL::EndpointType && IceSSL::EndpointInfoPtr::dynamicCast(ipEndpoint)) ||
-             (ipEndpoint->type() == Ice::WSEndpointType && Ice::WSEndpointInfoPtr::dynamicCast(ipEndpoint)) ||
-             (ipEndpoint->type() == Ice::WSSEndpointType && IceSSL::WSSEndpointInfoPtr::dynamicCast(ipEndpoint)));
 
-        Ice::UDPEndpointInfoPtr udpEndpoint = Ice::UDPEndpointInfoPtr::dynamicCast(endps[1]->getInfo());
+        test((ipEndpoint->type() == Ice::TCPEndpointType && ICE_DYNAMIC_CAST(Ice::TCPEndpointInfo, info)) ||
+             (ipEndpoint->type() == Ice::SSLEndpointType && ICE_DYNAMIC_CAST(IceSSL::EndpointInfo, info)) ||
+             (ipEndpoint->type() == Ice::WSEndpointType && ICE_DYNAMIC_CAST(Ice::WSEndpointInfo, info)) ||
+             (ipEndpoint->type() == Ice::WSSEndpointType && ICE_DYNAMIC_CAST(Ice::WSEndpointInfo, info)));
+
+        Ice::UDPEndpointInfoPtr udpEndpoint = ICE_DYNAMIC_CAST(Ice::UDPEndpointInfo, endps[1]->getInfo());
         test(udpEndpoint);
         test(udpEndpoint->host == "udphost");
         test(udpEndpoint->port == 10001);
@@ -61,7 +96,7 @@ allTests(const Ice::CommunicatorPtr& communicator)
         test(udpEndpoint->datagram());
         test(udpEndpoint->type() == Ice::UDPEndpointType);
 
-        Ice::OpaqueEndpointInfoPtr opaqueEndpoint = Ice::OpaqueEndpointInfoPtr::dynamicCast(endps[2]->getInfo());
+        Ice::OpaqueEndpointInfoPtr opaqueEndpoint = ICE_DYNAMIC_CAST(Ice::OpaqueEndpointInfo, endps[2]->getInfo());
         test(opaqueEndpoint);
         Ice::EncodingVersion rev;
         rev.major = 1;
@@ -81,15 +116,15 @@ allTests(const Ice::CommunicatorPtr& communicator)
         Ice::EndpointSeq publishedEndpoints = adapter->getPublishedEndpoints();
         test(endpoints == publishedEndpoints);
 
-        Ice::IPEndpointInfoPtr ipEndpoint = Ice::IPEndpointInfoPtr::dynamicCast(endpoints[0]->getInfo());
+        Ice::TCPEndpointInfoPtr ipEndpoint = getTCPEndpointInfo(endpoints[0]->getInfo());
         test(ipEndpoint);
-        test(ipEndpoint->type() == Ice::TCPEndpointType || ipEndpoint->type() == IceSSL::EndpointType ||
+        test(ipEndpoint->type() == Ice::TCPEndpointType || ipEndpoint->type() == Ice::SSLEndpointType ||
              ipEndpoint->type() == Ice::WSEndpointType || ipEndpoint->type() == Ice::WSSEndpointType);
         test(ipEndpoint->host == "127.0.0.1");
         test(ipEndpoint->port > 0);
         test(ipEndpoint->timeout == 15000);
 
-        Ice::UDPEndpointInfoPtr udpEndpoint = Ice::UDPEndpointInfoPtr::dynamicCast(endpoints[1]->getInfo());
+        Ice::UDPEndpointInfoPtr udpEndpoint = ICE_DYNAMIC_CAST(Ice::UDPEndpointInfo, endpoints[1]->getInfo());
         test(udpEndpoint);
         test(udpEndpoint->host == "127.0.0.1");
         test(udpEndpoint->datagram());
@@ -108,11 +143,11 @@ allTests(const Ice::CommunicatorPtr& communicator)
 
         for(Ice::EndpointSeq::const_iterator p = endpoints.begin(); p != endpoints.end(); ++p)
         {
-            ipEndpoint = Ice::IPEndpointInfoPtr::dynamicCast((*p)->getInfo());
+            ipEndpoint = getTCPEndpointInfo((*p)->getInfo());
             test(ipEndpoint->port == 12020);
         }
 
-        ipEndpoint = Ice::IPEndpointInfoPtr::dynamicCast(publishedEndpoints[0]->getInfo());
+        ipEndpoint = getTCPEndpointInfo(publishedEndpoints[0]->getInfo());
         test(ipEndpoint->host == "127.0.0.1");
         test(ipEndpoint->port == 12020);
 
@@ -120,21 +155,21 @@ allTests(const Ice::CommunicatorPtr& communicator)
     }
     cout << "ok" << endl;
 
-    Ice::ObjectPrx base = communicator->stringToProxy("test:default -p 12010:udp -p 12010 -c");
-    TestIntfPrx testIntf = TestIntfPrx::checkedCast(base);
+    Ice::ObjectPrxPtr base = communicator->stringToProxy("test:default -p 12010:udp -p 12010 -c");
+    TestIntfPrxPtr testIntf = ICE_CHECKED_CAST(TestIntfPrx, base);
 
     cout << "test connection endpoint information... " << flush;
     {
         Ice::EndpointInfoPtr info = base->ice_getConnection()->getEndpoint()->getInfo();
-        Ice::IPEndpointInfoPtr ipinfo = Ice::IPEndpointInfoPtr::dynamicCast(info);
-        test(ipinfo->port == 12010);
-        test(!ipinfo->compress);
-        test(ipinfo->host == defaultHost);
+        Ice::TCPEndpointInfoPtr tcpinfo = getTCPEndpointInfo(info);
+        test(tcpinfo->port == 12010);
+        test(!tcpinfo->compress);
+        test(tcpinfo->host == defaultHost);
 
         ostringstream os;
 
         Ice::Context ctx = testIntf->getEndpointInfoAsContext();
-        test(ctx["host"] == ipinfo->host);
+        test(ctx["host"] == tcpinfo->host);
         test(ctx["compress"] == "false");
         istringstream is(ctx["port"]);
         int port;
@@ -142,7 +177,7 @@ allTests(const Ice::CommunicatorPtr& communicator)
         test(port > 0);
 
         info = base->ice_datagram()->ice_getConnection()->getEndpoint()->getInfo();
-        Ice::UDPEndpointInfoPtr udp = Ice::UDPEndpointInfoPtr::dynamicCast(info);
+        Ice::UDPEndpointInfoPtr udp = ICE_DYNAMIC_CAST(Ice::UDPEndpointInfo, info);
         test(udp);
         test(udp->port == 12010);
         test(udp->host == defaultHost);
@@ -154,7 +189,7 @@ allTests(const Ice::CommunicatorPtr& communicator)
         Ice::ConnectionPtr connection = base->ice_getConnection();
         connection->setBufferSize(1024, 2048);
 
-        Ice::IPConnectionInfoPtr info = Ice::IPConnectionInfoPtr::dynamicCast(connection->getInfo());
+        Ice::TCPConnectionInfoPtr info = getTCPConnectionInfo(connection->getInfo());
         test(info);
         test(!info->incoming);
         test(info->adapterName.empty());
@@ -188,16 +223,13 @@ allTests(const Ice::CommunicatorPtr& communicator)
         {
             Ice::HeaderDict headers;
 
-            Ice::WSConnectionInfoPtr wsinfo = Ice::WSConnectionInfoPtr::dynamicCast(info);
-            if(wsinfo)
-            {
-                headers = wsinfo->headers;
-            }
+            Ice::WSConnectionInfoPtr wsinfo = ICE_DYNAMIC_CAST(Ice::WSConnectionInfo, connection->getInfo());
+            test(wsinfo);
+            headers = wsinfo->headers;
 
-            IceSSL::WSSConnectionInfoPtr wssinfo = IceSSL::WSSConnectionInfoPtr::dynamicCast(info);
-            if(wssinfo)
+            if(base->ice_getConnection()->type() == "wss")
             {
-                headers = wssinfo->headers;
+                IceSSL::ConnectionInfoPtr wssinfo = ICE_DYNAMIC_CAST(IceSSL::ConnectionInfo, wsinfo->underlying);
                 test(wssinfo->verified);
 #if !defined(ICE_OS_WINRT) && TARGET_OS_IPHONE==0
                 test(!wssinfo->certs.empty());
@@ -219,20 +251,20 @@ allTests(const Ice::CommunicatorPtr& communicator)
         connection = base->ice_datagram()->ice_getConnection();
         connection->setBufferSize(2048, 1024);
 
-        info = Ice::IPConnectionInfoPtr::dynamicCast(connection->getInfo());
-        test(!info->incoming);
-        test(info->adapterName.empty());
-        test(info->localPort > 0);
-        test(info->remotePort == 12010);
+        Ice::UDPConnectionInfoPtr udpinfo = ICE_DYNAMIC_CAST(Ice::UDPConnectionInfo, connection->getInfo());
+        test(!udpinfo->incoming);
+        test(udpinfo->adapterName.empty());
+        test(udpinfo->localPort > 0);
+        test(udpinfo->remotePort == 12010);
         if(defaultHost == "127.0.0.1")
         {
-            test(info->remoteAddress == defaultHost);
-            test(info->localAddress == defaultHost);
+            test(udpinfo->remoteAddress == defaultHost);
+            test(udpinfo->localAddress == defaultHost);
         }
 
 #if !defined(ICE_OS_WINRT)
-        test(info->rcvSize >= 2048);
-        test(info->sndSize >= 1024);
+        test(udpinfo->rcvSize >= 2048);
+        test(udpinfo->sndSize >= 1024);
 #endif
     }
     cout << "ok" << endl;

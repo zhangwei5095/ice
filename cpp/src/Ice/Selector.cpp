@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -22,12 +22,10 @@
 using namespace std;
 using namespace IceInternal;
 
-#ifdef ICE_OS_WINRT
-//using namespace Windows::Foundation;
+#if defined(ICE_OS_WINRT)
 using namespace Windows::Storage::Streams;
 using namespace Windows::Networking;
 using namespace Windows::Networking::Sockets;
-
 #endif
 
 #if defined(ICE_USE_IOCP) || defined(ICE_OS_WINRT)
@@ -77,11 +75,10 @@ Selector::initialize(EventHandler* handler)
         ex.error = GetLastError();
         throw ex;
     }
-    handler->__incRef();
     handler->getNativeInfo()->initialize(_handle, reinterpret_cast<ULONG_PTR>(handler));
 #else
-    EventHandlerPtr h = handler;
-    handler->__incRef();
+    EventHandlerPtr h = ICE_GET_SHARED_FROM_THIS(handler);
+
     handler->getNativeInfo()->setCompletedHandler(
         ref new SocketOperationCompletedHandler(
             [=](int operation)
@@ -117,7 +114,6 @@ Selector::finish(IceInternal::EventHandler* handler)
 {
     handler->_registered = SocketOperationNone;
     handler->_finish = false; // Ensures that finished() is only called once on the event handler.
-    handler->__decRef();
 }
 
 void
@@ -233,7 +229,7 @@ Selector::completed(EventHandler* handler, SocketOperation op)
     }
 #else
     IceUtil::Monitor<IceUtil::Mutex>::Lock lock(_monitor);
-    _events.push_back(SelectEvent(handler, op));
+    _events.push_back(SelectEvent(handler->shared_from_this(), op));
     _monitor.notify();
 #endif
 }
@@ -546,7 +542,13 @@ Selector::finish(EventHandler* handler, bool closeNow)
         //
         updateSelector();
     }
+#elif !defined(ICE_USE_EPOLL)
+    if(!_changes.empty())
+    {
+        return false;
+    }
 #endif
+
     return closeNow;
 }
 
@@ -721,7 +723,8 @@ Selector::finishSelect(vector<pair<EventHandler*, SocketOperation> >& handlers)
             continue; // Interrupted
         }
 
-        map<EventHandlerPtr, SocketOperation>::iterator q = _readyHandlers.find(p.first);
+        map<EventHandlerPtr, SocketOperation>::iterator q = _readyHandlers.find(ICE_GET_SHARED_FROM_THIS(p.first));
+
         if(q != _readyHandlers.end()) // Handler will be added by the loop below
         {
             q->second = p.second; // We just remember which operations are ready here.
@@ -831,12 +834,14 @@ Selector::checkReady(EventHandler* handler)
 {
     if(handler->_ready & ~handler->_disabled & handler->_registered)
     {
-        _readyHandlers.insert(make_pair(handler, SocketOperationNone));
+        _readyHandlers.insert(make_pair(ICE_GET_SHARED_FROM_THIS(handler), SocketOperationNone));
+
         wakeup();
     }
     else
     {
-        map<EventHandlerPtr, SocketOperation>::iterator p = _readyHandlers.find(handler);
+        map<EventHandlerPtr, SocketOperation>::iterator p = _readyHandlers.find(ICE_GET_SHARED_FROM_THIS(handler));
+
         if(p != _readyHandlers.end())
         {
             _readyHandlers.erase(p);
@@ -1016,8 +1021,8 @@ toCFCallbacks(SocketOperation op)
 
 }
 
-EventHandlerWrapper::EventHandlerWrapper(const EventHandlerPtr& handler, Selector& selector) :
-    _handler(handler),
+EventHandlerWrapper::EventHandlerWrapper(EventHandler* handler, Selector& selector) :
+    _handler(ICE_GET_SHARED_FROM_THIS(handler)),
     _streamNativeInfo(StreamNativeInfoPtr::dynamicCast(handler->getNativeInfo())),
     _selector(selector),
     _ready(SocketOperationNone),

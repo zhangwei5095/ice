@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -665,6 +665,10 @@ Slice::Python::compile(int argc, char* argv[])
                             }
                             FileTracker::instance()->addFile(file);
 
+                            //
+                            // Python magic comment to set the file encoding, it must be first or second line
+                            //
+                            out << "# -*- coding: utf-8 -*-\n";
                             printHeader(out);
                             printGeneratedHeader(out, base + ".ice", "#");
                             //

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -27,7 +27,7 @@ run(int argc, char* argv[], const Ice::CommunicatorPtr& communicator)
     {
         ostringstream os;
         os << "control:tcp -p " << (12010 + i);
-        TestIntfPrx::uncheckedCast(communicator->stringToProxy(os.str()))->shutdown();
+        ICE_UNCHECKED_CAST(TestIntfPrx, communicator->stringToProxy(os.str()))->shutdown();
     }
     return EXIT_SUCCESS;
 }
@@ -39,47 +39,20 @@ main(int argc, char* argv[])
     Ice::registerIceSSL();
 #endif
 
-    int status;
-    Ice::CommunicatorPtr communicator;
-
     try
     {
         Ice::InitializationData initData;
         initData.properties = Ice::createProperties(argc, argv);
-
         initData.properties->setProperty("Ice.Warn.Connections", "0");
         initData.properties->setProperty("Ice.UDP.RcvSize", "16384");
         initData.properties->setProperty("Ice.UDP.SndSize", "16384");
 
-        communicator = Ice::initialize(argc, argv, initData);
-        status = run(argc, argv, communicator);
+        Ice::CommunicatorHolder ich = Ice::initialize(argc, argv, initData);
+        return run(argc, argv, ich.communicator());
     }
     catch(const Ice::Exception& ex)
     {
         cerr << ex << endl;
-        status = EXIT_FAILURE;
+        return  EXIT_FAILURE;
     }
-
-    if(communicator)
-    {
-        try
-        {
-            communicator->destroy();
-        }
-        catch(const Ice::Exception& ex)
-        {
-            cerr << ex << endl;
-            status = EXIT_FAILURE;
-        }
-    }
-
-#if TARGET_OS_IPHONE != 0
-    //
-    // iOS WORKAROUND: without a sleep before the communicator
-    // destroy, the close on the UDP socket hangs.
-    //
-    IceUtil::ThreadControl::sleep(IceUtil::Time::milliSeconds(500));
-#endif
-
-    return status;
 }

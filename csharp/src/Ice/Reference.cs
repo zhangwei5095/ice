@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,7 +8,6 @@
 // **********************************************************************
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
@@ -244,7 +243,7 @@ namespace IceInternal
         //
         // Marshal the reference.
         //
-        public virtual void streamWrite(BasicStream s)
+        public virtual void streamWrite(Ice.OutputStream s)
         {
             //
             // Don't write the identity here. Operations calling streamWrite
@@ -268,7 +267,7 @@ namespace IceInternal
 
             s.writeBool(secure_);
 
-            if(!s.getWriteEncoding().Equals(Ice.Util.Encoding_1_0))
+            if(!s.getEncoding().Equals(Ice.Util.Encoding_1_0))
             {
                 protocol_.write__(s);
                 encoding_.write__(s);
@@ -296,7 +295,7 @@ namespace IceInternal
             // the reference parser uses as separators, then we enclose
             // the identity string in quotes.
             //
-            string id = instance_.identityToString(identity_);
+            string id = Ice.Util.identityToString(identity_);
             if(IceUtilInternal.StringUtil.findFirstOf(id, " :@") != -1)
             {
                 s.Append('"');
@@ -651,7 +650,7 @@ namespace IceInternal
             return false;
         }
 
-        public override void streamWrite(BasicStream s)
+        public override void streamWrite(Ice.OutputStream s)
         {
             throw new Ice.FixedProxyException();
         }
@@ -1005,7 +1004,7 @@ namespace IceInternal
             return _endpoints.Length == 0 && _adapterId.Length == 0;
         }
 
-        public override void streamWrite(BasicStream s)
+        public override void streamWrite(Ice.OutputStream s)
         {
             base.streamWrite(s);
 

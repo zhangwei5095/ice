@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -13,6 +13,7 @@ namespace IceInternal
     using System.Collections;
     using System.Collections.Generic;
     using System.Globalization;
+    using System.Diagnostics;
 
     sealed class OpaqueEndpointI : EndpointI
     {
@@ -36,11 +37,11 @@ namespace IceInternal
             calcHashValue();
         }
 
-        public OpaqueEndpointI(short type, BasicStream s)
+        public OpaqueEndpointI(short type, Ice.InputStream s)
         {
             _type = type;
-            _rawEncoding = s.getReadEncoding();
-            int sz = s.getReadEncapsSize();
+            _rawEncoding = s.getEncoding();
+            int sz = s.getEncapsulationSize();
             _rawBytes = new byte[sz];
             s.readBlob(_rawBytes);
 
@@ -50,11 +51,16 @@ namespace IceInternal
         //
         // Marshal the endpoint
         //
-        public override void streamWrite(BasicStream s)
+        public override void streamWrite(Ice.OutputStream s)
         {
-            s.startWriteEncaps(_rawEncoding, Ice.FormatType.DefaultFormat);
+            s.startEncapsulation(_rawEncoding, Ice.FormatType.DefaultFormat);
             s.writeBlob(_rawBytes);
-            s.endWriteEncaps();
+            s.endEncapsulation();
+        }
+
+        public override void streamWriteImpl(Ice.OutputStream s)
+        {
+            Debug.Assert(false);
         }
 
         //
@@ -69,7 +75,7 @@ namespace IceInternal
         private sealed class InfoI : Ice.OpaqueEndpointInfo
         {
             public InfoI(short type, Ice.EncodingVersion rawEncoding, byte[] rawBytes) :
-                base(-1, false, rawEncoding, rawBytes)
+                base(null, -1, false, rawEncoding, rawBytes)
             {
                 _type = type;
             }

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,15 +9,15 @@
 
 package test.Ice.plugin.plugins;
 
-public class PluginInitializeFailFactory implements Ice.PluginFactory
+public class PluginInitializeFailFactory implements com.zeroc.Ice.PluginFactory
 {
     @Override
-    public Ice.Plugin create(Ice.Communicator communicator, String name, String[] args)
+    public com.zeroc.Ice.Plugin create(com.zeroc.Ice.Communicator communicator, String name, String[] args)
     {
         return new PluginInitializeFail();
     }
 
-    static class PluginInitializeFail implements Ice.Plugin
+    static class PluginInitializeFail implements com.zeroc.Ice.Plugin
     {
         @Override
         public void initialize()

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -26,7 +26,7 @@ ServerI::noCert(const Ice::Current& c)
 {
     try
     {
-        IceSSL::NativeConnectionInfoPtr info = IceSSL::NativeConnectionInfoPtr::dynamicCast(c.con->getInfo());
+        IceSSL::NativeConnectionInfoPtr info = ICE_DYNAMIC_CAST(IceSSL::NativeConnectionInfo, c.con->getInfo());
         test(info->nativeCerts.size() == 0);
     }
     catch(const Ice::LocalException& ex)
@@ -37,15 +37,16 @@ ServerI::noCert(const Ice::Current& c)
 }
 
 void
-ServerI::checkCert(const string& subjectDN, const string& issuerDN, const Ice::Current& c)
+ServerI::checkCert(ICE_IN(string) subjectDN, ICE_IN(string) issuerDN, const Ice::Current& c)
 {
     try
     {
-        IceSSL::NativeConnectionInfoPtr info = IceSSL::NativeConnectionInfoPtr::dynamicCast(c.con->getInfo());
+        IceSSL::NativeConnectionInfoPtr info = ICE_DYNAMIC_CAST(IceSSL::NativeConnectionInfo, c.con->getInfo());
         test(info->verified);
         test(info->nativeCerts.size() == 2 &&
              info->nativeCerts[0]->getSubjectDN() == IceSSL::DistinguishedName(subjectDN) &&
-             info->nativeCerts[0]->getIssuerDN() == IceSSL::DistinguishedName(issuerDN));
+             info->nativeCerts[0]->getIssuerDN() == IceSSL::DistinguishedName(issuerDN)
+        );
     }
     catch(const Ice::LocalException&)
     {
@@ -54,11 +55,11 @@ ServerI::checkCert(const string& subjectDN, const string& issuerDN, const Ice::C
 }
 
 void
-ServerI::checkCipher(const string& cipher, const Ice::Current& c)
+ServerI::checkCipher(ICE_IN(string) cipher, const Ice::Current& c)
 {
     try
     {
-        IceSSL::NativeConnectionInfoPtr info = IceSSL::NativeConnectionInfoPtr::dynamicCast(c.con->getInfo());
+        IceSSL::NativeConnectionInfoPtr info = ICE_DYNAMIC_CAST(IceSSL::NativeConnectionInfo, c.con->getInfo());
         test(info->cipher.compare(0, cipher.size(), cipher) == 0);
     }
     catch(const Ice::LocalException&)
@@ -74,8 +75,8 @@ ServerI::destroy()
     _communicator->destroy();
 }
 
-Test::ServerPrx
-ServerFactoryI::createServer(const Test::Properties& props, const Current&)
+Test::ServerPrxPtr
+ServerFactoryI::createServer(ICE_IN(Test::Properties) props, const Current&)
 {
     InitializationData initData;
     initData.properties = createProperties();
@@ -86,16 +87,16 @@ ServerFactoryI::createServer(const Test::Properties& props, const Current&)
 
     CommunicatorPtr communicator = initialize(initData);
     ObjectAdapterPtr adapter = communicator->createObjectAdapterWithEndpoints("ServerAdapter", "ssl");
-    ServerIPtr server = new ServerI(communicator);
-    ObjectPrx obj = adapter->addWithUUID(server);
+    ServerIPtr server = ICE_MAKE_SHARED(ServerI, communicator);
+    ObjectPrxPtr obj = adapter->addWithUUID(server);
     _servers[obj->ice_getIdentity()] = server;
     adapter->activate();
 
-    return Test::ServerPrx::uncheckedCast(obj);
+    return ICE_UNCHECKED_CAST(Test::ServerPrx, obj);
 }
 
 void
-ServerFactoryI::destroyServer(const Test::ServerPrx& srv, const Ice::Current&)
+ServerFactoryI::destroyServer(ICE_IN(Test::ServerPrxPtr) srv, const Ice::Current&)
 {
     map<Identity, ServerIPtr>::iterator p = _servers.find(srv->ice_getIdentity());
     if(p != _servers.end())

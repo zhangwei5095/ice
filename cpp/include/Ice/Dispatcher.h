@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -10,42 +10,43 @@
 #ifndef ICE_DISPATCHER_H
 #define ICE_DISPATCHER_H
 
-#include <IceUtil/Config.h>
+#if !defined(ICE_CPP11_MAPPING) || defined(ICE_BUILDING_SRC)
+//
+// Part of the C++98 mapping, and "internal" definitions when building Ice
+// with the C++11 mapping
+//
+
+#include <Ice/Config.h>
 #include <IceUtil/Shared.h>
 #include <IceUtil/Handle.h>
 #include <Ice/ConnectionF.h>
-#ifdef ICE_CPP11
-#   include <functional>
-#endif
 
 namespace Ice
 {
 
-class ICE_API DispatcherCall : virtual public IceUtil::Shared
+class ICE_API DispatcherCall : public virtual IceUtil::Shared
 {
 public:
 
-    virtual ~DispatcherCall() { }
+    virtual ~DispatcherCall();
 
     virtual void run() = 0;
 };
 
 typedef IceUtil::Handle<DispatcherCall> DispatcherCallPtr;
 
-class ICE_API Dispatcher : virtual public IceUtil::Shared
+class ICE_API Dispatcher : public virtual IceUtil::Shared
 {
 public:
+
+    virtual ~Dispatcher();
 
     virtual void dispatch(const DispatcherCallPtr&, const ConnectionPtr&) = 0;
 };
 
 typedef IceUtil::Handle<Dispatcher> DispatcherPtr;
 
-#ifdef ICE_CPP11
-ICE_API DispatcherPtr
-newDispatcher(const ::std::function<void (const DispatcherCallPtr&, const ConnectionPtr)>&);
-#endif
-
 }
 
+#endif
 #endif

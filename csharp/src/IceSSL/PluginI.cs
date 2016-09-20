@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -41,12 +41,14 @@ namespace IceSSL
             _engine = new SSLEngine(facade);
 
             //
-            // Register the endpoint factory. We have to do this now, rather than
-            // in initialize, because the communicator may need to interpret
-            // proxies before the plug-in is fully initialized.
+            // SSL based on TCP
             //
-            EndpointFactoryI factory  = new EndpointFactoryI(new Instance(_engine, IceSSL.EndpointType.value, "ssl"));
-            facade.addEndpointFactory(factory);
+            IceInternal.EndpointFactory tcp = facade.getEndpointFactory(Ice.TCPEndpointType.value);
+            if(tcp != null)
+            {
+                Instance instance = new Instance(_engine, Ice.SSLEndpointType.value, "ssl");
+                facade.addEndpointFactory(new EndpointFactoryI(instance, tcp.clone(instance, null)));
+            }
         }
 
         public override void initialize()

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,7 +8,6 @@
 // **********************************************************************
 
 using Test;
-using System.Threading;
 using System.Collections.Generic;
 
 internal class BackgroundControllerI : BackgroundControllerDisp_
@@ -89,10 +88,6 @@ internal class BackgroundControllerI : BackgroundControllerDisp_
     }
 
     private Ice.ObjectAdapter _adapter;
-#if COMPACT
-    private IceInternal.HashSet<string> _pausedCalls = new IceInternal.HashSet<string>();
-#else
     private HashSet<string> _pausedCalls = new HashSet<string>();
-#endif
     private Configuration _configuration;
 }

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -13,6 +13,10 @@
 
 #include <Ice/Endpoint.ice>
 
+#ifndef __SLICE2JAVA_COMPAT__
+[["java:package:com.zeroc"]]
+#endif
+
 /**
  *
  * IceBT provides a Bluetooth transport for Ice.
@@ -21,15 +25,6 @@
 ["objc:prefix:ICEBT"]
 module IceBT
 {
-
-/**
- *
- * Uniquely identifies Bluetooth endpoints.
- *
- **/
-#ifndef __SLICE2OBJC__
-const short EndpointType = 6;
-#endif
 
 /**
  *

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -30,20 +30,15 @@ public:
     virtual std::string toString() const;
 
     virtual bool operator==(const IceInternal::Connector&) const;
-    virtual bool operator!=(const IceInternal::Connector&) const;
     virtual bool operator<(const IceInternal::Connector&) const;
 
 private:
 
-    ConnectorI(const InstancePtr&, SOCKET, const ConnectionPtr&, const std::string&, const std::string&, Ice::Int,
-               const std::string&);
-    virtual ~ConnectorI();
+    ConnectorI(const InstancePtr&, const SocketAddress&, const std::string&, Ice::Int, const std::string&);
     friend class EndpointI;
 
     const InstancePtr _instance;
-    SOCKET _fd;
-    ConnectionPtr _connection;
-    const std::string _addr;
+    const SocketAddress _addr;
     const std::string _uuid;
     const Ice::Int _timeout;
     const std::string _connectionId;

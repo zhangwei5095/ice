@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -14,7 +14,7 @@
 #include <Slice/Preprocessor.h>
 #include <Slice/FileTracker.h>
 #include <Slice/Util.h>
-#include <Gen.h>
+#include "Gen.h"
 
 using namespace std;
 using namespace Slice;
@@ -61,7 +61,7 @@ usage(const char* n)
         "Options:\n"
         "-h, --help              Show this message.\n"
         "-v, --version           Display the Ice version.\n"
-        "--validate               Validate command line options.\n"
+        "--validate              Validate command line options.\n"
         "-DNAME                  Define NAME as 1.\n"
         "-DNAME=DEF              Define NAME as DEF.\n"
         "-UNAME                  Remove any definition for NAME.\n"
@@ -78,7 +78,6 @@ usage(const char* n)
         "--ice                   Allow reserved Ice prefix in Slice identifiers.\n"
         "--underscore            Allow underscores in Slice identifiers.\n"
         "--checksum              Generate checksums for Slice definitions.\n"
-        "--stream                Generate marshaling support for public stream API.\n"
         ;
 }
 
@@ -104,7 +103,6 @@ compile(int argc, char* argv[])
     opts.addOpt("", "ice");
     opts.addOpt("", "underscore");
     opts.addOpt("", "checksum");
-    opts.addOpt("", "stream");
 
     bool validate = false;
     for(int i = 0; i < argc; ++i)
@@ -185,8 +183,6 @@ compile(int argc, char* argv[])
     bool underscore = opts.isSet("underscore");
 
     bool checksum = opts.isSet("checksum");
-
-    bool stream = opts.isSet("stream");
 
     if(args.empty())
     {
@@ -322,7 +318,7 @@ compile(int argc, char* argv[])
                 {
                     try
                     {
-                        Gen gen(icecpp->getBaseName(), includePaths, output, impl, implTie, stream);
+                        Gen gen(icecpp->getBaseName(), includePaths, output, impl, implTie);
                         gen.generate(p);
                         if(tie)
                         {

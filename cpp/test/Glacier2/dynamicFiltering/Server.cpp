@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -23,7 +23,7 @@ using namespace Test;
 // simplicity, we essentially 'alias' all possible requests to a single
 // object adapter and a single servant.
 //
-class ServerLocatorRegistry : virtual public LocatorRegistry
+class ServerLocatorRegistry : public virtual LocatorRegistry
 {
 public:
 
@@ -49,7 +49,7 @@ public:
     }
 };
 
-class ServerLocatorI : virtual public Locator
+class ServerLocatorI : public virtual Locator
 {
 public:
     ServerLocatorI(BackendPtr backend, ObjectAdapterPtr adapter) :
@@ -57,7 +57,7 @@ public:
         _adapter(adapter)
     {
         _registryPrx = LocatorRegistryPrx::uncheckedCast(adapter->add(new ServerLocatorRegistry,
-                                                        _adapter->getCommunicator()->stringToIdentity("registry")));
+                                                        Ice::stringToIdentity("registry")));
     }
 
     virtual void
@@ -69,7 +69,7 @@ public:
     virtual void
     findAdapterById_async(const AMD_Locator_findAdapterByIdPtr& cb, const string&, const Current&) const
     {
-       cb->ice_response(_adapter->createDirectProxy(_adapter->getCommunicator()->stringToIdentity("dummy")));
+       cb->ice_response(_adapter->createDirectProxy(stringToIdentity("dummy")));
     }
 
     virtual LocatorRegistryPrx
@@ -84,7 +84,7 @@ private:
     LocatorRegistryPrx _registryPrx;
 };
 
-class ServantLocatorI : virtual public ServantLocator
+class ServantLocatorI : public virtual ServantLocator
 {
 public:
 
@@ -146,12 +146,12 @@ SessionControlServer::run(int, char*[])
     communicator()->getProperties()->setProperty("TestControllerAdapter.Endpoints", "tcp -p 12013");
     ObjectAdapterPtr controllerAdapter = communicator()->createObjectAdapter("TestControllerAdapter");
     TestControllerIPtr controller = new TestControllerI;
-    controllerAdapter->add(controller, communicator()->stringToIdentity("testController"));
+    controllerAdapter->add(controller, Ice::stringToIdentity("testController"));
     controllerAdapter->activate();
 
     communicator()->getProperties()->setProperty("SessionControlAdapter.Endpoints", "tcp -p 12010");
     ObjectAdapterPtr adapter = communicator()->createObjectAdapter("SessionControlAdapter");
-    adapter->add(new SessionManagerI(controller), communicator()->stringToIdentity("SessionManager"));
+    adapter->add(new SessionManagerI(controller), Ice::stringToIdentity("SessionManager"));
     adapter->activate();
 
     BackendPtr backend = new BackendI;
@@ -161,7 +161,7 @@ SessionControlServer::run(int, char*[])
     backendAdapter->activate();
 
     Ice::LocatorPtr locator = new ServerLocatorI(backend, backendAdapter);
-    backendAdapter->add(locator, communicator()->stringToIdentity("locator"));
+    backendAdapter->add(locator, Ice::stringToIdentity("locator"));
 
     communicator()->waitForShutdown();
     return EXIT_SUCCESS;

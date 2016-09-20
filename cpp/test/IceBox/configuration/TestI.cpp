@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -17,7 +17,7 @@ TestI::TestI(const Ice::StringSeq& args) : _args(args)
 }
 
 std::string
-TestI::getProperty(const std::string& name, const Ice::Current& current)
+TestI::getProperty(ICE_IN(std::string) name, const Ice::Current& current)
 {
     return current.adapter->getCommunicator()->getProperties()->getProperty(name);
 }

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -77,7 +77,9 @@ IceBox::ServiceManagerI::ServiceManagerI(CommunicatorPtr communicator, int& argc
     _pendingStatusChanges(false),
     _traceServiceObserver(0)
 {
+#ifndef ICE_CPP11_MAPPING
     const_cast<CallbackPtr&>(_observerCompletedCB) = newCallback(this, &ServiceManagerI::observerCompleted);
+#endif
     _logger = _communicator->getLogger();
 
     PropertiesPtr props = _communicator->getProperties();
@@ -118,7 +120,7 @@ IceBox::ServiceManagerI::getSliceChecksums(const Current&) const
 }
 
 void
-IceBox::ServiceManagerI::startService(const string& name, const Current&)
+IceBox::ServiceManagerI::startService(ICE_IN(string) name, const Current&)
 {
     ServiceInfo info;
     {
@@ -194,7 +196,7 @@ IceBox::ServiceManagerI::startService(const string& name, const Current&)
 }
 
 void
-IceBox::ServiceManagerI::stopService(const string& name, const Current&)
+IceBox::ServiceManagerI::stopService(ICE_IN(string) name, const Current&)
 {
     ServiceInfo info;
     {
@@ -270,7 +272,7 @@ IceBox::ServiceManagerI::stopService(const string& name, const Current&)
 }
 
 void
-IceBox::ServiceManagerI::addObserver(const ServiceObserverPrx& observer, const Current&)
+IceBox::ServiceManagerI::addObserver(ICE_IN(ServiceObserverPrxPtr) observer, const Current&)
 {
     //
     // Null observers and duplicate registrations are ignored
@@ -297,7 +299,11 @@ IceBox::ServiceManagerI::addObserver(const ServiceObserverPrx& observer, const C
 
         if(activeServices.size() > 0)
         {
+#ifdef ICE_CPP11_MAPPING
+            observer->servicesStartedAsync(activeServices, nullptr, makeObserverCompletedCallback(observer));
+#else
             observer->begin_servicesStarted(activeServices, _observerCompletedCB);
+#endif
         }
     }
 }
@@ -313,7 +319,7 @@ IceBox::ServiceManagerI::start()
 {
     try
     {
-        ServiceManagerPtr obj = this;
+        ServiceManagerPtr obj = ICE_SHARED_FROM_THIS;
         PropertiesPtr properties = _communicator->getProperties();
 
         //
@@ -470,7 +476,7 @@ IceBox::ServiceManagerI::start()
         //
         try
         {
-            _communicator->addAdminFacet(this, "IceBox.ServiceManager");
+            _communicator->addAdminFacet(ICE_SHARED_FROM_THIS, "IceBox.ServiceManager");
             _communicator->getAdmin();
         }
         catch(const ObjectAdapterDeactivatedException&)
@@ -664,10 +670,15 @@ IceBox::ServiceManagerI::start(const string& service, const string& entryPoint, 
         //
         // Invoke the factory function.
         //
+#ifdef __IBMCPP__
+      // xlC warns when casting a void* to function pointer
+#   pragma report(disable, "1540-0216")
+#endif
+      
         SERVICE_FACTORY factory = reinterpret_cast<SERVICE_FACTORY>(sym);
         try
         {
-            info.service = factory(_communicator);
+            info.service = ServicePtr(factory(_communicator));
         }
         catch(const FailureException&)
         {
@@ -897,8 +908,76 @@ IceBox::ServiceManagerI::stopAll()
 
     servicesStopped(stoppedServices, _observers);
 
+#ifndef ICE_CPP11_MAPPING
     _observerCompletedCB = 0; // Break cyclic reference count.
+#endif
 }
+
+#ifdef ICE_CPP11_MAPPING
+
+function<void(exception_ptr)>
+IceBox::ServiceManagerI::makeObserverCompletedCallback(const shared_ptr<ServiceObserverPrx>& observer)
+{
+    weak_ptr<ServiceManagerI> self = shared_from_this();
+    return [self, observer](exception_ptr ex)
+        {
+            auto s = self.lock();
+            if(s)
+            {
+                s->observerCompleted(observer, ex);
+            }
+        };
+}
+void
+IceBox::ServiceManagerI::servicesStarted(const vector<string>& services, const set<shared_ptr<ServiceObserverPrx>>& observers)
+{
+    if(services.size() > 0)
+    {
+        for(auto p : observers)
+        {
+            p->servicesStartedAsync(services, nullptr, makeObserverCompletedCallback(p));
+        }
+    }
+}
+
+void
+IceBox::ServiceManagerI::servicesStopped(const vector<string>& services, const set<shared_ptr<ServiceObserverPrx>>& observers)
+{
+    if(services.size() > 0)
+    {
+        for(auto p : observers)
+        {
+            p->servicesStoppedAsync(services, nullptr, makeObserverCompletedCallback(p));
+        }
+    }
+}
+
+void
+IceBox::ServiceManagerI::observerRemoved(const shared_ptr<ServiceObserverPrx>& observer, exception_ptr err)
+{
+    if(_traceServiceObserver >= 1)
+    {
+        try
+        {
+            rethrow_exception(err);
+        }
+        catch(const CommunicatorDestroyedException&)
+        {
+            //
+            // CommunicatorDestroyedException may occur during shutdown. The observer notification has
+            // been sent, but the communicator was destroyed before the reply was received. We do not
+            // log a message for this exception.
+            //
+        }
+        catch(const exception& ex)
+        {
+            Trace out(_logger, "IceBox.ServiceObserver");
+            out << "Removed service observer " << _communicator->proxyToString(observer)
+                << "\nafter catching " << ex.what();
+        }
+    }
+}
+#else
 
 void
 IceBox::ServiceManagerI::servicesStarted(const vector<string>& services, const set<ServiceObserverPrx>& observers)
@@ -942,6 +1021,7 @@ IceBox::ServiceManagerI::observerRemoved(const ServiceObserverPrx& observer, con
         }
     }
 }
+#endif
 
 Ice::PropertiesPtr
 IceBox::ServiceManagerI::createServiceProperties(const string& service)
@@ -976,6 +1056,24 @@ IceBox::ServiceManagerI::createServiceProperties(const string& service)
     return properties;
 }
 
+#ifdef ICE_CPP11_MAPPING
+void
+ServiceManagerI::observerCompleted(const shared_ptr<ServiceObserverPrx>& observer, exception_ptr ex)
+{
+    IceUtil::Monitor<IceUtil::Mutex>::Lock lock(*this);
+    //
+    // It's possible to remove several times the same observer, e.g. multiple concurrent
+    // requests that fail
+    //
+    auto p = _observers.find(observer);
+    if(p != _observers.end())
+    {
+        auto observer = *p;
+        _observers.erase(p);
+        observerRemoved(observer, ex);
+    }
+}
+#else
 void
 ServiceManagerI::observerCompleted(const Ice::AsyncResultPtr& result)
 {
@@ -1001,6 +1099,7 @@ ServiceManagerI::observerCompleted(const Ice::AsyncResultPtr& result)
         }
      }
 }
+#endif
 
 void
 IceBox::ServiceManagerI::destroyServiceCommunicator(const string& service, const CommunicatorPtr& communicator)

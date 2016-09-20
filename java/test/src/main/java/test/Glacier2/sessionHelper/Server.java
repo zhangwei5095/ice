@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -11,32 +11,28 @@ package test.Glacier2.sessionHelper;
 
 public class Server extends test.Util.Application
 {
-    public int
-    run(String[] args)
+    public int run(String[] args)
     {
         communicator().getProperties().setProperty("DeactivatedAdapter.Endpoints", "default -p 12011");
         communicator().createObjectAdapter("DeactivatedAdapter");
 
         communicator().getProperties().setProperty("CallbackAdapter.Endpoints", "default -p 12010");
-        Ice.ObjectAdapter adapter = communicator().createObjectAdapter("CallbackAdapter");
-        adapter.add(new CallbackI(), communicator().stringToIdentity("callback"));
+        com.zeroc.Ice.ObjectAdapter adapter = communicator().createObjectAdapter("CallbackAdapter");
+        adapter.add(new CallbackI(), com.zeroc.Ice.Util.stringToIdentity("callback"));
         adapter.activate();
         communicator().waitForShutdown();
         return 0;
     }
 
-
-    protected Ice.InitializationData getInitData(Ice.StringSeqHolder argsH)
+    @Override
+    protected GetInitDataResult getInitData(String[] args)
     {
-        Ice.InitializationData initData = createInitializationData() ;
-        initData.properties = Ice.Util.createProperties(argsH);
-        initData.properties.setProperty("Ice.Package.Test", "test.Glacier2.router");
-
-        return initData;
+        GetInitDataResult r = super.getInitData(args);
+        r.initData.properties.setProperty("Ice.Package.Test", "test.Glacier2.router");
+        return r;
     }
 
-    public static void
-    main(String[] args)
+    public static void main(String[] args)
     {
         Server c = new Server();
         int status = c.main("Server", args);

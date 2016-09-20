@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -24,7 +24,7 @@ public class Server
         communicator.getProperties().setProperty("TestAdapter.Endpoints", "default -p 12010");
         communicator.getProperties().setProperty("TestAdapter.ACM.Timeout", "0");
         Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
-        Ice.Identity id = communicator.stringToIdentity("communicator");
+        Ice.Identity id = Ice.Util.stringToIdentity("communicator");
         adapter.add(new RemoteCommunicatorI(), id);
         adapter.activate();
 

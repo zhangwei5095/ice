@@ -1,17 +1,16 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
 
+using System.Net;
+
 namespace IceInternal
 {
-    using System.Net;
-    using System.Collections.Generic;
-
     public class ProtocolInstance
     {
         public ProtocolInstance(Ice.Communicator communicator, short type, string protocol, bool secure)
@@ -113,13 +112,11 @@ namespace IceInternal
             return instance_.messageSizeMax();
         }
 
-#if !SILVERLIGHT
         public void resolve(string host, int port, Ice.EndpointSelectionType type, IPEndpointI endpt,
                             EndpointI_connectors callback)
         {
             instance_.endpointHostResolver().resolve(host, port, type, endpt, callback);
         }
-#endif
 
         public BufSizeWarnInfo getBufSizeWarn(short type)
         {

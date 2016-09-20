@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -269,7 +269,7 @@ public:
         Lock sync(*this);
         this->objects.erase(id);
         updated(updateSerial(0, "object removed `" +
-                             current.adapter->getCommunicator()->identityToString(id) + "'"));
+                             identityToString(id) + "'"));
     }
 
     int serial;
@@ -1410,7 +1410,7 @@ allTests(const Ice::CommunicatorPtr& communicator)
             locatorRegistry->setAdapterDirectProxy(string(512, 'A'), obj);
             test(false);
         }
-        catch(const Ice::InvalidAdapterException&)
+        catch(const Ice::UnknownException&)
         {
         }
 
@@ -1419,7 +1419,7 @@ allTests(const Ice::CommunicatorPtr& communicator)
             locatorRegistry->setReplicatedAdapterDirectProxy("Adapter", string(512, 'A'), obj);
             test(false);
         }
-        catch(const Ice::InvalidAdapterException&)
+        catch(const Ice::UnknownException&)
         {
         }
 
@@ -1641,20 +1641,20 @@ allTests(const Ice::CommunicatorPtr& communicator)
 
             admin->addObjectWithType(obj, "::Dummy");
             objectObs1->waitForUpdate(__FILE__, __LINE__);
-            test(objectObs1->objects.find(communicator->stringToIdentity("dummy")) != objectObs1->objects.end());
-            test(objectObs1->objects[communicator->stringToIdentity("dummy")].type == "::Dummy");
-            test(objectObs1->objects[communicator->stringToIdentity("dummy")].proxy == obj);
+            test(objectObs1->objects.find(Ice::stringToIdentity("dummy")) != objectObs1->objects.end());
+            test(objectObs1->objects[Ice::stringToIdentity("dummy")].type == "::Dummy");
+            test(objectObs1->objects[Ice::stringToIdentity("dummy")].proxy == obj);
 
             obj = communicator->stringToProxy("dummy:tcp -p 10000 -h localhost");
             admin->updateObject(obj);
             objectObs1->waitForUpdate(__FILE__, __LINE__);
-            test(objectObs1->objects.find(communicator->stringToIdentity("dummy")) != objectObs1->objects.end());
-            test(objectObs1->objects[communicator->stringToIdentity("dummy")].type == "::Dummy");
-            test(objectObs1->objects[communicator->stringToIdentity("dummy")].proxy == obj);
+            test(objectObs1->objects.find(Ice::stringToIdentity("dummy")) != objectObs1->objects.end());
+            test(objectObs1->objects[Ice::stringToIdentity("dummy")].type == "::Dummy");
+            test(objectObs1->objects[Ice::stringToIdentity("dummy")].proxy == obj);
 
             admin->removeObject(obj->ice_getIdentity());
             objectObs1->waitForUpdate(__FILE__, __LINE__);
-            test(objectObs1->objects.find(communicator->stringToIdentity("dummy")) == objectObs1->objects.end());
+            test(objectObs1->objects.find(Ice::stringToIdentity("dummy")) == objectObs1->objects.end());
         }
         catch(const Ice::UserException& ex)
         {
@@ -1803,11 +1803,7 @@ allTests(const Ice::CommunicatorPtr& communicator)
         nodeApp.name = "NodeApp";
         ServerDescriptorPtr server = new ServerDescriptor();
         server->id = "node-1";
-#if defined(NDEBUG) || !defined(_WIN32)
         server->exe = properties->getProperty("IceBinDir") + "/icegridnode";
-#else
-        server->exe = properties->getProperty("IceBinDir") + "/icegridnoded";
-#endif
         server->options.push_back("--nowarn");
         server->pwd = ".";
         server->applicationDistrib = false;
@@ -1859,8 +1855,9 @@ allTests(const Ice::CommunicatorPtr& communicator)
 
         server = new ServerDescriptor();
         server->id = "Server";
-        server->exe = properties->getProperty("TestDir") + "/server";
-        server->pwd = ".";
+        server->exe = properties->getProperty("ServerDir") + "/server";
+        server->pwd = properties->getProperty("TestDir");
+
         server->applicationDistrib = false;
         server->allocatable = false;
         AdapterDescriptor adapter;

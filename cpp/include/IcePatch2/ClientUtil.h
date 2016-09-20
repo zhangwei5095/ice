@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -27,6 +27,8 @@ namespace IcePatch2
 class ICE_PATCH2_API PatcherFeedback : public IceUtil::Shared
 {
 public:
+
+    virtual ~PatcherFeedback();
 
     //
     // The summary file can't be loaded for the given reason. This
@@ -77,6 +79,9 @@ typedef IceUtil::Handle<PatcherFeedback> PatcherFeedbackPtr;
 class ICE_PATCH2_API Patcher : public IceUtil::Shared
 {
 public:
+
+    virtual ~Patcher();
+
     //
     // Prepare the patching. This involves creating the local checksum
     // files if no summary file exists or if a thorough patch was

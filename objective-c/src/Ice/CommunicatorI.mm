@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -20,131 +20,18 @@
 #import <ProxyI.h>
 #import <LocalObjectI.h>
 #import <ObjectI.h>
+#import <ValueFactoryI.h>
 
 #include <Ice/Router.h>
 #include <Ice/Locator.h>
-#include <Ice/ObjectFactory.h>
 
 #import <objc/Ice/Router.h>
 #import <objc/Ice/Locator.h>
-#import <objc/Ice/ObjectFactory.h>
+#import <objc/Ice/Initialize.h>
 
 #import <objc/runtime.h>
 
 #define COMMUNICATOR dynamic_cast<Ice::Communicator*>(static_cast<IceUtil::Shared*>(cxxObject_))
-
-namespace IceObjC
-{
-
-class UnknownSlicedObjectFactoryI : public Ice::ObjectFactory
-{
-public:
-
-    virtual Ice::ObjectPtr
-    create(const std::string&)
-    {
-        ICEUnknownSlicedObject* obj = [[ICEUnknownSlicedObject alloc] init];
-        Ice::ObjectPtr o = [ICEInputStream createObjectReader:obj];
-        [obj release];   
-        return o;
-    }
-
-    virtual void
-    destroy()
-    {
-    }
-};
-
-class ObjectFactoryI : public Ice::ObjectFactory
-{
-public:
-
-    // We must explicitely CFRetain/CFRelease so that the garbage
-    // collector does not trash the dictionaries.
-    ObjectFactoryI(NSDictionary* factories, NSDictionary* prefixTable) : 
-        _factories(factories), _prefixTable(prefixTable)
-    {
-        CFRetain(_factories);
-        CFRetain(_prefixTable);
-    }
-
-    ~ObjectFactoryI()
-    {
-        CFRelease(_factories);
-        CFRelease(_prefixTable);
-    }
-
-    virtual Ice::ObjectPtr
-    create(const std::string& type)
-    {
-        NSString* sliceId = [[NSString alloc] initWithUTF8String:type.c_str()];
-        @try
-        {
-            id<ICEObjectFactory> factory = nil;
-            @synchronized(_factories)
-            {
-                factory = [_factories objectForKey:sliceId];
-                if(factory == nil)
-                {
-                    factory = [_factories objectForKey:@""];
-                }
-            }
-
-            ICEObject* obj = nil;
-            if(factory != nil)
-            {
-                obj = [factory create:sliceId];
-            }
-
-            if(obj == nil)
-            {
-                std::string tId = toObjCSliceId(type, _prefixTable);
-                Class c = objc_lookUpClass(tId.c_str());
-                if(c == nil)
-                {
-                    return 0; // No object factory.
-                }
-                if([c isSubclassOfClass:[ICEObject class]])
-                {
-                    obj = (ICEObject*)[[c alloc] init];
-                }
-            }
-
-            Ice::ObjectPtr o;
-            if(obj != nil)
-            {
-                o = [ICEInputStream createObjectReader:obj];
-                [obj release];   
-            }
-            return o;
-        }
-        @catch(id ex)
-        {
-            rethrowCxxException(ex);
-        }
-        @finally
-        {
-            [sliceId release];
-        }
-        return nil; // Keep the compiler happy.
-    }
-
-    virtual void
-    destroy()
-    {
-        for(NSString* k in _factories)
-        {
-            [[_factories objectForKey:k] destroy];
-        }
-    }
-
-private:
-    
-    NSDictionary* _factories;
-    NSDictionary* _prefixTable;
-};
-
-}
 
 @interface ICEInternalPrefixTable(ICEInternal)
 +(NSDictionary*) newPrefixTable;
@@ -173,25 +60,26 @@ private:
 @end
 
 @implementation ICECommunicator
--(void)setup:(NSDictionary*)prefixTable
+-(void)setup:(ICEInitializationData*)initData
 {
-    objectFactories_ = [[NSMutableDictionary alloc] init];
-    if(prefixTable)
+    if(initData.prefixTable__)
     {
-        prefixTable_ = [prefixTable retain];
+        prefixTable_ = [initData.prefixTable__ retain];
     }
     else
     {
         prefixTable_ = [ICEInternalPrefixTable newPrefixTable];
     }
     adminFacets_ = [[NSMutableDictionary alloc] init];
-    COMMUNICATOR->addObjectFactory(new IceObjC::UnknownSlicedObjectFactoryI, "::Ice::Object");
-    COMMUNICATOR->addObjectFactory(new IceObjC::ObjectFactoryI(objectFactories_, prefixTable_), "");
+
+    valueFactoryManager_ = [[ICEValueFactoryManager alloc] init:COMMUNICATOR prefixTable:prefixTable_];
+    objectFactories_ = [[NSMutableDictionary alloc] init];
 }
 -(void) dealloc
 {
-    [prefixTable_ release];
+    [valueFactoryManager_ release];
     [objectFactories_ release];
+    [prefixTable_ release];
     [adminFacets_ release];
     [super dealloc];
 }
@@ -217,6 +105,13 @@ private:
         @synchronized(adminFacets_)
         {
             [adminFacets_ removeAllObjects];
+        }
+        @synchronized(objectFactories_)
+        {
+            for(NSString* k in objectFactories_)
+            {
+                [[objectFactories_ objectForKey:k] destroy];
+            }
         }
         return;
     }
@@ -329,7 +224,7 @@ private:
     NSException* nsex = nil;
     try
     {
-        return [toNSDictionary(COMMUNICATOR->proxyToProperty([(ICEObjectPrx*)prx objectPrx__], 
+        return [toNSDictionary(COMMUNICATOR->proxyToProperty([(ICEObjectPrx*)prx objectPrx__],
                                                              fromNSString(property))) autorelease];
     }
     catch(const std::exception& ex)
@@ -342,32 +237,12 @@ private:
 
 -(ICEIdentity*) stringToIdentity:(NSString*)str
 {
-    NSException* nsex = nil;
-    try
-    {
-        return [ICEIdentity identityWithIdentity:COMMUNICATOR->stringToIdentity(fromNSString(str))];
-    }
-    catch(const std::exception& ex)
-    {
-        nsex = toObjCException(ex);
-    }
-    @throw nsex;
-    return nil; // Keep the compiler happy.
+    return [ICEUtil stringToIdentity:str];
 }
 
 -(NSMutableString*) identityToString:(ICEIdentity*)ident
 {
-    NSException* nsex = nil;
-    try
-    {
-        return [toNSMutableString(COMMUNICATOR->identityToString([ident identity])) autorelease];
-    }
-    catch(const std::exception& ex)
-    {
-        nsex = toObjCException(ex);
-    }
-    @throw nsex;
-    return nil; // Keep the compiler happy.
+    return [ICEUtil identityToString:ident];
 }
 
 -(id<ICEObjectAdapter>) createObjectAdapter:(NSString*)name;
@@ -424,13 +299,20 @@ private:
     @throw nsex;
     return nil; // Keep the compiler happy.
 }
+
 -(void) addObjectFactory:(id<ICEObjectFactory>)factory sliceId:(NSString*)sliceId
 {
     @synchronized(objectFactories_)
     {
         [objectFactories_ setObject:factory forKey:sliceId];
     }
+    ICEValueFactory valueFactoryWrapper = ^(NSString* s)
+    {
+        return [factory create:s];
+    };
+    [valueFactoryManager_ add:valueFactoryWrapper sliceId:sliceId];
 }
+
 -(id<ICEObjectFactory>) findObjectFactory:(NSString*)sliceId
 {
     @synchronized(objectFactories_)
@@ -438,6 +320,11 @@ private:
         return [objectFactories_ objectForKey:sliceId];
     }
     return nil; // Keep the compiler happy.
+}
+
+-(id<ICEValueFactoryManager>) getValueFactoryManager
+{
+    return valueFactoryManager_;
 }
 
 -(id<ICEImplicitContext>) getImplicitContext
@@ -566,21 +453,21 @@ private:
 }
 -(id<ICEAsyncResult>) begin_flushBatchRequests
 {
-    return beginCppCall(^(Ice::AsyncResultPtr& result) 
+    return beginCppCall(^(Ice::AsyncResultPtr& result)
                         {
-                            result = COMMUNICATOR->begin_flushBatchRequests(); 
+                            result = COMMUNICATOR->begin_flushBatchRequests();
                         });
 }
 -(id<ICEAsyncResult>) begin_flushBatchRequests:(void(^)(ICEException*))exception
 {
     return [self begin_flushBatchRequests:exception sent:nil];
 }
--(id<ICEAsyncResult>) begin_flushBatchRequests:(void(^)(ICEException*))exception sent:(void(^)(BOOL))sent 
+-(id<ICEAsyncResult>) begin_flushBatchRequests:(void(^)(ICEException*))exception sent:(void(^)(BOOL))sent
 {
-    return beginCppCall(^(Ice::AsyncResultPtr& result, const Ice::CallbackPtr& cb) 
+    return beginCppCall(^(Ice::AsyncResultPtr& result, const Ice::CallbackPtr& cb)
                         {
-                            result = COMMUNICATOR->begin_flushBatchRequests(cb); 
-                        }, 
+                            result = COMMUNICATOR->begin_flushBatchRequests(cb);
+                        },
                         ^(const Ice::AsyncResultPtr& result) {
                             COMMUNICATOR->end_flushBatchRequests(result);
                         },
@@ -588,9 +475,9 @@ private:
 }
 -(void) end_flushBatchRequests:(id<ICEAsyncResult>)result
 {
-    endCppCall(^(const Ice::AsyncResultPtr& r) 
+    endCppCall(^(const Ice::AsyncResultPtr& r)
                {
-                   COMMUNICATOR->end_flushBatchRequests(r); 
+                   COMMUNICATOR->end_flushBatchRequests(r);
                }, result);
 }
 -(id<ICEObjectPrx>) createAdmin:(id<ICEObjectAdapter>)adapter adminId:(ICEIdentity*)adminId

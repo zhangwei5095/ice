@@ -1,35 +1,27 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
 
-using System;
-using System.Diagnostics;
-using System.Threading;
-
-#if SILVERLIGHT
-using System.Windows.Controls;
-#endif
-
 public class AllTests : TestCommon.TestApp
 {
-#if SILVERLIGHT
-    public override Ice.InitializationData initData()
+    private static Ice.IPConnectionInfo getIPConnectionInfo(Ice.ConnectionInfo info)
     {
-        Ice.InitializationData initData = new Ice.InitializationData();
-        initData.properties = Ice.Util.createProperties();
-        return initData;
+        for(; info != null; info = info.underlying)
+        {
+            if(info is Ice.IPConnectionInfo)
+            {
+                return info as Ice.IPConnectionInfo;
+            }
+        }
+        return null;
     }
 
-    override
-    public void run(Ice.Communicator communicator)
-#else
     public static void allTests(Ice.Communicator communicator)
-#endif
     {
         string sref = "test:default -p 12010";
         Ice.ObjectPrx obj = communicator.stringToProxy(sref);
@@ -48,7 +40,7 @@ public class AllTests : TestCommon.TestApp
         Write("testing connection information... ");
         Flush();
         {
-            Ice.IPConnectionInfo info = (Ice.IPConnectionInfo)testPrx.ice_getConnection().getInfo();
+            Ice.IPConnectionInfo info = getIPConnectionInfo(testPrx.ice_getConnection().getInfo());
             test(info.remotePort == 12030 || info.remotePort == 12031); // make sure we are connected to the proxy port.
         }
         WriteLine("ok");

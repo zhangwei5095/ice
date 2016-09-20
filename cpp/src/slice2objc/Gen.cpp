@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -17,6 +17,8 @@
 #include <direct.h>
 #endif
 #include <IceUtil/Iterator.h>
+#include <IceUtil/StringConverter.h>
+#include <IceUtil/InputUtil.h>
 #include <IceUtil/UUID.h>
 #include <Slice/Checksum.h>
 #include <Slice/FileTracker.h>
@@ -199,7 +201,7 @@ Slice::ObjCVisitor::writeDispatchAndMarshalling(const ClassDefPtr& p)
         assert(cl);
 
         string opName = getName(op);
-        _M << sp << nl << "+(BOOL)" << op->name() << "___:(id<" << name << ">)target_ current:(ICECurrent *)current "
+        _M << sp << nl << "+(void)" << op->name() << "___:(id<" << name << ">)target_ current:(ICECurrent *)current "
            << "is:(id<ICEInputStream>)is_ os:(id<ICEOutputStream>)os_";
         _M << sb;
 
@@ -230,10 +232,6 @@ Slice::ObjCVisitor::writeDispatchAndMarshalling(const ClassDefPtr& p)
                 outParams.push_back(*pli);
             }
         }
-        ExceptionList throws = op->throws();
-        throws.sort();
-        throws.unique();
-        throws.sort(Slice::DerivedToBaseCompare());
 
         for(ParamDeclList::const_iterator inp = inParams.begin(); inp != inParams.end(); ++inp)
         {
@@ -249,14 +247,9 @@ Slice::ObjCVisitor::writeDispatchAndMarshalling(const ClassDefPtr& p)
         writeMarshalUnmarshalParams(inParams, 0, false);
         if(op->sendsClasses(false))
         {
-            _M << nl << "[is_ readPendingObjects];";
+            _M << nl << "[is_ readPendingValues];";
         }
         _M << nl << "[is_ endEncapsulation];";
-        if(!throws.empty())
-        {
-            _M << nl << "@try";
-            _M << sb;
-        }
         for(ParamDeclList::const_iterator outp = outParams.begin(); outp != outParams.end(); ++outp)
         {
             TypePtr type = (*outp)->type();
@@ -288,31 +281,9 @@ Slice::ObjCVisitor::writeDispatchAndMarshalling(const ClassDefPtr& p)
         writeMarshalUnmarshalParams(outParams, op, true);
         if(op->returnsClasses(false))
         {
-            _M << nl << "[os_ writePendingObjects];";
+            _M << nl << "[os_ writePendingValues];";
         }
-        if(!throws.empty())
-        {
-            _M << eb;
-            ExceptionList::const_iterator t;
-            for(t = throws.begin(); t != throws.end(); ++t)
-            {
-                string exS = fixName(*t);
-                _M << nl << "@catch(" << exS << " *ex)";
-                _M << sb;
-                _M << nl << "[os_ writeException:ex];";
-                _M << nl << "return NO;";
-                _M << eb;
-            }
-            _M << nl << "@finally";
-            _M << sb;
-            _M << nl << "[os_ endEncapsulation];";
-            _M << eb;
-        }
-        else
-        {
-            _M << nl << "[os_ endEncapsulation];";
-        }
-        _M << nl << "return YES;";
+        _M << nl << "[os_ endEncapsulation];";
         _M << eb;
     }
 
@@ -345,7 +316,7 @@ Slice::ObjCVisitor::writeDispatchAndMarshalling(const ClassDefPtr& p)
         }
         _M << eb << ';';
 
-        _M << sp << nl << "-(BOOL) dispatch__:(ICECurrent *)current is:(id<ICEInputStream>)is "
+        _M << sp << nl << "-(void) dispatch__:(ICECurrent *)current is:(id<ICEInputStream>)is "
            << "os:(id<ICEOutputStream>)os";
         _M << sb;
         _M << nl << "id target__ = [self target__];";
@@ -359,13 +330,14 @@ Slice::ObjCVisitor::writeDispatchAndMarshalling(const ClassDefPtr& p)
             _M.inc();
             if(q->second == "ICEObject")
             {
-                _M << nl << "return [ICEServant " << q->first << "___:(id<" << q->second << ">)self";
+                _M << nl << "[ICEServant " << q->first << "___:(id<" << q->second << ">)self";
             }
             else
             {
-                _M << nl << "return [" << q->second << " " << q->first << "___:(id<" << q->second << ">)target__";
+                _M << nl << "[" << q->second << " " << q->first << "___:(id<" << q->second << ">)target__";
             }
             _M << " current:current is:is os:os];";
+            _M << nl << "return;";
             _M.dec();
         }
         _M << nl << "default:";
@@ -445,6 +417,32 @@ Slice::ObjCVisitor::getParams(const OperationPtr& op) const
             result += " " + getParamId(*q);
         }
         result += ":(" + typeString + ")" + fixId((*q)->name());
+    }
+    return result;
+}
+
+string
+Slice::ObjCVisitor::getBlockParams(const OperationPtr& op) const
+{
+    string result;
+    ParamDeclList paramList = op->parameters();
+    for(ParamDeclList::const_iterator q = paramList.begin(); q != paramList.end(); ++q)
+    {
+        TypePtr type = (*q)->type();
+        string typeString;
+        if((*q)->isOutParam())
+        {
+            typeString = outTypeToString(type, (*q)->optional(), false, true);
+        }
+        else
+        {
+            typeString = inTypeToString(type, (*q)->optional());
+        }
+        if(q != paramList.begin())
+        {
+            result += " " + getParamId(*q);
+        }
+        result += "(" + typeString + ")";
     }
     return result;
 }
@@ -756,10 +754,10 @@ Slice::Gen::generate(const UnitPtr& p)
 
         _H << nl;
         _H << nl << "#ifndef " << _dllExport;
-        _H << nl << "#   ifdef " << _dllExport << "_EXPORTS";
-        _H << nl << "#       define " << _dllExport << " ICE_DECLSPEC_EXPORT";
-        _H << nl << "#   elif defined(ICE_STATIC_LIBS)";
+        _H << nl << "#   if defined(ICE_STATIC_LIBS)";
         _H << nl << "#       define " << _dllExport << " /**/";
+        _H << nl << "#   elif defined(" << _dllExport << "_EXPORTS)";
+        _H << nl << "#       define " << _dllExport << " ICE_DECLSPEC_EXPORT";
         _H << nl << "#   else";
         _H << nl << "#       define " << _dllExport << " ICE_DECLSPEC_IMPORT";
         _H << nl << "#   endif";
@@ -806,7 +804,7 @@ Slice::Gen::printHeader(Output& o)
     static const char* header =
 "// **********************************************************************\n"
 "//\n"
-"// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.\n"
+"// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.\n"
 "//\n"
 "// This copy of Ice is licensed to you under the terms described in the\n"
 "// ICE_LICENSE file included in this distribution.\n"
@@ -868,6 +866,11 @@ Slice::Gen::ObjectDeclVisitor::ObjectDeclVisitor(Output& H, Output& M, const str
 void
 Slice::Gen::ObjectDeclVisitor::visitClassDecl(const ClassDeclPtr& p)
 {
+    if(p->definition() && p->definition()->isDelegate())
+    {
+        return;
+    }
+
     _H << sp;
     if(!p->isLocal() || !p->isInterface())
     {
@@ -925,7 +928,16 @@ Slice::Gen::TypesVisitor::visitClassDefStart(const ClassDefPtr& p)
     string name = fixName(p);
     ClassList bases = p->bases();
 
+    if(p->isDelegate())
+    {
+        OperationPtr o = p->allOperations().front();
+        _H << sp << nl << "typedef " << typeToString(o->returnType());
+        _H << " (^" << name << ")" << getBlockParams(o) << ";";
+        return false;
+    }
+
     _H << sp << nl << _dllExport << "@protocol " << name;
+
     if(!bases.empty())
     {
         _H << " <";
@@ -1043,7 +1055,7 @@ Slice::Gen::TypesVisitor::visitClassDefEnd(const ClassDefPtr& p)
         for(r = ops.begin(); r != ops.end(); ++r)
         {
             OperationPtr op = *r;
-            _H << nl << "+(BOOL)" << op->name() << "___:(id<" << name
+            _H << nl << "+(void)" << op->name() << "___:(id<" << name
                << ">)target current:(ICECurrent *)current "
                << "is:(id<ICEInputStream>)is_ os:(id<ICEOutputStream>)os_;";
         }
@@ -1081,16 +1093,16 @@ Slice::Gen::TypesVisitor::visitClassDefEnd(const ClassDefPtr& p)
         {
             _M << nl << "-(void) write__:(id<ICEOutputStream>)os";
             _M << sb;
-            _M << nl << "[os startObject:slicedData__];";
+            _M << nl << "[os startValue:slicedData__];";
             _M << nl << "[self writeImpl__:os];";
-            _M << nl << "[os endObject];";
+            _M << nl << "[os endValue];";
             _M << eb;
 
             _M << nl << "-(void) read__:(id<ICEInputStream>)is";
             _M << sb;
-            _M << nl << "[is startObject];";
+            _M << nl << "[is startValue];";
             _M << nl << "[self readImpl__:is];";
-            _M << nl << "slicedData__ = [is endObject:YES];";
+            _M << nl << "slicedData__ = [is endValue:YES];";
             _M << eb;
         }
     }
@@ -1109,6 +1121,7 @@ Slice::Gen::TypesVisitor::visitOperation(const OperationPtr& p)
     TypePtr returnType = p->returnType();
     string retString;
     string params;
+
     if(cl->isLocal())
     {
         retString = outTypeToString(returnType, p->returnIsOptional());
@@ -1134,9 +1147,9 @@ Slice::Gen::TypesVisitor::visitOperation(const OperationPtr& p)
         _H << ";";
     }
 
-    if(cl->isLocal() && (cl->hasMetaData("async") || p->hasMetaData("async")))
+    if(cl->isLocal() && (cl->hasMetaData("async-oneway") || p->hasMetaData("async-oneway")))
     {
-        // TODO: add supports for parameters when needed.
+        // TODO: add support for parameters when needed.
         _H << nl << "-(id<ICEAsyncResult>) begin_" << name << ";";
         _H << nl << "-(id<ICEAsyncResult>) begin_" << name << ":(void(^)(ICEException*))exception;";
         _H << nl << "-(id<ICEAsyncResult>) begin_" << name
@@ -1242,12 +1255,12 @@ Slice::Gen::TypesVisitor::visitExceptionEnd(const ExceptionPtr& p)
     }
 
     //
-    // ice_name
+    // ice_id
     //
-    _H << nl << "-(NSString *) ice_name;";
-    _M << sp << nl << "-(NSString *) ice_name";
+    _H << nl << "-(NSString *) ice_id;";
+    _M << sp << nl << "-(NSString *) ice_id";
     _M << sb;
-    _M << nl << "return @\"" << p->scoped().substr(2) << "\";";
+    _M << nl << "return @\"" << p->scoped() << "\";";
     _M << eb;
 
     ContainerType ct = p->isLocal() ? LocalException : Other;
@@ -1492,13 +1505,13 @@ Slice::Gen::TypesVisitor::writeConstantValue(IceUtilInternal::Output& out, const
 
         out << "@\"";                                      // Opening @"
 
-        for(string::const_iterator c = val.begin(); c != val.end(); ++c)
+        for(size_t i = 0; i < val.size();)
         {
-            if(charSet.find(*c) == charSet.end())
+            if(charSet.find(val[i]) == charSet.end())
             {
-                unsigned char uc = *c;                  // char may be signed, so make it positive
+                unsigned char uc = val[i];                  // char may be signed, so make it positive
                 ostringstream s;
-                s << "\\";                              // Print as octal if not in basic source character set
+                s << "\\";                                    // Print as octal if not in basic source character set
                 s.width(3);
                 s.fill('0');
                 s << oct;
@@ -1507,11 +1520,79 @@ Slice::Gen::TypesVisitor::writeConstantValue(IceUtilInternal::Output& out, const
             }
             else
             {
-                out << *c;                                // Print normally if in basic source character set
-            }
-        }
+                switch(val[i])
+                {
+                    case '\\':
+                    {
+                        string s = "\\";
+                        size_t j = i + 1;
+                        for(; j < val.size(); ++j)
+                        {
+                            if(val[j] != '\\')
+                            {
+                                break;
+                            }
+                            s += "\\";
+                        }
 
-        out << "\"";                                      // Closing "
+                        //
+                        // An even number of slash \ will escape the backslash and
+                        // the codepoint will be interpreted as its charaters
+                        //
+                        // \\U00000041  - ['\\', 'U', '0', '0', '0', '0', '0', '0', '4', '1']
+                        // \\\U00000041 - ['\\', 'A'] (41 is the codepoint for 'A')
+                        //
+                        if(s.size() % 2 != 0 && (val[j] == 'U' || val[j] == 'u'))
+                        {
+                            //
+                            // Convert codepoint to UTF8 bytes and write the escaped bytes
+                            //
+                            out << s.substr(0, s.size() - 1);
+
+                            size_t sz = val[j] == 'U' ? 8 : 4;
+                            string codepoint = val.substr(j + 1, sz);
+                            assert(codepoint.size() ==  sz);
+
+                            IceUtil::Int64 v = IceUtilInternal::strToInt64(codepoint.c_str(), 0, 16);
+
+
+                            vector<unsigned int> u32buffer;
+                            u32buffer.push_back(static_cast<unsigned int>(v));
+
+                            vector<unsigned char> u8buffer = fromUTF32(u32buffer);
+
+                            ostringstream s;
+                            for(vector<unsigned char>::const_iterator q = u8buffer.begin(); q != u8buffer.end(); ++q)
+                            {
+                                s << "\\";
+                                s.fill('0');
+                                s.width(3);
+                                s << oct;
+                                s << static_cast<unsigned int>(*q);
+                            }
+                            out << s.str();
+
+                            i = j + 1 + sz;
+                        }
+                        else
+                        {
+                            out << s;
+                            i = j;
+                        }
+                        continue;
+                    }
+                    case '"':
+                    {
+                        out << "\\";
+                        break;
+                    }
+                }
+
+                out << val[i];                              // Print normally if in basic source character set
+            }
+            ++i;
+        }
+        out << "\"";                                    // Closing "
     }
     else
     {
@@ -2308,7 +2389,7 @@ Slice::Gen::HelperVisitor::visitClassDefStart(const ClassDefPtr& p)
             _M << sp << nl << "@implementation " << name;
             _M << nl << "+(void) readRetained:(ICEObject*ICE_STRONG_QUALIFIER*)obj stream:(id<ICEInputStream>)stream";
             _M << sb;
-            _M << nl << "[stream newObject:obj expectedType:[" << fixName(p) << " class]];";
+            _M << nl << "[stream newValue:obj expectedType:[" << fixName(p) << " class]];";
             _M << eb;
             _M << nl << "@end";
         }
@@ -2389,7 +2470,7 @@ Slice::Gen::HelperVisitor::visitSequence(const SequencePtr& p)
         _M << sp << nl << "@implementation " << name;
         _M << nl << "+(id) readRetained:(id<ICEInputStream>)stream";
         _M << sb;
-        _M << nl << "return [stream newObjectSeq:[" << fixName(cl) << " class]];";
+        _M << nl << "return [stream newValueSeq:[" << fixName(cl) << " class]];";
         _M << eb;
         _M << nl << "@end";
         return;
@@ -2470,16 +2551,16 @@ Slice::Gen::HelperVisitor::visitDictionary(const DictionaryPtr& p)
         if(valueClass && !valueClass->isInterface())
         {
             valueS = fixName(valueClass);
-            _M << nl << "return [stream newObjectDict:[" << keyS << " class] expectedType:[" << valueS << " class]];";
+            _M << nl << "return [stream newValueDict:[" << keyS << " class] expectedType:[" << valueS << " class]];";
         }
         else
         {
-            _M << nl << "return [stream newObjectDict:[" << keyS << " class] expectedType:[ICEObject class]];";
+            _M << nl << "return [stream newValueDict:[" << keyS << " class] expectedType:[ICEObject class]];";
         }
         _M << eb;
         _M << nl << "+(void) write:(id)obj stream:(id<ICEOutputStream>)stream";
         _M << sb;
-        _M << nl << "[stream writeObjectDict:obj helper:[" << keyS << " class]];";
+        _M << nl << "[stream writeValueDict:obj helper:[" << keyS << " class]];";
         _M << eb;
         _M << nl << "@end";
         return;
@@ -2975,7 +3056,7 @@ Slice::Gen::DelegateMVisitor::visitOperation(const OperationPtr& p)
         writeMarshalUnmarshalParams(inParams, 0, true);
         if(p->sendsClasses(false))
         {
-            _M << nl << "[os_ writePendingObjects];";
+            _M << nl << "[os_ writePendingValues];";
         }
         _M << eb;
     }
@@ -3048,7 +3129,7 @@ Slice::Gen::DelegateMVisitor::visitOperation(const OperationPtr& p)
         _M << sb;
         _M << nl << "[is_ endEncapsulation];";
         _M << nl << "@throw [ICEUnknownUserException unknownUserException:__FILE__ line:__LINE__ "
-           << "unknown:[ex_ ice_name]];";
+           << "unknown:[ex_ ice_id]];";
         _M << eb;
         _M << eb;
 
@@ -3060,7 +3141,7 @@ Slice::Gen::DelegateMVisitor::visitOperation(const OperationPtr& p)
             writeMarshalUnmarshalParams(outParams, p, false, true);
             if(p->returnsClasses(false))
             {
-                _M << nl << "[is_ readPendingObjects];";
+                _M << nl << "[is_ readPendingValues];";
             }
             _M << nl << "[is_ endEncapsulation];";
             _M << eb;

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -10,9 +10,7 @@
 (function(module, require, exports)
 {
     var Ice = require("ice").Ice;
-    var TestAMD = require("TestAMD").TestAMD;
-
-    var Class = Ice.Class;
+    var Test = require("Test").Test;
 
     var test = function(b)
     {
@@ -22,301 +20,341 @@
         }
     };
 
-    var AMDMyDerivedClassI = Class(TestAMD.MyDerivedClass, {
+    class AMDMyDerivedClassI extends Test.MyDerivedClass
+    {
         //
         // Override the Object "pseudo" operations to verify the operation mode.
         //
-        __init__: function()
+        constructor()
         {
+            super();
             this._opByteSOnewayCount = 0;
-        },
-        ice_isA: function(id, current)
+        }
+
+        ice_isA(id, current)
         {
             test(current.mode === Ice.OperationMode.Nonmutating);
             return Ice.Object.prototype.ice_isA.call(this, id, current);
-        },
-        ice_ping: function(current)
+        }
+
+        ice_ping(current)
         {
             test(current.mode === Ice.OperationMode.Nonmutating);
             Ice.Object.prototype.ice_ping.call(this, current);
-        },
-        ice_ids: function(current)
+        }
+
+        ice_ids(current)
         {
             test(current.mode === Ice.OperationMode.Nonmutating);
             return Ice.Object.prototype.ice_ids.call(this, current);
-        },
-        ice_id: function(current)
+        }
+
+        ice_id(current)
         {
             test(current.mode === Ice.OperationMode.Nonmutating);
             return Ice.Object.prototype.ice_id.call(this, current);
-        },
-        shutdown_async: function(cb, current)
+        }
+
+        shutdown(current)
         {
             current.adapter.getCommunicator().shutdown();
-            cb.ice_response();
-        },
-        delay_async: function(cb, ms, current)
-        {
-            Ice.Timer.setTimeout(
-                function()
-                {
-                    cb.ice_response();
-                }, ms);
-        },
-        opVoid_async: function(cb, current)
+            return Promise.resolve();
+        }
+
+        opVoid(current)
         {
             test(current.mode === Ice.OperationMode.Normal);
-            cb.ice_response();
-        },
-        opBool_async: function(cb, p1, p2, current)
+            return Promise.resolve();
+        }
+
+        opBool(p1, p2, current)
         {
-            cb.ice_response(p2, p1);
-        },
-        opBoolS_async: function(cb, p1, p2, current)
-        {
-            var p3 = p1.concat(p2);
-            cb.ice_response(p1.reverse(), p3);
-        },
-        opBoolSS_async: function(cb, p1, p2, current)
+            return Promise.resolve([p2, p1]);
+        }
+
+        opBoolS(p1, p2, current)
         {
             var p3 = p1.concat(p2);
-            cb.ice_response(p1.reverse(), p3);
-        },
-        opByte_async: function(cb, p1, p2, current)
+            return Promise.resolve([p1.reverse(), p3]);
+        }
+
+        opBoolSS(p1, p2, current)
         {
-            cb.ice_response(p1, (p1 ^ p2) & 0xff);
-        },
-        opByteBoolD_async: function(cb, p1, p2, current)
+            var p3 = p1.concat(p2);
+            return Promise.resolve([p1.reverse(), p3]);
+        }
+
+        opByte(p1, p2, current)
         {
-            var r = p1.clone();
-            r.merge(p2);
-            cb.ice_response(r, p1);
-        },
-        opByteS_async: function(cb, p1, p2, current)
+            return Promise.resolve([p1, (p1 ^ p2) & 0xff]);
+        }
+
+        opByteBoolD(p1, p2, current)
         {
-            var i;
+            var r = new Map(p1);
+            p2.forEach((value, key) => r.set(key, value));
+            return Promise.resolve([r, p1]);
+        }
+
+        opByteS(p1, p2, current)
+        {
             var p3 = Ice.Buffer.createNative(p1.length);
-            for(i = 0; i < p1.length; i++)
+            for(let i = 0; i < p1.length; i++)
             {
                 p3[i] = p1[p1.length - (i + 1)];
             }
 
             var r = Ice.Buffer.createNative(p1.length + p2.length);
-            for(i = 0; i < p1.length; ++i)
+            for(let i = 0; i < p1.length; ++i)
             {
                 r[i] = p1[i];
             }
-            for(i = 0; i < p2.length; ++i)
+            for(let i = 0; i < p2.length; ++i)
             {
                 r[i + p1.length] = p2[i];
             }
-            cb.ice_response(r, p3);
-        },
-        opByteSS_async: function(cb, p1, p2, current)
+            return Promise.resolve([r, p3]);
+        }
+
+        opByteSS(p1, p2, current)
         {
             var r = p1.concat(p2);
-            cb.ice_response(r, p1.reverse());
-        },
-        opFloatDouble_async: function(cb, p1, p2, current)
+            return Promise.resolve([r, p1.reverse()]);
+        }
+
+        opFloatDouble(p1, p2, current)
         {
-            cb.ice_response(p2, p1, p2);
-        },
-        opFloatDoubleS_async: function(cb, p1, p2, current)
+            return Promise.resolve([p2, p1, p2]);
+        }
+
+        opFloatDoubleS(p1, p2, current)
         {
             var r = p2.concat(p1);
             var p4 = p2.reverse();
-            cb.ice_response(r, p1, p4);
-        },
-        opFloatDoubleSS_async: function(cb, p1, p2, current)
+            return Promise.resolve([r, p1, p4]);
+        }
+
+        opFloatDoubleSS(p1, p2, current)
         {
             var r = p2.concat(p2);
             var p4 = p2.reverse();
-            cb.ice_response(r, p1, p4);
-        },
-        opLongFloatD_async: function(cb, p1, p2, current)
+            return Promise.resolve([r, p1, p4]);
+        }
+
+        opLongFloatD(p1, p2, current)
         {
-            var r = p1.clone();
-            r.merge(p2);
-            cb.ice_response(r, p1);
-        },
-        opMyClass_async: function(cb, p1, current)
+            var r = new Ice.HashMap(p1);
+            p2.forEach((value, key) => r.set(key, value));
+            return Promise.resolve([r, p1]);
+        }
+
+        opMyClass(p1, current)
         {
             var p2 = p1;
-            var p3 = TestAMD.MyClassPrx.uncheckedCast(
-                current.adapter.createProxy(current.adapter.getCommunicator().stringToIdentity("noSuchIdentity")));
-            var r = TestAMD.MyClassPrx.uncheckedCast(current.adapter.createProxy(current.id));
-            cb.ice_response(r, p2, p3);
-        },
-        opMyEnum_async: function(cb, p1, current)
-        {
-            cb.ice_response(TestAMD.MyEnum.enum3, p1);
-        },
-        opShortIntD_async: function(cb, p1, p2, current)
-        {
-            var r = p1.clone();
-            r.merge(p2);
-            cb.ice_response(r, p1);
-        },
-        opShortIntLong_async: function(cb, p1, p2, p3, current)
-        {
-            cb.ice_response(p3, p1, p2, p3);
-        },
-        opShortIntLongS_async: function(cb, p1, p2, p3, current)
-        {
-            cb.ice_response(p3, p1, p2.reverse(), p3.concat(p3));
-        },
-        opShortIntLongSS_async: function(cb, p1, p2, p3, current)
-        {
-            cb.ice_response(p3, p1, p2.reverse(), p3.concat(p3));
-        },
-        opString_async: function(cb, p1, p2, current)
-        {
-            cb.ice_response(p1 + " " + p2, p2 + " " + p1);
-        },
-        opStringMyEnumD_async: function(cb, p1, p2, current)
-        {
-            var r = p1.clone();
-            r.merge(p2);
-            cb.ice_response(r, p1);
-        },
-        opMyEnumStringD_async: function(cb, p1, p2, current)
-        {
-            var r = p1.clone();
-            r.merge(p2);
-            cb.ice_response(r, p1);
-        },
-        opMyStructMyEnumD_async: function(cb, p1, p2, current)
-        {
-            var r = p1.clone();
-            r.merge(p2);
-            cb.ice_response(r, p1);
-        },
-        opByteBoolDS_async: function(cb, p1, p2, current)
-        {
-            var p3 = p2.concat(p1);
-            var r = p1.reverse();
-            cb.ice_response(r, p3);
-        },
-        opShortIntDS_async: function(cb, p1, p2, current)
-        {
-            var p3 = p2.concat(p1);
-            var r = p1.reverse();
-            cb.ice_response(r, p3);
-        },
+            var p3 = Test.MyClassPrx.uncheckedCast(
+                current.adapter.createProxy(Ice.stringToIdentity("noSuchIdentity")));
+            var r = Test.MyClassPrx.uncheckedCast(current.adapter.createProxy(current.id));
+            return Promise.resolve([r, p2, p3]);
+        }
 
-        opLongFloatDS_async: function(cb, p1, p2, current)
+        opMyEnum(p1, current)
+        {
+            return Promise.resolve([Test.MyEnum.enum3, p1]);
+        }
+
+        opShortIntD(p1, p2, current)
+        {
+            var r = new Map(p1);
+            p2.forEach((value, key) => r.set(key, value));
+            return Promise.resolve([r, p1]);
+        }
+
+        opShortIntLong(p1, p2, p3, current)
+        {
+            return Promise.resolve([p3, p1, p2, p3]);
+        }
+
+        opShortIntLongS(p1, p2, p3, current)
+        {
+            return Promise.resolve([p3, p1, p2.reverse(), p3.concat(p3)]);
+        }
+
+        opShortIntLongSS(p1, p2, p3, current)
+        {
+            return Promise.resolve([p3, p1, p2.reverse(), p3.concat(p3)]);
+        }
+
+        opString(p1, p2, current)
+        {
+            return Promise.resolve([p1 + " " + p2, p2 + " " + p1]);
+        }
+
+        opStringMyEnumD(p1, p2, current)
+        {
+            var r = new Map(p1);
+            p2.forEach((value, key) => r.set(key, value));
+            return Promise.resolve([r, p1]);
+        }
+
+        opMyEnumStringD(p1, p2, current)
+        {
+            var r = new Map(p1);
+            p2.forEach((value, key) => r.set(key, value));
+            return Promise.resolve([r, p1]);
+        }
+
+        opMyStructMyEnumD(p1, p2, current)
+        {
+            var r = new Ice.HashMap(p1);
+            p2.forEach((value, key) => r.set(key, value));
+            return Promise.resolve([r, p1]);
+        }
+
+        opByteBoolDS(p1, p2, current)
         {
             var p3 = p2.concat(p1);
             var r = p1.reverse();
-            cb.ice_response(r, p3);
-        },
-        opStringStringDS_async: function(cb, p1, p2, current)
+            return Promise.resolve([r, p3]);
+        }
+
+        opShortIntDS(p1, p2, current)
         {
             var p3 = p2.concat(p1);
             var r = p1.reverse();
-            cb.ice_response(r, p3);
-        },
-        opStringMyEnumDS_async: function(cb, p1, p2, current)
+            return Promise.resolve([r, p3]);
+        }
+
+        opLongFloatDS(p1, p2, current)
         {
             var p3 = p2.concat(p1);
             var r = p1.reverse();
-            cb.ice_response(r, p3);
-        },
-        opMyEnumStringDS_async: function(cb, p1, p2, current)
+            return Promise.resolve([r, p3]);
+        }
+
+        opStringStringDS(p1, p2, current)
         {
             var p3 = p2.concat(p1);
             var r = p1.reverse();
-            cb.ice_response(r, p3);
-        },
-        opMyStructMyEnumDS_async: function(cb, p1, p2, current)
+            return Promise.resolve([r, p3]);
+        }
+
+        opStringMyEnumDS(p1, p2, current)
         {
             var p3 = p2.concat(p1);
             var r = p1.reverse();
-            cb.ice_response(r, p3);
-        },
-        opByteByteSD_async: function(cb, p1, p2, current)
+            return Promise.resolve([r, p3]);
+        }
+
+        opMyEnumStringDS(p1, p2, current)
         {
-            var r = p1.clone();
-            r.merge(p2);
-            var p3 = p2.clone();
-            cb.ice_response(r, p3);
-        },
-        opBoolBoolSD_async: function(cb, p1, p2, current)
+            var p3 = p2.concat(p1);
+            var r = p1.reverse();
+            return Promise.resolve([r, p3]);
+        }
+
+        opMyStructMyEnumDS(p1, p2, current)
         {
-            var r = p1.clone();
-            r.merge(p2);
-            var p3 = p2.clone();
-            cb.ice_response(r, p3);
-        },
-        opShortShortSD_async: function(cb, p1, p2, current)
+            var p3 = p2.concat(p1);
+            var r = p1.reverse();
+            return Promise.resolve([r, p3]);
+        }
+
+        opByteByteSD(p1, p2, current)
         {
-            var r = p1.clone();
-            r.merge(p2);
-            var p3 = p2.clone();
-            cb.ice_response(r, p3);
-        },
-        opIntIntSD_async: function(cb, p1, p2, current)
+            var r = new Map(p1);
+            p2.forEach((value, key) => r.set(key, value));
+            var p3 = new Map(p2);
+            return Promise.resolve([r, p3]);
+        }
+
+        opBoolBoolSD(p1, p2, current)
         {
-            var r = p1.clone();
-            r.merge(p2);
-            var p3 = p2.clone();
-            cb.ice_response(r, p3);
-        },
-        opLongLongSD_async: function(cb, p1, p2, current)
+            var r = new Map(p1);
+            p2.forEach((value, key) => r.set(key, value));
+            var p3 = new Map(p2);
+            return Promise.resolve([r, p3]);
+        }
+
+        opShortShortSD(p1, p2, current)
         {
-            var r = p1.clone();
-            r.merge(p2);
-            var p3 = p2.clone();
-            cb.ice_response(r, p3);
-        },
-        opStringFloatSD_async: function(cb, p1, p2, current)
+            var r = new Map(p1);
+            p2.forEach((value, key) => r.set(key, value));
+            var p3 = new Map(p2);
+            return Promise.resolve([r, p3]);
+        }
+
+        opIntIntSD(p1, p2, current)
         {
-            var r = p1.clone();
-            r.merge(p2);
-            var p3 = p2.clone();
-            cb.ice_response(r, p3);
-        },
-        opStringDoubleSD_async: function(cb, p1, p2, current)
+            var r = new Map(p1);
+            p2.forEach((value, key) => r.set(key, value));
+            var p3 = new Map(p2);
+            return Promise.resolve([r, p3]);
+        }
+
+        opLongLongSD(p1, p2, current)
         {
-            var r = p1.clone();
-            r.merge(p2);
-            var p3 = p2.clone();
-            cb.ice_response(r, p3);
-        },
-        opStringStringSD_async: function(cb, p1, p2, current)
+            var r = new Ice.HashMap(p1);
+            p2.forEach((value, key) => r.set(key, value));
+            var p3 = new Ice.HashMap(p2);
+            return Promise.resolve([r, p3]);
+        }
+
+        opStringFloatSD(p1, p2, current)
         {
-            var r = p1.clone();
-            r.merge(p2);
-            var p3 = p2.clone();
-            cb.ice_response(r, p3);
-        },
-        opMyEnumMyEnumSD_async: function(cb, p1, p2, current)
+            var r = new Map(p1);
+            p2.forEach((value, key) => r.set(key, value));
+            var p3 = new Map(p2);
+            return Promise.resolve([r, p3]);
+        }
+
+        opStringDoubleSD(p1, p2, current)
         {
-            var r = p1.clone();
-            r.merge(p2);
-            var p3 = p2.clone();
-            cb.ice_response(r, p3);
-        },
-        opIntS_async: function(cb, s, current)
+            var r = new Map(p1);
+            p2.forEach((value, key) => r.set(key, value));
+            var p3 = new Map(p2);
+            return Promise.resolve([r, p3]);
+        }
+
+        opStringStringSD(p1, p2, current)
         {
-            cb.ice_response(s.map(function(v, i, arr) { return -v; }));
-        },
-        opByteSOneway_async: function(cb, s, current)
+            var r = new Map(p1);
+            p2.forEach((value, key) => r.set(key, value));
+            var p3 = new Map(p2);
+            return Promise.resolve([r, p3]);
+        }
+
+        opMyEnumMyEnumSD(p1, p2, current)
+        {
+            var r = new Map(p1);
+            p2.forEach((value, key) => r.set(key, value));
+            var p3 = new Map(p2);
+            return Promise.resolve([r, p3]);
+        }
+
+        opIntS(s, current)
+        {
+            return Promise.resolve(s.map(function(v, i, arr) { return -v; }));
+        }
+
+        opByteSOneway(s, current)
         {
             this._opByteSOnewayCount += 1;
-            cb.ice_response();
-        },
-        opByteSOnewayCallCount_async: function(cb, current)
+            return Promise.resolve();
+        }
+
+        opByteSOnewayCallCount(current)
         {
             var count = this._opByteSOnewayCount;
             this._opByteSOnewayCount = 0;
-            cb.ice_response(count);
-        },
-        opContext_async: function(cb, current)
+            return Promise.resolve(count);
+        }
+
+        opContext(current)
         {
-            cb.ice_response(current.ctx);
-        },
-        opDoubleMarshaling_async: function(cb, p1, p2, current)
+            return Promise.resolve(current.ctx);
+        }
+
+        opDoubleMarshaling(p1, p2, current)
         {
             var d = 1278312346.0 / 13.0;
             test(p1 === d);
@@ -324,104 +362,164 @@
             {
                 test(p2[i] === d);
             }
-            cb.ice_response();
-        },
-        opStringS_async: function(cb, p1, p2, current)
+            return Promise.resolve();
+        }
+
+        opStringS(p1, p2, current)
         {
             var p3 = p1.concat(p2);
             var r = p1.reverse();
-            cb.ice_response(r, p3);
-        },
-        opStringSS_async: function(cb, p1, p2, current)
+            return Promise.resolve([r, p3]);
+        }
+
+        opStringSS(p1, p2, current)
         {
             var p3 = p1.concat(p2);
             var r = p2.reverse();
-            cb.ice_response(r, p3);
-        },
-        opStringSSS_async: function(cb, p1, p2, current)
+            return Promise.resolve([r, p3]);
+        }
+
+        opStringSSS(p1, p2, current)
         {
             var p3 = p1.concat(p2);
             var r = p2.reverse();
-            cb.ice_response(r, p3);
-        },
-        opStringStringD_async: function(cb, p1, p2, current)
+            return Promise.resolve([r, p3]);
+        }
+
+        opStringStringD(p1, p2, current)
         {
-            var r = p1.clone();
-            r.merge(p2);
-            cb.ice_response(r, p1);
-        },
-        opStruct_async: function(cb, p1, p2, current)
+            var r = new Map(p1);
+            p2.forEach((value, key) => r.set(key, value));
+            return Promise.resolve([r, p1]);
+        }
+
+        opStruct(p1, p2, current)
         {
             p1.s.s = "a new string";
-            cb.ice_response(p2, p1);
-        },
-        opIdempotent_async: function(cb, current)
+            return Promise.resolve([p2, p1]);
+        }
+
+        opIdempotent(current)
         {
             test(current.mode === Ice.OperationMode.Idempotent);
-            cb.ice_response();
-        },
-        opNonmutating_async: function(cb, current)
+            return Promise.resolve();
+        }
+
+        opNonmutating(current)
         {
             test(current.mode === Ice.OperationMode.Nonmutating);
-            cb.ice_response();
-        },
-        opDerived_async: function(cb, current)
-        {
-            cb.ice_response();
-        },
-        opByte1_async: function(cb, value, current)
-        {
-            cb.ice_response(value);
-        },
-        opShort1_async: function(cb, value, current)
-        {
-            cb.ice_response(value);
-        },
-        opInt1_async: function(cb, value, current)
-        {
-            cb.ice_response(value);
-        },
-        opLong1_async: function(cb, value, current)
-        {
-            cb.ice_response(value);
-        },
-        opFloat1_async: function(cb, value, current)
-        {
-            cb.ice_response(value);
-        },
-        opDouble1_async: function(cb, value, current)
-        {
-            cb.ice_response(value);
-        },
-        opString1_async: function(cb, value, current)
-        {
-            cb.ice_response(value);
-        },
-        opStringS1_async: function(cb, value, current)
-        {
-            cb.ice_response(value);
-        },
-        opByteBoolD1_async: function(cb, value, current)
-        {
-            cb.ice_response(value);
-        },
-        opStringS2_async: function(cb, value, current)
-        {
-            cb.ice_response(value);
-        },
-        opByteBoolD2_async: function(cb, value, current)
-        {
-            cb.ice_response(value);
-        },
-        opMyClass1_async: function(cb, value, current)
-        {
-            return cb.ice_response(value);
-        },
-        opMyStruct1_async: function(cb, value, current)
-        {
-            return cb.ice_response(value);
+            return Promise.resolve();
         }
-    });
+
+        opDerived(current)
+        {
+            return Promise.resolve();
+        }
+
+        opByte1(value, current)
+        {
+            return Promise.resolve(value);
+        }
+
+        opShort1(value, current)
+        {
+            return Promise.resolve(value);
+        }
+
+        opInt1(value, current)
+        {
+            return Promise.resolve(value);
+        }
+
+        opLong1(value, current)
+        {
+            return Promise.resolve(value);
+        }
+
+        opFloat1(value, current)
+        {
+            return Promise.resolve(value);
+        }
+
+        opDouble1(value, current)
+        {
+            return Promise.resolve(value);
+        }
+
+        opString1(value, current)
+        {
+            return Promise.resolve(value);
+        }
+
+        opStringS1(value, current)
+        {
+            return Promise.resolve(value);
+        }
+
+        opByteBoolD1(value, current)
+        {
+            return Promise.resolve(value);
+        }
+
+        opStringS2(value, current)
+        {
+            return Promise.resolve(value);
+        }
+
+        opByteBoolD2(value, current)
+        {
+            return Promise.resolve(value);
+        }
+
+        opMyClass1(value, current)
+        {
+            return Promise.resolve(value);
+        }
+
+        opMyStruct1(value, current)
+        {
+            return Promise.resolve(value);
+        }
+
+        opStringLiterals(current)
+        {
+            return Promise.resolve([
+                Test.s0, Test.s1, Test.s2, Test.s3, Test.s4, Test.s5, Test.s6, Test.s7, Test.s8, Test.s9, Test.s10,
+                Test.sw0, Test.sw1, Test.sw2, Test.sw3, Test.sw4, Test.sw5, Test.sw6, Test.sw7, Test.sw8, Test.sw9, Test.sw10,
+                Test.ss0, Test.ss1, Test.ss2, Test.ss3, Test.ss4, Test.ss5,
+                Test.su0, Test.su1, Test.su2]);
+        }
+
+        opMStruct1(current)
+        {
+            return Promise.resolve(new Test.Structure());
+        }
+
+        opMStruct2(p1, current)
+        {
+            return Promise.resolve([p1, p1]);
+        }
+
+        opMSeq1(current)
+        {
+            return Promise.resolve([]);
+        }
+
+        opMSeq2(p1, current)
+        {
+            return Promise.resolve([p1, p1]);
+        }
+
+        opMDict1(current)
+        {
+            return Promise.resolve(new Map());
+        }
+
+        opMDict2(p1, current)
+        {
+            return Promise.resolve([p1, p1]);
+        }
+    }
 
     exports.AMDMyDerivedClassI = AMDMyDerivedClassI;
 }

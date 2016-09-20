@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -22,23 +22,16 @@ class MyObjectI : public Test::MyObject
 {
 public:
 
-    virtual wstring widen(const string& msg, const Ice::Current&)
+    virtual wstring widen(ICE_IN(string) msg, const Ice::Current&)
     {
-        const Ice::Byte* cmsg = reinterpret_cast<const Ice::Byte*>(msg.c_str());
-
-        if(!IceUtil::isLegalUTF8Sequence(cmsg, cmsg + msg.size()))
-        {
-            throw Test::BadEncodingException();
-        }
-
-        return IceUtil::stringToWstring(msg, IceUtil::getProcessStringConverter(),
-                                        IceUtil::getProcessWstringConverter());
+        return stringToWstring(msg, Ice::getProcessStringConverter(),
+                               Ice::getProcessWstringConverter());
     }
 
-    virtual string narrow(const wstring& wmsg, const Ice::Current&)
+    virtual string narrow(ICE_IN(wstring) wmsg, const Ice::Current&)
     {
-        return IceUtil::wstringToString(wmsg, IceUtil::getProcessStringConverter(),
-                                        IceUtil::getProcessWstringConverter());
+        return wstringToString(wmsg, Ice::getProcessStringConverter(),
+                               Ice::getProcessWstringConverter());
     }
 
     virtual void shutdown(const Ice::Current& current)
@@ -50,9 +43,9 @@ public:
 int
 run(int, char**, const Ice::CommunicatorPtr& communicator)
 {
-    communicator->getProperties()->setProperty("TestAdapter.Endpoints", "default -p 12010:udp -p 12010");
+    communicator->getProperties()->setProperty("TestAdapter.Endpoints", getTestEndpoint(communicator, 0) + ":udp");
     Ice::ObjectAdapterPtr adapter = communicator->createObjectAdapter("TestAdapter");
-    adapter->add(new MyObjectI, communicator->stringToIdentity("test"));
+    adapter->add(ICE_MAKE_SHARED(MyObjectI), Ice::stringToIdentity("test"));
     adapter->activate();
 
     TEST_READY

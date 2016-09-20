@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,6 +9,8 @@
 
 #ifndef ICE_GC_OBJECT_H
 #define ICE_GC_OBJECT_H
+
+#ifndef ICE_CPP11_MAPPING
 
 #include <Ice/Object.h>
 
@@ -31,7 +33,7 @@ public:
     virtual bool visit(GCObject*) = 0;
 };
 
-class ICE_API GCObject : virtual public Ice::Object
+class ICE_API GCObject : public virtual Ice::Object
 {
 public:
 
@@ -73,5 +75,7 @@ private:
 };
 
 }
+
+#endif
 
 #endif

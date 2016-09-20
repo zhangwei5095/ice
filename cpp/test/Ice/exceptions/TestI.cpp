@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -153,7 +153,7 @@ ThrowerI::throwAssertException(const Ice::Current&)
 }
 
 Ice::ByteSeq
-ThrowerI::throwMemoryLimitException(const Ice::ByteSeq&, const Ice::Current&)
+ThrowerI::throwMemoryLimitException(ICE_IN(Ice::ByteSeq), const Ice::Current&)
 {
     return Ice::ByteSeq(1024 * 20); // 20 KB.
 }

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -40,7 +40,7 @@ Glacier2::RouterI::RouterI(const InstancePtr& instance, const ConnectionPtr& con
     if(_instance->properties()->getPropertyAsInt("Glacier2.ReturnClientProxy") > 0)
     {
         const_cast<Ice::ObjectPrx&>(_clientProxy) = 
-            _instance->clientObjectAdapter()->createProxy(_instance->communicator()->stringToIdentity("dummy"));
+            _instance->clientObjectAdapter()->createProxy(stringToIdentity("dummy"));
     }
 
     if(_instance->serverObjectAdapter())

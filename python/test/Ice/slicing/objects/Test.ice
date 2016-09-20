@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -66,7 +66,7 @@ exception DerivedException extends BaseException
     D1 pd1;
 };
 
-class Forward;          /* Forward-declared class defined in another compilation unit */
+class Forward;
 
 class PBase
 {
@@ -158,6 +158,16 @@ interface TestIntf
     void useForward(out Forward f); /* Use of forward-declared class to verify that code is generated correctly. */
 
     void shutdown();
+};
+
+class Hidden
+{
+    Forward f;
+};
+
+class Forward
+{
+    Hidden h;
 };
 
 };

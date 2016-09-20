@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -13,6 +13,9 @@
 #include <Test.h>
 
 class HoldI : public Test::Hold, public IceUtil::Mutex, public IceUtil::TimerTask
+#ifdef ICE_CPP11_MAPPING
+    , public std::enable_shared_from_this<HoldI>
+#endif
 {
 public:
     

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -42,12 +42,6 @@ Connector::operator==(const IceInternal::Connector& r) const
     }
 
     return *_connector == *p->_connector;
-}
-
-bool
-Connector::operator!=(const IceInternal::Connector& r) const
-{
-    return !operator==(r);
 }
 
 bool

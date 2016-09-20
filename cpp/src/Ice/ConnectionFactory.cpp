@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -32,8 +32,8 @@
 namespace IceInternal
 {
 
-bool registerForBackgroundNotification(IceInternal::IncomingConnectionFactory*);
-void unregisterForBackgroundNotification(IceInternal::IncomingConnectionFactory*);
+bool registerForBackgroundNotification(const IceInternal::IncomingConnectionFactoryPtr&);
+void unregisterForBackgroundNotification(const IceInternal::IncomingConnectionFactoryPtr&);
 
 }
 #endif
@@ -44,7 +44,10 @@ using namespace Ice::Instrumentation;
 using namespace IceInternal;
 
 IceUtil::Shared* IceInternal::upCast(OutgoingConnectionFactory* p) { return p; }
+
+#ifndef ICE_CPP11_MAPPING
 IceUtil::Shared* IceInternal::upCast(IncomingConnectionFactory* p) { return p; }
+#endif
 
 namespace
 {
@@ -57,6 +60,38 @@ struct RandomNumberGenerator : public std::unary_function<ptrdiff_t, ptrdiff_t>
     }
 };
 
+#ifdef ICE_CPP11_MAPPING
+template <typename Map> void
+remove(Map& m, const typename Map::key_type& k, const typename Map::mapped_type& v)
+{
+    auto pr = m.equal_range(k);
+    assert(pr.first != pr.second);
+    for(auto q = pr.first; q != pr.second; ++q)
+    {
+        if(q->second.get() == v.get())
+        {
+            m.erase(q);
+            return;
+        }
+    }
+    assert(false); // Nothing was removed which is an error.
+}
+
+template<typename Map, typename Predicate> typename Map::mapped_type
+find(const Map& m, const typename Map::key_type& k, Predicate predicate)
+{
+    auto pr = m.equal_range(k);
+    for(auto q = pr.first; q != pr.second; ++q)
+    {
+        if(predicate(q->second))
+        {
+            return q->second;
+        }
+    }
+    return nullptr;
+}
+
+#else
 template <typename K, typename V> void
 remove(multimap<K, V>& m, K k, V v)
 {
@@ -89,6 +124,7 @@ find(const multimap<K,::IceInternal::Handle<V> >& m,
     }
     return IceInternal::Handle<V>();
 }
+#endif
 
 }
 
@@ -198,7 +234,11 @@ IceInternal::OutgoingConnectionFactory::create(const vector<EndpointIPtr>& endpt
         return;
     }
 
+#ifdef ICE_CPP11_MAPPING
+    auto cb = make_shared<ConnectCallback>(_instance, this, endpoints, hasMore, callback, selType);
+#else
     ConnectCallbackPtr cb = new ConnectCallback(_instance, this, endpoints, hasMore, callback, selType);
+#endif
     cb->getConnectors();
 }
 
@@ -545,8 +585,8 @@ IceInternal::OutgoingConnectionFactory::createConnection(const TransceiverPtr& t
             throw Ice::CommunicatorDestroyedException(__FILE__, __LINE__);
         }
 
-        connection = new ConnectionI(_communicator, _instance, _monitor, transceiver, ci.connector,
-                                     ci.endpoint->compress(false), 0);
+        connection = ConnectionI::create(_communicator, _instance, _monitor, transceiver, ci.connector,
+                                         ci.endpoint->compress(false), ICE_NULLPTR);
     }
     catch(const Ice::LocalException&)
     {
@@ -827,7 +867,7 @@ IceInternal::OutgoingConnectionFactory::ConnectCallback::connectionStartComplete
     }
 
     connection->activate();
-    _factory->finishGetConnection(_connectors, *_iter, connection, this);
+    _factory->finishGetConnection(_connectors, *_iter, connection, ICE_SHARED_FROM_THIS);
 }
 
 void
@@ -835,25 +875,9 @@ IceInternal::OutgoingConnectionFactory::ConnectCallback::connectionStartFailed(c
                                                                                const LocalException& ex)
 {
     assert(_iter != _connectors.end());
-
-    if(_observer)
-    {
-        _observer->failed(ex.ice_name());
-        _observer->detach();
-    }
-
-    _factory->handleConnectionException(ex, _hasMore || _iter != _connectors.end() - 1);
-    if(dynamic_cast<const Ice::CommunicatorDestroyedException*>(&ex)) // No need to continue.
-    {
-        _factory->finishGetConnection(_connectors, ex, this);
-    }
-    else if(++_iter != _connectors.end()) // Try the next connector.
+    if(connectionStartFailedImpl(ex))
     {
         nextConnector();
-    }
-    else
-    {
-        _factory->finishGetConnection(_connectors, ex, this);
     }
 }
 
@@ -936,7 +960,8 @@ IceInternal::OutgoingConnectionFactory::ConnectCallback::nextEndpoint()
     try
     {
         assert(_endpointsIter != _endpoints.end());
-        (*_endpointsIter)->connectors_async(_selType, this);
+        (*_endpointsIter)->connectors_async(_selType, ICE_SHARED_FROM_THIS);
+
     }
     catch(const Ice::LocalException& ex)
     {
@@ -954,7 +979,7 @@ IceInternal::OutgoingConnectionFactory::ConnectCallback::getConnection()
         // connection.
         //
         bool compress;
-        Ice::ConnectionIPtr connection = _factory->getConnection(_connectors, this, compress);
+        Ice::ConnectionIPtr connection = _factory->getConnection(_connectors, ICE_SHARED_FROM_THIS, compress);
         if(!connection)
         {
             //
@@ -979,40 +1004,46 @@ IceInternal::OutgoingConnectionFactory::ConnectCallback::getConnection()
 void
 IceInternal::OutgoingConnectionFactory::ConnectCallback::nextConnector()
 {
-    Ice::ConnectionIPtr connection;
-    try
+    while(true)
     {
-
-        const CommunicatorObserverPtr& obsv = _factory->_instance->initializationData().observer;
-        if(obsv)
+        try
         {
-            _observer = obsv->getConnectionEstablishmentObserver(_iter->endpoint, _iter->connector->toString());
-            if(_observer)
+            const CommunicatorObserverPtr& obsv = _factory->_instance->initializationData().observer;
+            if(obsv)
             {
-                _observer->attach();
+                _observer = obsv->getConnectionEstablishmentObserver(_iter->endpoint, _iter->connector->toString());
+                if(_observer)
+                {
+                    _observer->attach();
+                }
+            }
+
+            assert(_iter != _connectors.end());
+
+            if(_instance->traceLevels()->network >= 2)
+            {
+                Trace out(_instance->initializationData().logger, _instance->traceLevels()->networkCat);
+                out << "trying to establish " << _iter->endpoint->protocol() << " connection to "
+                    << _iter->connector->toString();
+            }
+            Ice::ConnectionIPtr connection = _factory->createConnection(_iter->connector->connect(), *_iter);
+            connection->start(ICE_SHARED_FROM_THIS);
+        }
+        catch(const Ice::LocalException& ex)
+        {
+            if(_instance->traceLevels()->network >= 2)
+            {
+                Trace out(_instance->initializationData().logger, _instance->traceLevels()->networkCat);
+                out << "failed to establish " << _iter->endpoint->protocol() << " connection to "
+                    << _iter->connector->toString() << "\n" << ex;
+            }
+
+            if(connectionStartFailedImpl(ex))
+            {
+                continue; // More connectors to try, continue.
             }
         }
-
-        assert(_iter != _connectors.end());
-
-        if(_instance->traceLevels()->network >= 2)
-        {
-            Trace out(_instance->initializationData().logger, _instance->traceLevels()->networkCat);
-            out << "trying to establish " << _iter->endpoint->protocol() << " connection to "
-                << _iter->connector->toString();
-        }
-        connection = _factory->createConnection(_iter->connector->connect(), *_iter);
-        connection->start(this);
-    }
-    catch(const Ice::LocalException& ex)
-    {
-        if(_instance->traceLevels()->network >= 2)
-        {
-            Trace out(_instance->initializationData().logger, _instance->traceLevels()->networkCat);
-            out << "failed to establish " << _iter->endpoint->protocol() << " connection to "
-                << _iter->connector->toString() << "\n" << ex;
-        }
-        connectionStartFailed(connection, ex);
+        break;
     }
 }
 
@@ -1062,13 +1093,38 @@ IceInternal::OutgoingConnectionFactory::ConnectCallback::removeConnectors(const 
 void
 IceInternal::OutgoingConnectionFactory::ConnectCallback::removeFromPending()
 {
-    _factory->removeFromPending(this, _connectors);
+    _factory->removeFromPending(ICE_SHARED_FROM_THIS, _connectors);
 }
 
 bool
 IceInternal::OutgoingConnectionFactory::ConnectCallback::operator<(const ConnectCallback& rhs) const
 {
     return this < &rhs;
+}
+
+bool
+IceInternal::OutgoingConnectionFactory::ConnectCallback::connectionStartFailedImpl(const Ice::LocalException& ex)
+{
+    if(_observer)
+    {
+        _observer->failed(ex.ice_id());
+        _observer->detach();
+    }
+
+    _factory->handleConnectionException(ex, _hasMore || _iter != _connectors.end() - 1);
+    if(dynamic_cast<const Ice::CommunicatorDestroyedException*>(&ex)) // No need to continue.
+    {
+        _factory->finishGetConnection(_connectors, ex, ICE_SHARED_FROM_THIS);
+    }
+    else if(++_iter != _connectors.end()) // Try the next connector.
+    {
+        return true;
+    }
+    else
+    {
+        _factory->finishGetConnection(_connectors, ex, ICE_SHARED_FROM_THIS);
+    }
+    return false;
 }
 
 void
@@ -1345,8 +1401,8 @@ IceInternal::IncomingConnectionFactory::message(ThreadPoolCurrent& current)
 
         try
         {
-            connection = new ConnectionI(_adapter->getCommunicator(), _instance, _monitor, transceiver, 0, _endpoint,
-                                         _adapter);
+            connection = ConnectionI::create(_adapter->getCommunicator(), _instance, _monitor, transceiver, 0,
+                                             _endpoint, _adapter);
         }
         catch(const LocalException& ex)
         {
@@ -1371,7 +1427,8 @@ IceInternal::IncomingConnectionFactory::message(ThreadPoolCurrent& current)
     }
 
     assert(connection);
-    connection->start(this);
+
+    connection->start(ICE_SHARED_FROM_THIS);
 }
 
 void
@@ -1405,7 +1462,7 @@ IceInternal::IncomingConnectionFactory::finished(ThreadPoolCurrent&, bool close)
 
 #if TARGET_OS_IPHONE != 0
     sync.release();
-    unregisterForBackgroundNotification(this);
+    unregisterForBackgroundNotification(ICE_SHARED_FROM_THIS);
 #endif
 }
 
@@ -1525,7 +1582,7 @@ IceInternal::IncomingConnectionFactory::stopAcceptor()
         return;
     }
 
-    if(_adapter->getThreadPool()->finish(this, true))
+    if(_adapter->getThreadPool()->finish(ICE_SHARED_FROM_THIS, true))
     {
         _acceptorStarted = false;
         closeAcceptor();
@@ -1545,7 +1602,6 @@ IceInternal::IncomingConnectionFactory::initialize()
     {
         _endpoint = _endpoint->compress(_instance->defaultsAndOverrides()->overrideCompressValue);
     }
-
     try
     {
         const_cast<TransceiverPtr&>(_transceiver) = _endpoint->transceiver();
@@ -1557,9 +1613,8 @@ IceInternal::IncomingConnectionFactory::initialize()
                 out << "attempting to bind to " << _endpoint->protocol() << " socket\n" << _transceiver->toString();
             }
             const_cast<EndpointIPtr&>(_endpoint) = _transceiver->bind();
-
-            ConnectionIPtr connection = new ConnectionI(_adapter->getCommunicator(), _instance, 0, _transceiver, 0,
-                                                        _endpoint, _adapter);
+            ConnectionIPtr connection(ConnectionI::create(_adapter->getCommunicator(), _instance, 0, _transceiver, 0,
+                                                          _endpoint, _adapter));
             connection->start(0);
             _connections.insert(connection);
         }
@@ -1571,7 +1626,7 @@ IceInternal::IncomingConnectionFactory::initialize()
             // start the acceptor if necessary.
             //
             _acceptorStarted = false;
-            registerForBackgroundNotification(this);
+            registerForBackgroundNotification(ICE_SHARED_FROM_THIS);
 #else
             createAcceptor();
 #endif
@@ -1627,7 +1682,7 @@ IceInternal::IncomingConnectionFactory::setState(State state)
                     Trace out(_instance->initializationData().logger, _instance->traceLevels()->networkCat);
                     out << "accepting " << _endpoint->protocol() << " connections at " << _acceptor->toString();
                 }
-                _adapter->getThreadPool()->_register(this, SocketOperationRead);
+                _adapter->getThreadPool()->_register(ICE_SHARED_FROM_THIS, SocketOperationRead);
             }
             for_each(_connections.begin(), _connections.end(), Ice::voidMemFun(&ConnectionI::activate));
             break;
@@ -1646,7 +1701,7 @@ IceInternal::IncomingConnectionFactory::setState(State state)
                     Trace out(_instance->initializationData().logger, _instance->traceLevels()->networkCat);
                     out << "holding " << _endpoint->protocol() << " connections at " << _acceptor->toString();
                 }
-                _adapter->getThreadPool()->unregister(this, SocketOperationRead);
+                _adapter->getThreadPool()->unregister(ICE_SHARED_FROM_THIS, SocketOperationRead);
             }
             for_each(_connections.begin(), _connections.end(), Ice::voidMemFun(&ConnectionI::hold));
             break;
@@ -1663,7 +1718,7 @@ IceInternal::IncomingConnectionFactory::setState(State state)
                 // the finish() call. Not all selector implementations do support this
                 // however.
                 //
-                if(_adapter->getThreadPool()->finish(this, true))
+                if(_adapter->getThreadPool()->finish(ICE_SHARED_FROM_THIS, true))
                 {
                     closeAcceptor();
                 }
@@ -1696,7 +1751,6 @@ IceInternal::IncomingConnectionFactory::createAcceptor()
     {
         _acceptor = _endpoint->acceptor(_adapter->getName());
         assert(_acceptor);
-
         if(_instance->traceLevels()->network >= 2)
         {
             Trace out(_instance->initializationData().logger, _instance->traceLevels()->networkCat);
@@ -1704,18 +1758,16 @@ IceInternal::IncomingConnectionFactory::createAcceptor()
         }
 
         _endpoint = _acceptor->listen();
-
         if(_instance->traceLevels()->network >= 1)
         {
             Trace out(_instance->initializationData().logger, _instance->traceLevels()->networkCat);
             out << "listening for " << _endpoint->protocol() << " connections\n" << _acceptor->toDetailedString();
         }
 
-        _adapter->getThreadPool()->initialize(this);
-
+        _adapter->getThreadPool()->initialize(ICE_SHARED_FROM_THIS);
         if(_state == StateActive)
         {
-            _adapter->getThreadPool()->_register(this, SocketOperationRead);
+            _adapter->getThreadPool()->_register(ICE_SHARED_FROM_THIS, SocketOperationRead);
         }
     }
     catch(const Ice::Exception&)

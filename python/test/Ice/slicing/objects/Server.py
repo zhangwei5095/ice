@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -11,7 +11,7 @@
 import os, sys, traceback
 
 import Ice
-Ice.loadSlice('-I. --all ServerPrivate.ice Forward.ice')
+Ice.loadSlice('-I. --all ServerPrivate.ice')
 import Test
 
 def test(b):
@@ -368,7 +368,7 @@ def run(args, communicator):
     properties.setProperty("TestAdapter.Endpoints", "default -p 12010 -t 10000")
     adapter = communicator.createObjectAdapter("TestAdapter")
     object = TestI()
-    adapter.add(object, communicator.stringToIdentity("Test"))
+    adapter.add(object, Ice.stringToIdentity("Test"))
     adapter.activate()
     communicator.waitForShutdown()
     return True

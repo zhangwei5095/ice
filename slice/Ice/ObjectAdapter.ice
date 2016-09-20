@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -13,10 +13,14 @@
 
 #include <Ice/CommunicatorF.ice>
 #include <Ice/ServantLocatorF.ice>
-#include <Ice/LocatorF.ice>
+#include <Ice/Locator.ice>
 #include <Ice/Identity.ice>
 #include <Ice/FacetMap.ice>
 #include <Ice/Endpoint.ice>
+
+#ifndef __SLICE2JAVA_COMPAT__
+[["java:package:com.zeroc"]]
+#endif
 
 ["objc:prefix:ICE"]
 module Ice
@@ -155,9 +159,9 @@ local interface ObjectAdapter
      *
      * Destroys the object adapter and cleans up all resources held by
      * the object adapter. If the object adapter has not yet been
-     * deactivated, {@link #destroy} implicitly initiates the deactivation
-     * and waits for it to finish. Subsequent calls to {@link destroy} are
-     * ignored. Once {@link destroy} has returned, it is possible to create
+     * deactivated, destroy implicitly initiates the deactivation
+     * and waits for it to finish. Subsequent calls to destroy are
+     * ignored. Once destroy has returned, it is possible to create
      * another object adapter with the same name.
      *
      * @see #deactivate

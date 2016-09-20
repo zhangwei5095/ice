@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -22,12 +22,12 @@ public class Collocated
     private static int run(string[] args, Ice.Communicator communicator)
     {
         Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
-        adapter.add(new MetricsI(), communicator.stringToIdentity("metrics"));
+        adapter.add(new MetricsI(), Ice.Util.stringToIdentity("metrics"));
         //adapter.activate(); // Don't activate OA to ensure collocation is used.
 
         communicator.getProperties().setProperty("ControllerAdapter.Endpoints", "default -p 12011");
         Ice.ObjectAdapter controllerAdapter = communicator.createObjectAdapter("ControllerAdapter");
-        controllerAdapter.add(new ControllerI(adapter), communicator.stringToIdentity("controller"));
+        controllerAdapter.add(new ControllerI(adapter), Ice.Util.stringToIdentity("controller"));
         //controllerAdapter.activate(); // Don't activate OA to ensure collocation is used.
 
         Test.MetricsPrx metrics = AllTests.allTests(communicator, _observer);
@@ -39,11 +39,7 @@ public class Collocated
     {
         int status = 0;
         Ice.Communicator communicator = null;
-
-#if !COMPACT
         Debug.Listeners.Add(new ConsoleTraceListener());
-#endif
-
         try
         {
             Ice.InitializationData initData = new Ice.InitializationData();
@@ -57,18 +53,11 @@ public class Collocated
             initData.properties.setProperty("Ice.Warn.Dispatch", "0");
             initData.properties.setProperty("Ice.MessageSizeMax", "50000");
             initData.properties.setProperty("Ice.Default.Host", "127.0.0.1");
-#if COMPACT
-            //
-            // When using Ice for .NET Compact Framework, we need to specify
-            // the assembly so that Ice can locate classes and exceptions.
-            //
-            initData.properties.setProperty("Ice.FactoryAssemblies", "collocated");
-#endif
             initData.observer = _observer;
             communicator = Ice.Util.initialize(ref args, initData);
             status = run(args, communicator);
         }
-        catch(System.Exception ex)
+        catch(Exception ex)
         {
             Console.Error.WriteLine(ex);
             status = 1;

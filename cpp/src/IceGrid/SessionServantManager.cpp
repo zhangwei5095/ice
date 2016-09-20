@@ -1,13 +1,13 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
 
-#include <IceUtil/UUID.h>
+#include <Ice/UUID.h>
 #include <Ice/LocalException.h>
 #include <Ice/ObjectAdapter.h>
 #include <IceGrid/SessionServantManager.h>
@@ -272,7 +272,7 @@ SessionServantManager::addImpl(const Ice::ObjectPtr& servant, const Ice::ObjectP
     assert(p != _sessions.end());
 
     Ice::Identity id;
-    id.name = IceUtil::generateUUID();
+    id.name = Ice::generateUUID();
     id.category = _instanceName;
 
     //

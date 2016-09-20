@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,11 +8,12 @@
 // **********************************************************************
 
 #include <IceUtil/Options.h>
-#include <Ice/Application.h>
+#include <IceUtil/FileUtil.h>
+#include <Ice/Ice.h>
 #include <IceDB/IceDB.h>
 #include <IceStorm/DBTypes.h>
-#include <IcePatch2Lib/Util.h>
 #include <IceUtil/DisableWarnings.h>
+#include <fstream>
 
 using namespace std;
 using namespace Ice;
@@ -53,8 +54,10 @@ Client::usage()
         "-v, --version          Display version.\n"
         "--import FILE          Import database from FILE.\n"
         "--export FILE          Export database to FILE.\n"
-        "--dbhome DIR           The database directory.\n"
-        "-d, --debug            Print debug messages."
+        "--dbhome DIR           Source or target database environment.\n"
+        "--dbpath DIR           Source or target database environment.\n"
+        "--mapsize VALUE        Set LMDB map size in MB (optional, import only).\n"
+        "-d, --debug            Print debug messages.\n"
         ;
 }
 
@@ -68,6 +71,8 @@ Client::run(int argc, char* argv[])
     opts.addOpt("", "import", IceUtilInternal::Options::NeedArg);
     opts.addOpt("", "export", IceUtilInternal::Options::NeedArg);
     opts.addOpt("", "dbhome", IceUtilInternal::Options::NeedArg);
+    opts.addOpt("", "dbpath", IceUtilInternal::Options::NeedArg);
+    opts.addOpt("", "mapsize", IceUtilInternal::Options::NeedArg);
 
     vector<string> args;
     try
@@ -76,7 +81,7 @@ Client::run(int argc, char* argv[])
     }
     catch(const IceUtilInternal::BadOptException& e)
     {
-        cerr << e.reason << endl;
+        cerr << argv[0] << ": " << e.reason << endl;
         usage();
         return EXIT_FAILURE;
     }
@@ -99,16 +104,16 @@ Client::run(int argc, char* argv[])
         return EXIT_SUCCESS;
     }
 
-    if((!opts.isSet("import") && !opts.isSet("export")) || (opts.isSet("import") && opts.isSet("export")))
+    if(!(opts.isSet("import") ^ opts.isSet("export")))
     {
-        cerr << "Either --import or --export must be set" << endl;
+        cerr << argv[0] << ": either --import or --export must be set" << endl;
         usage();
         return EXIT_FAILURE;
     }
 
-    if(!opts.isSet("dbhome"))
+    if(!(opts.isSet("dbhome") ^ opts.isSet("dbpath")))
     {
-        cerr << "Database path must be specified" << endl;
+        cerr << argv[0] << ": set the database environment directory with either --dbhome or --dbpath" << endl;
         usage();
         return EXIT_FAILURE;
     }
@@ -116,7 +121,18 @@ Client::run(int argc, char* argv[])
     bool debug = opts.isSet("debug");
     bool import = opts.isSet("import");
     string dbFile = opts.optArg(import ? "import" : "export");
-    string dbPath = opts.optArg("dbhome");
+    string dbPath;
+    if(opts.isSet("dbhome"))
+    {
+        dbPath = opts.optArg("dbhome");
+    }
+    else
+    {
+        dbPath = opts.optArg("dbpath");
+    }
+
+    string mapSizeStr = opts.optArg("mapsize");
+    size_t mapSize = IceDB::getMapSize(atoi(mapSizeStr.c_str()));
 
     try
     {
@@ -133,27 +149,34 @@ Client::run(int argc, char* argv[])
 
             if(!IceUtilInternal::directoryExists(dbPath))
             {
-                cerr << "Output directory does not exist: " << dbPath << endl;
+                cerr << argv[0] << ": output directory does not exist: " << dbPath << endl;
                 return EXIT_FAILURE;
             }
 
-            StringSeq files = IcePatch2Internal::readDirectory(dbPath);
-            if(!files.empty())
+            if(!IceUtilInternal::isEmptyDirectory(dbPath))
             {
-                cerr << "Output directory is not empty: " << dbPath << endl;
+                cerr << argv[0] << ": output directory is not empty: " << dbPath << endl;
                 return EXIT_FAILURE;
             }
 
-            ifstream fs(dbFile.c_str(), ios::binary);
+            ifstream fs(IceUtilInternal::streamFilename(dbFile).c_str(), ios::binary);
             if(fs.fail())
             {
-                cerr << "Could not open input file: " << strerror(errno) << endl;
+                cerr << argv[0] << ": could not open input file: " << strerror(errno) << endl;
                 return EXIT_FAILURE;
             }
             fs.unsetf(ios::skipws);
 
             fs.seekg(0, ios::end);
             streampos fileSize = fs.tellg();
+
+            if(!fileSize)
+            {
+                fs.close();
+                cerr << argv[0] << ": empty input file" << endl;
+                return EXIT_FAILURE;
+            }
+
             fs.seekg(0, ios::beg);
 
             vector<Ice::Byte> buf;
@@ -165,18 +188,18 @@ Client::run(int argc, char* argv[])
             string type;
             int version;
 
-            Ice::InputStreamPtr stream = Ice::wrapInputStream(communicator(), buf, dbContext.encoding);
-            stream->read(type);
+            Ice::InputStream stream(communicator(), dbContext.encoding, buf);
+            stream.read(type);
             if(type != "IceStorm")
             {
-                cerr << "Incorrect input file type: " << type << endl;
+                cerr << argv[0] << ": incorrect input file type: " << type << endl;
                 return EXIT_FAILURE;
             }
-            stream->read(version);
-            stream->read(data);
+            stream.read(version);
+            stream.read(data);
 
             {
-                IceDB::Env env(dbPath, 2);
+                IceDB::Env env(dbPath, 2, mapSize);
                 IceDB::ReadWriteTxn txn(env);
 
                 if(debug)
@@ -184,7 +207,7 @@ Client::run(int argc, char* argv[])
                     cout << "Writing LLU Map:" << endl;
                 }
 
-                IceDB::Dbi<string, LogUpdate, IceDB::IceContext, Ice::OutputStreamPtr>
+                IceDB::Dbi<string, LogUpdate, IceDB::IceContext, Ice::OutputStream>
                     lluMap(txn, "llu", dbContext, MDB_CREATE);
 
                 for(StringLogUpdateDict::const_iterator p = data.llus.begin(); p != data.llus.end(); ++p)
@@ -201,15 +224,15 @@ Client::run(int argc, char* argv[])
                     cout << "Writing Subscriber Map:" << endl;
                 }
 
-                IceDB::Dbi<SubscriberRecordKey, SubscriberRecord, IceDB::IceContext, Ice::OutputStreamPtr>
+                IceDB::Dbi<SubscriberRecordKey, SubscriberRecord, IceDB::IceContext, Ice::OutputStream>
                     subscriberMap(txn, "subscribers", dbContext, MDB_CREATE);
 
                 for(SubscriberRecordDict::const_iterator q = data.subscribers.begin(); q != data.subscribers.end(); ++q)
                 {
                     if(debug)
                     {
-                        cout << "  KEY = TOPIC(" << communicator()->identityToString(q->first.topic)
-                             << ") ID(" << communicator()->identityToString(q->first.id) << ")" <<endl;
+                        cout << "  KEY = TOPIC(" << identityToString(q->first.topic)
+                             << ") ID(" << identityToString(q->first.id) << ")" <<endl;
                     }
                     subscriberMap.put(txn, q->first, q->second);
                 }
@@ -231,13 +254,12 @@ Client::run(int argc, char* argv[])
                     cout << "Reading LLU Map:" << endl;
                 }
 
-                IceDB::Dbi<string, LogUpdate, IceDB::IceContext, Ice::OutputStreamPtr>
+                IceDB::Dbi<string, LogUpdate, IceDB::IceContext, Ice::OutputStream>
                     lluMap(txn, "llu", dbContext, 0);
 
                 string s;
                 LogUpdate llu;
-                IceDB::ReadOnlyCursor<string, LogUpdate, IceDB::IceContext, Ice::OutputStreamPtr>
-                    lluCursor(lluMap, txn);
+                IceDB::ReadOnlyCursor<string, LogUpdate, IceDB::IceContext, Ice::OutputStream> lluCursor(lluMap, txn);
                 while(lluCursor.get(s, llu, MDB_NEXT))
                 {
                     if(debug)
@@ -253,47 +275,46 @@ Client::run(int argc, char* argv[])
                     cout << "Reading Subscriber Map:" << endl;
                 }
 
-                IceDB::Dbi<SubscriberRecordKey, SubscriberRecord, IceDB::IceContext, Ice::OutputStreamPtr>
+                IceDB::Dbi<SubscriberRecordKey, SubscriberRecord, IceDB::IceContext, Ice::OutputStream>
                     subscriberMap(txn, "subscribers", dbContext, 0);
 
                 SubscriberRecordKey key;
                 SubscriberRecord record;
-                IceDB::ReadOnlyCursor<SubscriberRecordKey, SubscriberRecord, IceDB::IceContext, Ice::OutputStreamPtr>
+                IceDB::ReadOnlyCursor<SubscriberRecordKey, SubscriberRecord, IceDB::IceContext, Ice::OutputStream>
                     subCursor(subscriberMap, txn);
                 while(subCursor.get(key, record, MDB_NEXT))
                 {
                     if(debug)
                     {
-                        cout << "  KEY = TOPIC(" << communicator()->identityToString(key.topic)
-                             << ") ID(" << communicator()->identityToString(key.id) << ")" <<endl;
+                        cout << "  KEY = TOPIC(" << identityToString(key.topic)
+                             << ") ID(" << identityToString(key.id) << ")" <<endl;
                     }
                     data.subscribers.insert(std::make_pair(key, record));
                 }
                 subCursor.close();
 
-                txn.abort();
+                txn.rollback();
                 env.close();
             }
 
-            Ice::OutputStreamPtr stream = Ice::createOutputStream(communicator(), dbContext.encoding);
-            stream->write("IceStorm");
-            stream->write(ICE_INT_VERSION);
-            stream->write(data);
-            pair<const Ice::Byte*, const Ice::Byte*> buf = stream->finished();
+            Ice::OutputStream stream(communicator(), dbContext.encoding);
+            stream.write("IceStorm");
+            stream.write(ICE_INT_VERSION);
+            stream.write(data);
 
-            ofstream fs(dbFile.c_str(), ios::binary);
+            ofstream fs(IceUtilInternal::streamFilename(dbFile).c_str(), ios::binary);
             if(fs.fail())
             {
-                cerr << "Could not open output file: " << strerror(errno) << endl;
+                cerr << argv[0] << ": could not open output file: " << strerror(errno) << endl;
                 return EXIT_FAILURE;
             }
-            fs.write(reinterpret_cast<const char*>(buf.first), buf.second - buf.first);
+            fs.write(reinterpret_cast<const char*>(stream.b.begin()), stream.b.size());
             fs.close();
         }
     }
     catch(const IceUtil::Exception& ex)
     {
-        cerr << (import ? "Import" : "Export") << " failed:\n" << ex << endl;
+        cerr << argv[0] << ": " << (import ? "import" : "export") << " failed:\n" << ex << endl;
         return EXIT_FAILURE;
     }
 

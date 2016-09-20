@@ -1,7 +1,7 @@
 <?
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -23,9 +23,11 @@ require_once 'Test.php';
 if($NS)
 {
     $code = <<<EOT
+        class Test_A1 extends Test\A1 {}
         abstract class Test_B extends Test\B {}
         abstract class Test_C extends Test\C {}
         abstract class Test_D extends Test\D {}
+        class Test_D1 extends Test\D1 {}
         abstract class Test_E extends Test\E {}
         abstract class Test_F extends Test\F {}
         interface Test_I extends Test\I {}
@@ -33,53 +35,48 @@ if($NS)
         class Test_H extends Test\H {}
         class Ice_ObjectImpl extends Ice\ObjectImpl {}
         interface Ice_ObjectFactory extends Ice\ObjectFactory {}
+        interface Ice_ValueFactory extends Ice\ValueFactory {}
 EOT;
     eval($code);
 }
 
 class BI extends Test_B
 {
+    function ice_pretUnmarshal()
+    {
+        $this->preUnmarshalInvoked = true;
+    }
+
     function ice_postUnmarshal()
     {
-        $this->_postUnmarshalInvoked = true;
+        $this->postUnmarshalInvoked = true;
     }
-
-    function postUnmarshalInvoked()
-    {
-        return $this->_postUnmarshalInvoked;
-    }
-
-    private $_postUnmarshalInvoked = false;
 }
 
 class CI extends Test_C
 {
+    function ice_preUnmarshal()
+    {
+        $this->preUnmarshalInvoked = true;
+    }
+
     function ice_postUnmarshal()
     {
-        $this->_postUnmarshalInvoked = true;
+        $this->postUnmarshalInvoked = true;
     }
-
-    function postUnmarshalInvoked()
-    {
-        return $this->_postUnmarshalInvoked;
-    }
-
-    private $_postUnmarshalInvoked = false;
 }
 
 class DI extends Test_D
 {
+    function ice_preUnmarshal()
+    {
+        $this->preUnmarshalInvoked = true;
+    }
+
     function ice_postUnmarshal()
     {
-        $this->_postUnmarshalInvoked = true;
+        $this->postUnmarshalInvoked = true;
     }
-
-    function postUnmarshalInvoked()
-    {
-        return $this->_postUnmarshalInvoked;
-    }
-
-    private $_postUnmarshalInvoked = false;
 }
 
 class EI extends Test_E
@@ -122,7 +119,7 @@ class HI extends Test_H
 {
 }
 
-class MyObjectFactory implements Ice_ObjectFactory
+class MyValueFactory implements Ice_ValueFactory
 {
     function create($id)
     {
@@ -160,9 +157,18 @@ class MyObjectFactory implements Ice_ObjectFactory
         }
         return null;
     }
+}
+
+class MyObjectFactory implements Ice_ObjectFactory
+{
+    function create($id)
+    {
+        return null;
+    }
 
     function destroy()
     {
+        // Do nothing
     }
 }
 
@@ -171,7 +177,8 @@ function test($b)
     if(!$b)
     {
         $bt = debug_backtrace();
-        die("\ntest failed in ".$bt[0]["file"]." line ".$bt[0]["line"]."\n");
+        echo "\ntest failed in ".$bt[0]["file"]." line ".$bt[0]["line"]."\n";
+        exit(1);
     }
 }
 
@@ -234,11 +241,11 @@ function allTests($communicator)
     test($b1->theA->theC != null);
     test($b1->theA->theC->theB === $b1->theA);
     test($b1->preMarshalInvoked);
-    test($b1->postUnmarshalInvoked());
+    test($b1->postUnmarshalInvoked);
     test($b1->theA->preMarshalInvoked);
-    test($b1->theA->postUnmarshalInvoked());
+    test($b1->theA->postUnmarshalInvoked);
     test($b1->theA->theC->preMarshalInvoked);
-    test($b1->theA->theC->postUnmarshalInvoked());
+    test($b1->theA->theC->postUnmarshalInvoked);
     // More tests possible for b2 and d, but I think this is already sufficient.
     test($b2->theA === $b2);
     test($d->theC == null);
@@ -299,13 +306,13 @@ function allTests($communicator)
     test($d->theB === $b2);
     test($d->theC == null);
     test($d->preMarshalInvoked);
-    test($d->postUnmarshalInvoked());
+    test($d->postUnmarshalInvoked);
     test($d->theA->preMarshalInvoked);
-    test($d->theA->postUnmarshalInvoked());
+    test($d->theA->postUnmarshalInvoked);
     test($d->theB->preMarshalInvoked);
-    test($d->theB->postUnmarshalInvoked());
+    test($d->theB->postUnmarshalInvoked);
     test($d->theB->theC->preMarshalInvoked);
-    test($d->theB->theC->postUnmarshalInvoked());
+    test($d->theB->theC->postUnmarshalInvoked);
     echo "ok\n";
 
     //
@@ -347,6 +354,36 @@ function allTests($communicator)
     test($h != null and $h instanceof Test_H);
     echo "ok\n";
 
+    echo "getting D1... ";
+    flush();
+    $d1 = $initial->getD1(new Test_D1(new Test_A1("a1"), new Test_A1("a2"), new Test_A1("a3"), new Test_A1("a4")));
+    test($d1->a1->name == "a1");
+    test($d1->a2->name == "a2");
+    test($d1->a3->name == "a3");
+    test($d1->a4->name == "a4");
+    echo "ok\n";
+
+    echo "throw EDerived... ";
+    flush();
+    try
+    {
+        $initial->throwEDerived();
+        test(false);
+    }
+    catch(Exception $ex)
+    {
+        $ed = $NS ? "Test\\EDerived" : "Test_EDerived";
+        if(!($ex instanceof $ed))
+        {
+            throw $ex;
+        }
+        test($ex->a1->name == "a1");
+        test($ex->a2->name == "a2");
+        test($ex->a3->name == "a3");
+        test($ex->a4->name == "a4");
+    }
+    echo "ok\n";
+
     echo "setting I... ";
     flush();
     $initial->setI($i);
@@ -379,6 +416,14 @@ function allTests($communicator)
             throw $ex;
         }
     }
+    echo "ok\n";
+
+    echo "testing marshaled results...";
+    flush();
+    $b1 = $initial->getMB();
+    test($b1 != null && $b1->theB == $b1);
+    $b1 = $initial->getAMDMB();
+    test($b1 != null && $b1->theB == $b1);
     echo "ok\n";
 
     echo "testing UnexpectedObjectException... ";
@@ -415,19 +460,30 @@ function allTests($communicator)
     }
     echo "ok\n";
 
+    echo "testing getting ObjectFactory... ";
+    flush();
+    test($communicator->findObjectFactory("TestOF") != null);
+    echo "ok\n";
+
+    echo "testing getting ObjectFactory as ValueFactory... ";
+    flush();
+    test($communicator->getValueFactoryManager()->find("TestOF") != null);
+    echo "ok\n";
+
     return $initial;
 }
 
 $communicator = Ice_initialize($argv);
-$factory = new MyObjectFactory();
-$communicator->addObjectFactory($factory, "::Test::B");
-$communicator->addObjectFactory($factory, "::Test::C");
-$communicator->addObjectFactory($factory, "::Test::D");
-$communicator->addObjectFactory($factory, "::Test::E");
-$communicator->addObjectFactory($factory, "::Test::F");
-$communicator->addObjectFactory($factory, "::Test::I");
-$communicator->addObjectFactory($factory, "::Test::J");
-$communicator->addObjectFactory($factory, "::Test::H");
+$factory = new MyValueFactory();
+$communicator->getValueFactoryManager()->add($factory, "::Test::B");
+$communicator->getValueFactoryManager()->add($factory, "::Test::C");
+$communicator->getValueFactoryManager()->add($factory, "::Test::D");
+$communicator->getValueFactoryManager()->add($factory, "::Test::E");
+$communicator->getValueFactoryManager()->add($factory, "::Test::F");
+$communicator->getValueFactoryManager()->add($factory, "::Test::I");
+$communicator->getValueFactoryManager()->add($factory, "::Test::J");
+$communicator->getValueFactoryManager()->add($factory, "::Test::H");
+$communicator->addObjectFactory(new MyObjectFactory(), "TestOF");
 $initial = allTests($communicator);
 $initial->shutdown();
 $communicator->destroy();

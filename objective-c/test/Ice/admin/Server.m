@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -17,7 +17,7 @@ run(id<ICECommunicator> communicator)
     [[communicator getProperties] setProperty:@"TestAdapter.Endpoints" value:@"default -p 12010 -t 10000"];
     id<ICEObjectAdapter> adapter = [communicator createObjectAdapter:@"TestAdapter"];
     [adapter add:[TestAdminRemoteCommunicatorFactoryI remoteCommunicatorFactory]
-        identity:[communicator stringToIdentity:@"factory"]];
+        identity:[ICEUtil stringToIdentity:@"factory"]];
     [adapter activate];
 
     // Disable ready print for further adapters.
@@ -36,6 +36,13 @@ run(id<ICECommunicator> communicator)
 int
 main(int argc, char* argv[])
 {
+#ifdef ICE_STATIC_LIBS
+    ICEregisterIceSSL(YES);
+#if TARGET_OS_IPHONE
+    ICEregisterIceIAP(YES);
+#endif
+#endif
+
     @autoreleasepool
     {
         int status;
@@ -47,7 +54,7 @@ main(int argc, char* argv[])
             initData.properties = defaultServerProperties(&argc, argv);
 #if TARGET_OS_IPHONE
             initData.prefixTable__ = [NSDictionary dictionaryWithObjectsAndKeys:
-                                      @"TestAdmin", @"::Test", 
+                                      @"TestAdmin", @"::Test",
                                       nil];
 #endif
             communicator = [ICEUtil createCommunicator:&argc argv:argv initData:initData];

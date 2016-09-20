@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -445,7 +445,7 @@ VALUE createArrayHelper(long);
 // VALUE arr = createArray(size);
 // for(long i = 0; i < size; ++i)
 // {
-//     RARRAY_PTR(arr)[i] = ...;
+//     RARRAY_ASET(arr, i, val);
 // }
 //
 template<typename T>
@@ -492,7 +492,7 @@ VALUE convertLocalException(const Ice::LocalException&);
     } \
     catch(const ::Ice::Exception& ex) \
     { \
-        string __ice_msg = "unknown Ice exception: " + ex.ice_name(); \
+        string __ice_msg = "unknown Ice exception: " + ex.ice_id(); \
         ICE_RUBY_RETHROW(rb_exc_new2(rb_eRuntimeError, __ice_msg.c_str())); \
     } \
     catch(const std::bad_alloc& ex) \

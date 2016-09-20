@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -21,6 +21,7 @@ enum MyEnum
     enum3
 };
 
+interface MyInterface;
 class MyClass;
 
 ["cpp:comparable"] struct SmallStruct
@@ -34,7 +35,7 @@ class MyClass;
     double d;
     string str;
     MyEnum e;
-    MyClass* p;
+    MyInterface* p;
 };
 
 ["cpp:class"] struct ClassStruct

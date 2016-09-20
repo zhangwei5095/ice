@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -17,7 +17,8 @@ int
 run(int, char**, const Ice::CommunicatorPtr& communicator)
 {
     Ice::PropertiesPtr properties = communicator->getProperties();
-    communicator->getProperties()->setProperty("TestAdapter.Endpoints", "default -p 12010 -t 10000:udp");
+    communicator->getProperties()->setProperty("TestAdapter.Endpoints",
+                                               getTestEndpoint(communicator, 0) + " -t 10000:udp");
 
     //
     // First try to use an invalid priority.
@@ -47,8 +48,8 @@ run(int, char**, const Ice::CommunicatorPtr& communicator)
 #endif
 
     Ice::ObjectAdapterPtr adapter = communicator->createObjectAdapter("TestAdapter");
-    Ice::ObjectPtr object = new PriorityI(adapter);
-    adapter->add(object, communicator->stringToIdentity("test"));
+    Ice::ObjectPtr object = ICE_MAKE_SHARED(PriorityI, adapter);
+    adapter->add(object, Ice::stringToIdentity("test"));
     adapter->activate();
     communicator->waitForShutdown();
     return EXIT_SUCCESS;

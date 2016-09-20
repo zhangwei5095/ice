@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,11 +8,16 @@
 // **********************************************************************
 
 #import <objc/Ice/Connection.h>
-
 #import <objc/Ice/LocalObject.h>
 
 #include <Ice/Connection.h>
-//#include <IceSSL/ConnectionInfo.h>
+
+namespace IceObjC
+{
+
+ICE_API void registerConnectionInfoClass(Class cl);
+
+}
 
 @interface ICEConnectionInfo (ICEInternal)
 -(id) initWithConnectionInfo:(Ice::ConnectionInfo*)connectionInfo;
@@ -33,10 +38,6 @@
 @interface ICEWSConnectionInfo (ICEInternal)
 -(id) initWithWSConnectionInfo:(Ice::WSConnectionInfo*)wsConnectionInfo;
 @end
-
-// @interface ICESSLConnectionInfo (ICEInternal)
-// -(id) initWithSSLConnectionInfo:(IceSSL::ConnectionInfo*)sslConnectionInfo;
-// @end
 
 @interface ICEConnection : ICELocalObject<ICEConnection>
 @end

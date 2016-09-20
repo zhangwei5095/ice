@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,8 +8,8 @@
 // **********************************************************************
 
 using System;
-using System.Diagnostics;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 public class Client
 {
@@ -23,10 +23,10 @@ public class Client
 
     public sealed class caseI : @abstract.caseDisp_
     {
-        public override void catch_async(@abstract.AMD_case_catch cb__, int @checked, Ice.Current current__)
+        public override Task<int>
+        catchAsync(int @checked,  Ice.Current current__)
         {
-            int @continue = 0;
-            cb__.ice_response(@continue);
+            return Task<int>.FromResult(0);
         }
     }
 
@@ -37,7 +37,7 @@ public class Client
         }
     }
 
-    public sealed class delegateI : @abstract.@delegate
+    public sealed class delegateI : @abstract.delegateDisp_
     {
         public override void foo(@abstract.casePrx @else, out int @event, Ice.Current current__)
         {
@@ -45,12 +45,12 @@ public class Client
         }
     }
 
-    public sealed class explicitI : @abstract.@explicit
+    public sealed class explicitI : @abstract.explicitDisp_
     {
-        public override void catch_async(@abstract.AMD_case_catch cb__, int @checked, Ice.Current current__)
+        public override Task<int>
+        catchAsync(int @checked,  Ice.Current current__)
         {
-            int @continue = 0;
-            cb__.ice_response(@continue);
+            return Task<int>.FromResult(0);
         }
 
         public override void @default(Ice.Current current)
@@ -113,11 +113,11 @@ public class Client
             d1.@default();
         }
         test(d1 == null);
-        @abstract.@delegate e = new delegateI();
+        @abstract.@delegate e = new @abstract.@delegate();
         test(e != null);
         @abstract.@delegatePrx e1 = null;
         test(e1 == null);
-        @abstract.@explicit f = new explicitI();
+        @abstract.@explicit f = new @abstract.@explicit();
         test(f != null);
         @abstract.@explicitPrx f1 = null;
         if(f1 != null)
@@ -126,10 +126,6 @@ public class Client
             f1.@default();
         }
         test(f1 == null);
-        @abstract.@extern l = new @abstract.@extern();
-        test(l != null);
-        @abstract.@finally g = new @abstract.@finally();
-        test(g != null);
         Dictionary<string, @abstract.@break> g2 = new Dictionary<string, @abstract.@break>();
         test(g2 != null);
         @abstract.@fixed h = new @abstract.@fixed();
@@ -150,26 +146,26 @@ public class Client
     {
         communicator.getProperties().setProperty("TestAdapter.Endpoints", "default -p 12010:udp");
         Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
-        adapter.add(new decimalI(), communicator.stringToIdentity("test"));
-        adapter.add(new Test1I(), communicator.stringToIdentity("test1"));
-        adapter.add(new Test2I(), communicator.stringToIdentity("test2"));
+        adapter.add(new decimalI(), Ice.Util.stringToIdentity("test"));
+        adapter.add(new Test1I(), Ice.Util.stringToIdentity("test1"));
+        adapter.add(new Test2I(), Ice.Util.stringToIdentity("test2"));
         adapter.activate();
 
         Console.Out.Write("testing operation name... ");
         Console.Out.Flush();
         @abstract.@decimalPrx p = @abstract.@decimalPrxHelper.uncheckedCast(
-            adapter.createProxy(communicator.stringToIdentity("test")));
+            adapter.createProxy(Ice.Util.stringToIdentity("test")));
         p.@default();
         Console.Out.WriteLine("ok");
 
         Console.Out.Write("testing System as module name... ");
         Console.Out.Flush();
         @abstract.System.TestPrx t1 = @abstract.System.TestPrxHelper.uncheckedCast(
-                adapter.createProxy(communicator.stringToIdentity("test1")));
+                adapter.createProxy(Ice.Util.stringToIdentity("test1")));
         t1.op();
 
         System.TestPrx t2 = System.TestPrxHelper.uncheckedCast(
-                adapter.createProxy(communicator.stringToIdentity("test2")));
+                adapter.createProxy(Ice.Util.stringToIdentity("test2")));
 
         t2.op();
         Console.Out.WriteLine("ok");

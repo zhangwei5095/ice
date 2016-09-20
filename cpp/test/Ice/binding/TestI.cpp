@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -18,29 +18,43 @@ RemoteCommunicatorI::RemoteCommunicatorI() : _nextPort(10001)
 {
 }
 
+#ifdef ICE_CPP11_MAPPING
+shared_ptr<Test::RemoteObjectAdapterPrx>
+RemoteCommunicatorI::createObjectAdapter(string name, string endpts, const Ice::Current& current)
+#else
 RemoteObjectAdapterPrx
 RemoteCommunicatorI::createObjectAdapter(const string& name, const string& endpts, const Current& current)
+#endif
 {
+    Ice::CommunicatorPtr com = current.adapter->getCommunicator();
+    const string defaultProtocol = com->getProperties()->getProperty("Ice.Default.Protocol");
+
     string endpoints = endpts;
-    if(endpoints.find("-p") == string::npos)
+    if(defaultProtocol != "bt")
     {
-        // Use a fixed port if none is specified (bug 2896)
-        ostringstream os;
-        os << endpoints << " -h \""
-           << (current.adapter->getCommunicator()->getProperties()->getPropertyWithDefault(
-                                                                                    "Ice.Default.Host", "127.0.0.1"))
-           << "\" -p " << _nextPort++;
-        endpoints = os.str();
+        if(endpoints.find("-p") == string::npos)
+        {
+            // Use a fixed port if none is specified (bug 2896)
+            ostringstream os;
+            os << endpoints << " -h \""
+               << (com->getProperties()->getPropertyWithDefault("Ice.Default.Host", "127.0.0.1"))
+               << "\" -p " << _nextPort++;
+            endpoints = os.str();
+        }
     }
     
-    Ice::CommunicatorPtr com = current.adapter->getCommunicator();
     com->getProperties()->setProperty(name + ".ThreadPool.Size", "1");
     ObjectAdapterPtr adapter = com->createObjectAdapterWithEndpoints(name, endpoints);
-    return RemoteObjectAdapterPrx::uncheckedCast(current.adapter->addWithUUID(new RemoteObjectAdapterI(adapter)));
+    return ICE_UNCHECKED_CAST(RemoteObjectAdapterPrx, current.adapter->addWithUUID(ICE_MAKE_SHARED(RemoteObjectAdapterI, adapter)));
 }
 
+#ifdef ICE_CPP11_MAPPING
+void
+RemoteCommunicatorI::deactivateObjectAdapter(shared_ptr<RemoteObjectAdapterPrx> adapter, const Current&)
+#else
 void
 RemoteCommunicatorI::deactivateObjectAdapter(const RemoteObjectAdapterPrx& adapter, const Current&)
+#endif
 {
     adapter->deactivate(); // Collocated call
 }
@@ -53,20 +67,21 @@ RemoteCommunicatorI::shutdown(const Ice::Current& current)
 
 RemoteObjectAdapterI::RemoteObjectAdapterI(const Ice::ObjectAdapterPtr& adapter) : 
     _adapter(adapter), 
-    _testIntf(TestIntfPrx::uncheckedCast(_adapter->add(new TestI(), 
-                                         adapter->getCommunicator()->stringToIdentity("test"))))
+    _testIntf(ICE_UNCHECKED_CAST(TestIntfPrx, 
+                    _adapter->add(ICE_MAKE_SHARED(TestI), 
+                                  stringToIdentity("test"))))
 {
     _adapter->activate();
 }
 
-TestIntfPrx
+TestIntfPrxPtr
 RemoteObjectAdapterI::getTestIntf(const Ice::Current&)
 {
     return _testIntf;
 }
 
 void
-RemoteObjectAdapterI::deactivate(const Ice::Current&)
+RemoteObjectAdapterI::deactivate(const Ice::Current& current)
 {
     try
     {

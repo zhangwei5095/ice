@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,7 +8,6 @@
 // **********************************************************************
 
 using System;
-using System.Diagnostics;
 using System.Reflection;
 
 [assembly: CLSCompliant(true)]
@@ -28,9 +27,9 @@ public class Collocated
         Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
         Ice.ObjectAdapter adapter2 = communicator.createObjectAdapter("ControllerAdapter");
 
-        adapter.add(new TestI(), communicator.stringToIdentity("test"));
+        adapter.add(new TestI(), Ice.Util.stringToIdentity("test"));
         //adapter.activate(); // Collocated test doesn't need to activate the OA
-        adapter2.add(new TestControllerI(adapter), communicator.stringToIdentity("testController"));
+        adapter2.add(new TestControllerI(adapter), Ice.Util.stringToIdentity("testController"));
         //adapter2.activate(); // Collocated test doesn't need to activate the OA
 
         AllTests.allTests(communicator, true);
@@ -47,13 +46,6 @@ public class Collocated
             Ice.InitializationData initData = new Ice.InitializationData();
             initData.properties = Ice.Util.createProperties(ref args);
             initData.properties.setProperty("Ice.Warn.AMICallback", "0");
-#if COMPACT
-            //
-            // When using Ice for .NET Compact Framework, we need to specify
-            // the assembly so that Ice can locate classes and exceptions.
-            //
-            initData.properties.setProperty("Ice.FactoryAssemblies", "collocated");
-#endif
             communicator = Ice.Util.initialize(ref args, initData);
             status = run(args, communicator);
         }

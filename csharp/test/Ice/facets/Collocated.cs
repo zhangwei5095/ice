@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,7 +8,6 @@
 // **********************************************************************
 
 using System;
-using System.Diagnostics;
 using System.Reflection;
 
 [assembly: CLSCompliant(true)]
@@ -24,12 +23,12 @@ public class Collocated
         communicator.getProperties().setProperty("TestAdapter.Endpoints", "default -p 12010");
         Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
         Ice.Object d = new DI();
-        adapter.add(d, communicator.stringToIdentity("d"));
-        adapter.addFacet(d, communicator.stringToIdentity("d"), "facetABCD");
+        adapter.add(d, Ice.Util.stringToIdentity("d"));
+        adapter.addFacet(d, Ice.Util.stringToIdentity("d"), "facetABCD");
         Ice.Object f = new FI();
-        adapter.addFacet(f, communicator.stringToIdentity("d"), "facetEF");
+        adapter.addFacet(f, Ice.Util.stringToIdentity("d"), "facetEF");
         Ice.Object h = new HI(communicator);
-        adapter.addFacet(h, communicator.stringToIdentity("d"), "facetGH");
+        adapter.addFacet(h, Ice.Util.stringToIdentity("d"), "facetGH");
 
         AllTests.allTests(communicator);
 

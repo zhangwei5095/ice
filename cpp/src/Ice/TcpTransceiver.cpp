@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -56,7 +56,7 @@ IceInternal::TcpTransceiver::read(Buffer& buf)
     return _stream->read(buf);
 }
 
-#ifdef ICE_USE_IOCP
+#if defined(ICE_USE_IOCP) || defined(ICE_OS_WINRT)
 bool
 IceInternal::TcpTransceiver::startWrite(Buffer& buf)
 {
@@ -103,17 +103,13 @@ IceInternal::TcpTransceiver::toDetailedString() const
 Ice::ConnectionInfoPtr
 IceInternal::TcpTransceiver::getInfo() const
 {
-    TCPConnectionInfoPtr info = new TCPConnectionInfo();
-    fillConnectionInfo(info);
-    return info;
-}
-
-Ice::ConnectionInfoPtr
-IceInternal::TcpTransceiver::getWSInfo(const Ice::HeaderDict& headers) const
-{
-    WSConnectionInfoPtr info = new WSConnectionInfo();
-    fillConnectionInfo(info);
-    info->headers = headers;
+    TCPConnectionInfoPtr info = ICE_MAKE_SHARED(TCPConnectionInfo);
+    fdToAddressAndPort(_stream->fd(), info->localAddress, info->localPort, info->remoteAddress, info->remotePort);
+    if(_stream->fd() != INVALID_SOCKET)
+    {
+        info->rcvSize = getRecvBufferSize(_stream->fd());
+        info->sndSize = getSendBufferSize(_stream->fd());
+    }
     return info;
 }
 
@@ -136,15 +132,4 @@ IceInternal::TcpTransceiver::TcpTransceiver(const ProtocolInstancePtr& instance,
 
 IceInternal::TcpTransceiver::~TcpTransceiver()
 {
-}
-
-void
-IceInternal::TcpTransceiver::fillConnectionInfo(const TCPConnectionInfoPtr& info) const
-{
-    fdToAddressAndPort(_stream->fd(), info->localAddress, info->localPort, info->remoteAddress, info->remotePort);
-    if(_stream->fd() != INVALID_SOCKET)
-    {
-        info->rcvSize = getRecvBufferSize(_stream->fd());
-        info->sndSize = getSendBufferSize(_stream->fd());
-    }
 }

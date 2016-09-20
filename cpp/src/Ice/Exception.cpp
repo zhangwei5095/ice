@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -12,11 +12,11 @@
 #include <Ice/Network.h>
 #include <Ice/Plugin.h>
 #include <Ice/SlicedData.h>
-#include <Ice/BasicStream.h>
-#include <Ice/Stream.h>
+#include <Ice/OutputStream.h>
+#include <Ice/InputStream.h>
 #include <IceUtil/StringUtil.h>
 #ifdef ICE_OS_WINRT
-#    include <IceUtil/StringConverter.h>
+#    include <Ice/StringConverter.h>
 #endif
 #include <iomanip>
 
@@ -48,9 +48,9 @@ socketErrorToString(int error)
         // Don't need to use a wide string converter as the wide string come
         // from Windows API.
         //
-        return IceUtil::wstringToString(
+        return wstringToString(
             static_cast<Windows::Networking::Sockets::SocketErrorStatus>(error).ToString()->Data(),
-            IceUtil::getProcessStringConverter());
+            getProcessStringConverter());
     }
 #else
     return IceUtilInternal::errorToString(error);
@@ -66,17 +66,17 @@ namespace Ex
 {
 
 void
-throwUOE(const string& expectedType, const ObjectPtr& v)
+throwUOE(const string& expectedType, const ValuePtr& v)
 {
     //
     // If the object is an unknown sliced object, we didn't find an
-    // object factory, in this case raise a NoObjectFactoryException
+    // value factory, in this case raise a NoValueFactoryException
     // instead.
     //
-    UnknownSlicedObject* uso = dynamic_cast<UnknownSlicedObject*>(v.get());
-    if(uso)
+    UnknownSlicedValue* usv = dynamic_cast<UnknownSlicedValue*>(v.get());
+    if(usv)
     {
-        throw NoObjectFactoryException(__FILE__, __LINE__, "", uso->getUnknownTypeId());
+        throw NoValueFactoryException(__FILE__, __LINE__, "", usv->getUnknownTypeId());
     }
 
     string type = v->ice_id();
@@ -102,24 +102,32 @@ throwMarshalException(const char* file, int line, const string& reason)
 }
 }
 
-void
-Ice::UserException::__write(::IceInternal::BasicStream* os) const
+namespace
 {
-    os->startWriteException(0);
-    __writeImpl(os);
-    os->endWriteException();
+
+const string __Ice__UserException_ids[] =
+{
+    "::Ice::UserException"
+};
+
 }
 
-void
-Ice::UserException::__read(::IceInternal::BasicStream* is)
+const std::string&
+Ice::UserException::ice_staticId()
 {
-    is->startReadException();
-    __readImpl(is);
-    is->endReadException(false);
+    return __Ice__UserException_ids[0];
 }
 
+#ifdef ICE_CPP11_MAPPING
+unique_ptr<Ice::UserException>
+Ice::UserException::ice_clone() const
+{
+    return unique_ptr<UserException>(static_cast<UserException*>(ice_cloneImpl()));
+}
+#endif
+
 void
-Ice::UserException::__write(const Ice::OutputStreamPtr& os) const
+Ice::UserException::__write(::Ice::OutputStream* os) const
 {
     os->startException(0);
     __writeImpl(os);
@@ -127,23 +135,11 @@ Ice::UserException::__write(const Ice::OutputStreamPtr& os) const
 }
 
 void
-Ice::UserException::__read(const Ice::InputStreamPtr& is)
+Ice::UserException::__read(::Ice::InputStream* is)
 {
     is->startException();
     __readImpl(is);
     is->endException(false);
-}
-
-void
-Ice::UserException::__writeImpl(const Ice::OutputStreamPtr&) const
-{
-    throw MarshalException(__FILE__, __LINE__, "user exception was not generated with stream support");
-}
-
-void
-Ice::UserException::__readImpl(const Ice::InputStreamPtr&)
-{
-    throw MarshalException(__FILE__, __LINE__, "user exception was not generated with stream support");
 }
 
 bool
@@ -157,8 +153,36 @@ Ice::LocalException::LocalException(const char* file, int line) :
 {
 }
 
-Ice::LocalException::~LocalException() throw()
+Ice::LocalException::~LocalException()
+#ifndef ICE_CPP11_COMPILER
+    throw()
+#endif
 {
+   // Out of line to avoid weak vtable
+}
+
+#ifdef ICE_CPP11_MAPPING
+unique_ptr<Ice::LocalException>
+Ice::LocalException::ice_clone() const
+{
+    return unique_ptr<LocalException>(static_cast<LocalException*>(ice_cloneImpl()));
+}
+#endif
+
+namespace
+{
+
+const string __Ice__LocalException_ids[] =
+{
+    "::Ice::LocalException"
+};
+
+}
+
+const std::string&
+Ice::LocalException::ice_staticId()
+{
+    return __Ice__LocalException_ids[0];
 }
 
 Ice::SystemException::SystemException(const char* file, int line) :
@@ -166,32 +190,36 @@ Ice::SystemException::SystemException(const char* file, int line) :
 {
 }
 
-Ice::SystemException::~SystemException() throw()
+Ice::SystemException::~SystemException()
+#ifndef ICE_CPP11_COMPILER
+    throw()
+#endif
 {
 }
 
-#if defined(__SUNPRO_CC)
-ostream&
-Ice::operator<<(ostream& out, const Ice::UserException& ex)
+#ifdef ICE_CPP11_MAPPING
+unique_ptr<Ice::SystemException>
+Ice::SystemException::ice_clone() const
 {
-    ex.ice_print(out);
-    return out;
-}
-
-ostream&
-Ice::operator<<(ostream& out, const Ice::LocalException& ex)
-{
-    ex.ice_print(out);
-    return out;
-}
-
-ostream&
-Ice::operator<<(ostream& out, const Ice::SystemException& ex)
-{
-    ex.ice_print(out);
-    return out;
+    return unique_ptr<SystemException>(static_cast<SystemException*>(ice_cloneImpl()));
 }
 #endif
+
+namespace
+{
+
+const string __Ice__SystemException_ids[] =
+{
+    "::Ice::SystemException"
+};
+
+}
+
+const std::string&
+Ice::SystemException::ice_staticId()
+{
+    return __Ice__SystemException_ids[0];
+}
 
 void
 Ice::InitializationException::ice_print(ostream& out) const
@@ -698,7 +726,7 @@ Ice::UnmarshalOutOfBoundsException::ice_print(ostream& out) const
 }
 
 void
-Ice::NoObjectFactoryException::ice_print(ostream& out) const
+Ice::NoValueFactoryException::ice_print(ostream& out) const
 {
     Exception::ice_print(out);
     out << ":\nprotocol error: no suitable object factory found for `" << type << "'";
@@ -831,11 +859,9 @@ Ice::ResponseSentException::ice_print(ostream& out) const
     out << ":\nresponse sent exception";
 }
 
-#ifdef ICE_USE_CFSTREAM
 void
 Ice::CFNetworkException::ice_print(ostream& out) const
 {
     Exception::ice_print(out);
     out << ":\nnetwork exception: domain: " << domain << " error: " << error;
 }
-#endif

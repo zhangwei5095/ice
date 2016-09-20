@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,6 +9,8 @@
 
 #ifndef ICE_COMMUNICATOR_ASYNC_H
 #define ICE_COMMUNICATOR_ASYNC_H
+
+#ifndef ICE_CPP11_MAPPING
 
 #include <Ice/Communicator.h>
 
@@ -111,5 +113,6 @@ newCallback_Communicator_flushBatchRequests(T* instance, void (T::*excb)(const :
 }
 
 }
+#endif
 
 #endif

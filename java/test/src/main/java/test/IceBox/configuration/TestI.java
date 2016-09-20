@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,27 +9,23 @@
 
 package test.IceBox.configuration;
 
-import test.IceBox.configuration.Test._TestIntfDisp;
+import test.IceBox.configuration.Test.TestIntf;
 
-
-public class TestI extends _TestIntfDisp
+public class TestI implements TestIntf
 {
-    public
-    TestI(String[] args)
+    public TestI(String[] args)
     {
         _args = args;
     }
 
     @Override
-    public String
-    getProperty(String name, Ice.Current current)
+    public String getProperty(String name, com.zeroc.Ice.Current current)
     {
         return current.adapter.getCommunicator().getProperties().getProperty(name);
     }
     
     @Override
-    public String[]
-    getArgs(Ice.Current current)
+    public String[] getArgs(com.zeroc.Ice.Current current)
     {
         return _args;
     }

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,8 +9,6 @@
 
 namespace IceInternal
 {
-
-    using System.Collections;
     using System.Collections.Generic;
     using System.Diagnostics;
 
@@ -97,15 +95,18 @@ namespace IceInternal
                 return;
             }
 
-            _router.begin_getClientProxy().whenCompleted(
-                (Ice.ObjectPrx proxy) => 
+            _router.getClientProxyAsync().ContinueWith(
+                (t) =>
                 {
-                    callback.setEndpoints(setClientEndpoints(proxy));
-                },
-                (Ice.Exception ex) => 
-                {
-                    Debug.Assert(ex is Ice.LocalException);
-                    callback.setException((Ice.LocalException)ex);
+                    try
+                    {
+                        callback.setEndpoints(setClientEndpoints(t.Result));
+                    }
+                    catch(System.AggregateException ae)
+                    {
+                        Debug.Assert(ae.InnerException is Ice.LocalException);
+                        callback.setException((Ice.LocalException)ae.InnerException);
+                    }
                 });
         }
 
@@ -153,18 +154,21 @@ namespace IceInternal
                     return true;
                 }
             }
-            _router.begin_addProxies(new Ice.ObjectPrx[] { proxy }).whenCompleted(
-                (Ice.ObjectPrx[] evictedProxies) => 
+
+            _router.addProxiesAsync(new Ice.ObjectPrx[] { proxy }).ContinueWith(
+                (t) =>
                 {
-                    addAndEvictProxies(proxy, evictedProxies);
-                    callback.addedProxy();
-                },
-                (Ice.Exception ex) => 
-                {
-                    Debug.Assert(ex is Ice.LocalException);
-                    callback.setException((Ice.LocalException)ex);
+                    try
+                    {
+                        addAndEvictProxies(proxy, t.Result);
+                        callback.addedProxy();
+                    }
+                    catch(System.AggregateException ae)
+                    {
+                        Debug.Assert(ae.InnerException is Ice.LocalException);
+                        callback.setException((Ice.LocalException)ae.InnerException);
+                    }
                 });
-            
             return false;
         }
 

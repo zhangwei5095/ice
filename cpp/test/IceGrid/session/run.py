@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -36,11 +36,13 @@ else:
 
 print("Running test with default encoding...")
 
+verifier = os.path.join(os.getcwd(), TestUtil.getTestExecutable("verifier"))
 sys.stdout.write("starting admin permissions verifier... ")
-verifierProc = TestUtil.startServer(os.path.join(os.getcwd(), "verifier"), config=TestUtil.DriverConfig("server"))
+verifierProc = TestUtil.startServer(verifier, config=TestUtil.DriverConfig("server"))
 print("ok")
 
 IceGridAdmin.registryOptions += \
+                             r' --Ice.Warn.Dispatch=0' + \
                              r' --IceGrid.Registry.DynamicRegistration' + \
                              r' --IceGrid.Registry.SessionFilters' + \
                              r' --IceGrid.Registry.AdminSessionFilters' + \
@@ -49,20 +51,24 @@ IceGridAdmin.registryOptions += \
                              r' --IceGrid.Registry.SSLPermissionsVerifier="SSLPermissionsVerifier"' + \
                              r' --IceGrid.Registry.AdminSSLPermissionsVerifier="SSLPermissionsVerifier"'
 
+bindir = TestUtil.getCppBinDir()
+testdir = os.getcwd()
+serverdir = TestUtil.getTestDirectory("server")
+
 IceGridAdmin.iceGridTest("application.xml",
-    '--IceBinDir="%s" --TestDir="%s"' % (TestUtil.getCppBinDir(), os.getcwd()),
-    'properties-override=\'%s\'' % IceGridAdmin.iceGridNodePropertiesOverride())
+    '--IceBinDir="%s" --TestDir="%s" --ServerDir="%s"' % (bindir, testdir, serverdir),
+    'properties-override=\'%s\' server.dir="%s"' % (IceGridAdmin.iceGridNodePropertiesOverride(), serverdir))
 
 verifierProc.waitTestSuccess()
 
 print("Running test with 1.0 encoding...")
 
 sys.stdout.write("starting admin permissions verifier... ")
-verifierProc = TestUtil.startServer(os.path.join(os.getcwd(), "verifier"), config=TestUtil.DriverConfig("server"))
+verifierProc = TestUtil.startServer(verifier, config=TestUtil.DriverConfig("server"))
 print("ok")
 
 IceGridAdmin.iceGridTest("application.xml",
-    '--Ice.Default.EncodingVersion=1.0 --IceBinDir="%s" --TestDir="%s"' % (TestUtil.getCppBinDir(), os.getcwd()),
-    'properties-override=\'%s\'' % IceGridAdmin.iceGridNodePropertiesOverride())
+    '--Ice.Default.EncodingVersion=1.0 --IceBinDir="%s" --TestDir="%s" --ServerDir="%s"' % (bindir, testdir, serverdir),
+    'properties-override=\'%s\' server.dir="%s"' % (IceGridAdmin.iceGridNodePropertiesOverride(), serverdir))
 
 verifierProc.waitTestSuccess()

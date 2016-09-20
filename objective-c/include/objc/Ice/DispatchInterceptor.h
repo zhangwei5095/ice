@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -10,7 +10,7 @@
 #import <objc/Ice/Object.h>
 
 ICE_API @protocol ICEDispatchInterceptor <ICEObject>
--(BOOL) dispatch:(id<ICERequest>)request;
+-(void) dispatch:(id<ICERequest>)request;
 @end
 
 ICE_API @interface ICEDispatchInterceptor : ICEServant

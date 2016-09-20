@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -11,7 +11,6 @@
 {
     var Ice = require("ice").Ice;
     var Test = require("Test").Test;
-    var TestAMD = require("TestAMD").TestAMD;
 
     var Promise = Ice.Promise;
 
@@ -30,18 +29,18 @@
                     {
                         if(amd)
                         {
-                            adapter.add(new AMDThrowerI(), communicator.stringToIdentity("thrower"));
+                            adapter.add(new AMDThrowerI(), Ice.stringToIdentity("thrower"));
                         }
                         else
                         {
-                            adapter.add(new ThrowerI(), communicator.stringToIdentity("thrower"));
+                            adapter.add(new ThrowerI(), Ice.stringToIdentity("thrower"));
                         }
                         var base = communicator.stringToProxy("thrower:default -p 12010");
                         return base.ice_getConnection().then(
                             function(conn)
                             {
                                 conn.setAdapter(adapter);
-                                return Client.__clientAllTests__(out, communicator, amd ? TestAMD : Test, true);
+                                return Client.__clientAllTests__(out, communicator, Test, true);
                             });
                     });
             });

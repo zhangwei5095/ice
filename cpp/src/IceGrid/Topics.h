@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -13,13 +13,13 @@
 #include <IceUtil/Mutex.h>
 #include <IceStorm/IceStorm.h>
 #include <IceGrid/Internal.h>
-#include <IceGrid/Observer.h>
+#include <IceGrid/Registry.h>
 #include <set>
 
 namespace IceGrid
 {
 
-class ObserverTopic : public IceUtil::Monitor<IceUtil::Mutex>, virtual public Ice::Object
+class ObserverTopic : public IceUtil::Monitor<IceUtil::Mutex>, public virtual Ice::Object
 {
 public:
 

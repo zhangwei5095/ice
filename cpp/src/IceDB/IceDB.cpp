@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,14 +9,11 @@
 
 #include <IceDB/IceDB.h>
 #include <Ice/Initialize.h>
-#include <Ice/Stream.h>
 
 #include <lmdb.h>
 
 using namespace IceDB;
 using namespace std;
-
-const char* IceDB::LMDBException::_name = "IceDB::LMDBException";
 
 LMDBException::LMDBException(const char* file, int line, int err) :
     IceUtil::Exception(file, line),
@@ -24,14 +21,16 @@ LMDBException::LMDBException(const char* file, int line, int err) :
 {
 }
 
+#ifndef ICE_CPP11_COMPILER
 LMDBException::~LMDBException() throw()
 {
 }
+#endif
 
 string
-LMDBException::ice_name() const
+LMDBException::ice_id() const
 {
-    return _name;
+    return "::IceDB::LMDBException";
 }
 
 void
@@ -41,11 +40,13 @@ LMDBException::ice_print(ostream& out) const
     out << ": " << mdb_strerror(_error);
 }
 
+#ifndef ICE_CPP11_MAPPING
 LMDBException*
 LMDBException::ice_clone() const
 {
     return new LMDBException(*this);
 }
+#endif
 
 void
 LMDBException::ice_throw() const
@@ -59,22 +60,22 @@ LMDBException::error() const
     return _error;
 }
 
-const char* IceDB::KeyTooLongException::_name = "IceDB::KeyTooLongException";
-
 KeyTooLongException::KeyTooLongException(const char* file, int line, size_t size) :
     IceUtil::Exception(file, line),
     _size(size)
 {
 }
 
+#ifndef ICE_CPP11_COMPILER
 KeyTooLongException::~KeyTooLongException() throw()
 {
 }
+#endif
 
 string
-KeyTooLongException::ice_name() const
+KeyTooLongException::ice_id() const
 {
-    return _name;
+    return "::IceDB::KeyTooLongException";
 }
 
 void
@@ -89,11 +90,13 @@ KeyTooLongException::ice_print(ostream& out) const
     out << "Max size = " << maxKeySize;
 }
 
+#ifndef ICE_CPP11_MAPPING
 KeyTooLongException*
 KeyTooLongException::ice_clone() const
 {
     return new KeyTooLongException(*this);
 }
+#endif
 
 void
 KeyTooLongException::ice_throw() const
@@ -101,22 +104,22 @@ KeyTooLongException::ice_throw() const
     throw *this;
 }
 
-const char* IceDB::BadEnvException::_name = "IceDB::BadEnvException";
-
 BadEnvException::BadEnvException(const char* file, int line, size_t size) :
     IceUtil::Exception(file, line),
     _size(size)
 {
 }
 
+#ifndef ICE_CPP11_COMPILER
 BadEnvException::~BadEnvException() throw()
 {
 }
+#endif
 
 string
-BadEnvException::ice_name() const
+BadEnvException::ice_id() const
 {
-    return _name;
+    return "::IceDB::BadEnvException";
 }
 
 void
@@ -127,11 +130,13 @@ BadEnvException::ice_print(ostream& out) const
     out << ", IceDB max key size = " << maxKeySize;
 }
 
+#ifndef ICE_CPP11_MAPPING
 BadEnvException*
 BadEnvException::ice_clone() const
 {
     return new BadEnvException(*this);
 }
+#endif
 
 void
 BadEnvException::ice_throw() const
@@ -234,7 +239,7 @@ Txn::Txn(const Env& env, unsigned int flags)
 
 Txn::~Txn()
 {
-    abort();
+    rollback();
 }
 
 void
@@ -249,7 +254,7 @@ Txn::commit()
 }
 
 void
-Txn::abort()
+Txn::rollback()
 {
     if(_mtxn != 0)
     {
@@ -262,6 +267,11 @@ MDB_txn*
 Txn::mtxn() const
 {
     return _mtxn;
+}
+
+ReadOnlyTxn::~ReadOnlyTxn()
+{
+    // Out of line to avoid weak vtable
 }
 
 ReadOnlyTxn::ReadOnlyTxn(const Env& env) :
@@ -283,6 +293,11 @@ ReadOnlyTxn::renew()
     {
         throw LMDBException(__FILE__, __LINE__, rc);
     }
+}
+
+ReadWriteTxn::~ReadWriteTxn()
+{
+    // Out of line to avoid weak vtable
 }
 
 ReadWriteTxn::ReadWriteTxn(const Env& env) :
@@ -472,3 +487,22 @@ CursorBase::renew(const ReadOnlyTxn& txn)
 }
 
 
+//
+// On Windows, we use a default LMDB map size of 10MB, whereas on other platforms
+// (Linux, OS X), we use a default of 100MB.
+//
+// On Windows, LMDB does not use sparse files and allocates immediately the file
+// with the given (max) size. This is why we need a fairly small default map size
+// on Windows, and a larger value on other platforms.
+
+size_t
+IceDB::getMapSize(int configValue)
+{
+#ifdef _WIN32
+    const size_t defaultMapSize = 10;
+#else
+    const size_t defaultMapSize = 100;
+#endif
+
+   return ((configValue <= 0) ? defaultMapSize : configValue) * 1024 * 1024;
+}

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -28,10 +28,10 @@ def run(args, communicator):
 
     testController = TestI.TestIntfControllerI(adapter)
 
-    adapter.add(TestI.TestIntfI(), communicator.stringToIdentity("test"))
+    adapter.add(TestI.TestIntfI(), Ice.stringToIdentity("test"))
     adapter.activate()
 
-    adapter2.add(testController, communicator.stringToIdentity("testController"))
+    adapter2.add(testController, Ice.stringToIdentity("testController"))
     adapter2.activate()
 
     communicator.waitForShutdown()

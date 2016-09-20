@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -55,7 +55,7 @@ PersistentInstance::PersistentInstance(
     Instance(instanceName, name, communicator, publishAdapter, topicAdapter, nodeAdapter, nodeProxy),
     _dbLock(communicator->getProperties()->getPropertyWithDefault(name + ".LMDB.Path", name) + "/icedb.lock"),
     _dbEnv(communicator->getProperties()->getPropertyWithDefault(name + ".LMDB.Path", name), 2,
-           communicator->getProperties()->getPropertyAsInt(name + ".LMDB.MapSize") * 1024 * 1024)
+           IceDB::getMapSize(communicator->getProperties()->getPropertyAsInt(name + ".LMDB.MapSize")))
 {
     try
     {
@@ -318,4 +318,10 @@ Instance::destroy()
     // replica (TopicManager) which holds the instance causing a
     // cyclic reference.
     _node = 0;
+    //
+    // The observer instance must be cleared as it holds the
+    // TopicManagerImpl which hodlds the instance causing a 
+    // cyclic reference.
+    //
+    _observer = 0;
 }

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -71,6 +71,438 @@ typeToBufferString(const TypePtr& type)
         return builtinBufferTable[builtin->kind()];
     }
 }
+
+string
+lookupKwd(const string& name)
+{
+    //
+    // Keyword list. *Must* be kept in alphabetical order. Note that checkedCast and uncheckedCast
+    // are not Java keywords, but are in this list to prevent illegal code being generated if
+    // someone defines Slice operations with that name.
+    //
+    // NOTE: Any changes made to this list must also be made in BasicStream.java.
+    //
+    static const string keywordList[] =
+    {
+        "abstract", "assert", "boolean", "break", "byte", "case", "catch",
+        "char", "checkedCast", "class", "clone", "const", "continue", "default", "do",
+        "double", "else", "enum", "equals", "extends", "false", "final", "finalize",
+        "finally", "float", "for", "getClass", "goto", "hashCode", "if",
+        "implements", "import", "instanceof", "int", "interface", "long",
+        "native", "new", "notify", "notifyAll", "null", "package", "private",
+        "protected", "public", "return", "short", "static", "strictfp", "super", "switch",
+        "synchronized", "this", "throw", "throws", "toString", "transient",
+        "true", "try", "uncheckedCast", "void", "volatile", "wait", "while"
+    };
+    bool found =  binary_search(&keywordList[0],
+                                &keywordList[sizeof(keywordList) / sizeof(*keywordList)],
+                                name);
+    return found ? "_" + name : name;
+}
+
+//
+// Split a scoped name into its components and return the components as a list of (unscoped) identifiers.
+//
+static StringList
+splitScopedName(const string& scoped)
+{
+    assert(scoped[0] == ':');
+    StringList ids;
+    string::size_type next = 0;
+    string::size_type pos;
+    while((pos = scoped.find("::", next)) != string::npos)
+    {
+        pos += 2;
+        if(pos != scoped.size())
+        {
+            string::size_type endpos = scoped.find("::", pos);
+            if(endpos != string::npos)
+            {
+                ids.push_back(scoped.substr(pos, endpos - pos));
+            }
+        }
+        next = pos;
+    }
+    if(next != scoped.size())
+    {
+        ids.push_back(scoped.substr(next));
+    }
+    else
+    {
+        ids.push_back("");
+    }
+
+    return ids;
+}
+
+class MetaDataVisitor : public ParserVisitor
+{
+public:
+
+    virtual bool visitUnitStart(const UnitPtr& p)
+    {
+        static const string prefix = "java:";
+
+        //
+        // Validate global metadata in the top-level file and all included files.
+        //
+        StringList files = p->allFiles();
+
+        for(StringList::iterator q = files.begin(); q != files.end(); ++q)
+        {
+            string file = *q;
+            DefinitionContextPtr dc = p->findDefinitionContext(file);
+            assert(dc);
+            StringList globalMetaData = dc->getMetaData();
+            for(StringList::const_iterator r = globalMetaData.begin(); r != globalMetaData.end(); ++r)
+            {
+                string s = *r;
+                if(_history.count(s) == 0)
+                {
+                    if(s.find(prefix) == 0)
+                    {
+                        bool ok = false;
+
+                        static const string packagePrefix = "java:package:";
+                        if(s.find(packagePrefix) == 0 && s.size() > packagePrefix.size())
+                        {
+                            ok = true;
+                        }
+
+                        if(!ok)
+                        {
+                            emitWarning(file, "",  "ignoring invalid global metadata `" + s + "'");
+                        }
+                    }
+                    _history.insert(s);
+                }
+            }
+        }
+        return true;
+    }
+
+    virtual bool visitModuleStart(const ModulePtr& p)
+    {
+        StringList metaData = getMetaData(p);
+        validateType(p, metaData, p->file(), p->line());
+        validateGetSet(p, metaData, p->file(), p->line());
+        return true;
+    }
+
+    virtual void visitClassDecl(const ClassDeclPtr& p)
+    {
+        StringList metaData = getMetaData(p);
+        validateType(p, metaData, p->file(), p->line());
+        validateGetSet(p, metaData, p->file(), p->line());
+    }
+
+    virtual bool visitClassDefStart(const ClassDefPtr& p)
+    {
+        StringList metaData = getMetaData(p);
+        validateType(p, metaData, p->file(), p->line());
+        validateGetSet(p, metaData, p->file(), p->line());
+        return true;
+    }
+
+    virtual bool visitExceptionStart(const ExceptionPtr& p)
+    {
+        StringList metaData = getMetaData(p);
+        validateType(p, metaData, p->file(), p->line());
+        validateGetSet(p, metaData, p->file(), p->line());
+        return true;
+    }
+
+    virtual bool visitStructStart(const StructPtr& p)
+    {
+        StringList metaData = getMetaData(p);
+        validateType(p, metaData, p->file(), p->line());
+        validateGetSet(p, metaData, p->file(), p->line());
+        return true;
+    }
+
+    virtual void visitOperation(const OperationPtr& p)
+    {
+        if(p->hasMetaData("UserException"))
+        {
+            ClassDefPtr cl = ClassDefPtr::dynamicCast(p->container());
+            if(!cl->isLocal())
+            {
+                ostringstream os;
+                os << "ignoring invalid metadata `UserException': directive applies only to local operations "
+                   << "but enclosing " << (cl->isInterface() ? "interface" : "class") << " `" << cl->name()
+                   << "' is not local";
+                emitWarning(p->file(), p->line(), os.str());
+            }
+        }
+        StringList metaData = getMetaData(p);
+        TypePtr returnType = p->returnType();
+        if(!metaData.empty())
+        {
+            if(!returnType)
+            {
+                for(StringList::const_iterator q = metaData.begin(); q != metaData.end(); ++q)
+                {
+                    if(q->find("java:type:", 0) == 0)
+                    {
+                        emitWarning(p->file(), p->line(), "ignoring invalid metadata `" + *q +
+                                    "' for operation with void return type");
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                validateType(returnType, metaData, p->file(), p->line());
+            }
+        }
+
+        ParamDeclList params = p->parameters();
+        for(ParamDeclList::iterator q = params.begin(); q != params.end(); ++q)
+        {
+            metaData = getMetaData(*q);
+            validateType((*q)->type(), metaData, p->file(), (*q)->line());
+        }
+
+        validateGetSet(p, metaData, p->file(), p->line());
+    }
+
+    virtual void visitDataMember(const DataMemberPtr& p)
+    {
+        StringList metaData = getMetaData(p);
+        validateType(p->type(), metaData, p->file(), p->line());
+        validateGetSet(p, metaData, p->file(), p->line());
+    }
+
+    virtual void visitSequence(const SequencePtr& p)
+    {
+        static const string protobuf = "java:protobuf:";
+        static const string serializable = "java:serializable:";
+        static const string bytebuffer = "java:buffer";
+        StringList metaData = getMetaData(p);
+        const string file =  p->file();
+        const string line = p->line();
+        for(StringList::const_iterator q = metaData.begin(); q != metaData.end(); )
+        {
+            string s = *q++;
+            if(_history.count(s) == 0) // Don't complain about the same metadata more than once.
+            {
+                if(s.find(protobuf) == 0 || s.find(serializable) == 0)
+                {
+                    //
+                    // Remove from list so validateType does not try to handle as well.
+                    //
+                    metaData.remove(s);
+
+                    BuiltinPtr builtin = BuiltinPtr::dynamicCast(p->type());
+                    if(!builtin || builtin->kind() != Builtin::KindByte)
+                    {
+                        _history.insert(s);
+                        emitWarning(file, line, "ignoring invalid metadata `" + s + "': " +
+                                    "this metadata can only be used with a byte sequence");
+                    }
+                }
+                else if(s.find(bytebuffer) == 0)
+                {
+                    metaData.remove(s);
+
+                    BuiltinPtr builtin = BuiltinPtr::dynamicCast(p->type());
+                    if(!builtin ||
+                       (builtin->kind() != Builtin::KindByte && builtin->kind() != Builtin::KindShort &&
+                        builtin->kind() != Builtin::KindInt && builtin->kind() != Builtin::KindLong &&
+                        builtin->kind() != Builtin::KindFloat && builtin->kind() != Builtin::KindDouble))
+                    {
+                        _history.insert(s);
+                        emitWarning(file, line, "ignoring invalid metadata `" + s + "': " +
+                                    "this metadata can not be used with this type");
+                    }
+                }
+            }
+        }
+
+        validateType(p, metaData, file, line);
+        validateGetSet(p, metaData, file, line);
+    }
+
+    virtual void visitDictionary(const DictionaryPtr& p)
+    {
+        StringList metaData = getMetaData(p);
+        validateType(p, metaData, p->file(), p->line());
+        validateGetSet(p, metaData, p->file(), p->line());
+    }
+
+    virtual void visitEnum(const EnumPtr& p)
+    {
+        StringList metaData = getMetaData(p);
+        validateType(p, metaData, p->file(), p->line());
+        validateGetSet(p, metaData, p->file(), p->line());
+    }
+
+    virtual void visitConst(const ConstPtr& p)
+    {
+        StringList metaData = getMetaData(p);
+        validateType(p, metaData, p->file(), p->line());
+        validateGetSet(p, metaData, p->file(), p->line());
+    }
+
+private:
+
+    StringList getMetaData(const ContainedPtr& cont)
+    {
+        static const string prefix = "java:";
+
+        StringList metaData = cont->getMetaData();
+        StringList result;
+
+        for(StringList::const_iterator p = metaData.begin(); p != metaData.end(); ++p)
+        {
+            string s = *p;
+            if(_history.count(s) == 0) // Don't complain about the same metadata more than once.
+            {
+                if(s.find(prefix) == 0)
+                {
+                    string::size_type pos = s.find(':', prefix.size());
+                    if(pos == string::npos)
+                    {
+                        if(s.size() > prefix.size())
+                        {
+                            string rest = s.substr(prefix.size());
+                            if(rest == "getset")
+                            {
+                                result.push_back(s);
+                            }
+                            else if(rest == "buffer")
+                            {
+                                result.push_back(s);
+                            }
+                            continue;
+                        }
+                    }
+                    else if(s.substr(prefix.size(), pos - prefix.size()) == "type")
+                    {
+                        result.push_back(s);
+                        continue;
+                    }
+                    else if(s.substr(prefix.size(), pos - prefix.size()) == "serializable")
+                    {
+                        result.push_back(s);
+                        continue;
+                    }
+                    else if(s.substr(prefix.size(), pos - prefix.size()) == "protobuf")
+                    {
+                        result.push_back(s);
+                        continue;
+                    }
+                    else if(s.substr(prefix.size(), pos - prefix.size()) == "serialVersionUID")
+                    {
+                        result.push_back(s);
+                        continue;
+                    }
+
+                    emitWarning(cont->file(), cont->line(), "ignoring invalid metadata `" + s + "'");
+                }
+                else if(s == "delegate")
+                {
+                    result.push_back(s);
+                    continue;
+                }
+
+                _history.insert(s);
+            }
+        }
+
+        return result;
+    }
+
+    void validateType(const SyntaxTreeBasePtr& p, const StringList& metaData, const string& file, const string& line)
+    {
+        for(StringList::const_iterator i = metaData.begin(); i != metaData.end(); ++i)
+        {
+            //
+            // Type metadata ("java:type:Foo") is only supported by sequences and dictionaries.
+            //
+            if(i->find("java:type:", 0) == 0 && (!SequencePtr::dynamicCast(p) && !DictionaryPtr::dynamicCast(p)))
+            {
+                string str;
+                ContainedPtr cont = ContainedPtr::dynamicCast(p);
+                if(cont)
+                {
+                    str = cont->kindOf();
+                }
+                else
+                {
+                    BuiltinPtr b = BuiltinPtr::dynamicCast(p);
+                    assert(b);
+                    str = b->typeId();
+                }
+                emitWarning(file, line, "invalid metadata for " + str);
+            }
+            else if(i->find("java:buffer") == 0)
+            {
+                SequencePtr seq = SequencePtr::dynamicCast(p);
+                if(seq)
+                {
+                    BuiltinPtr builtin = BuiltinPtr::dynamicCast(seq->type());
+                    if(builtin &&
+                       (builtin->kind() == Builtin::KindByte || builtin->kind() == Builtin::KindShort ||
+                        builtin->kind() == Builtin::KindInt || builtin->kind() == Builtin::KindLong ||
+                        builtin->kind() == Builtin::KindFloat || builtin->kind() == Builtin::KindDouble))
+                    {
+                        continue;
+                    }
+
+                }
+                emitWarning(file, line, "ignoring invalid metadata `" + *i + "'");
+            }
+            else if(i->find("java:protobuf:") == 0 || i->find("java:serializable:") == 0)
+            {
+                //
+                // Only valid in sequence defintion which is checked in visitSequence
+                //
+                emitWarning(file, line, "ignoring invalid metadata `" + *i + "'");
+            }
+            else if(i->find("delegate") == 0)
+            {
+                ClassDefPtr cl = ClassDefPtr::dynamicCast(p);
+                if(cl && cl->isDelegate())
+                {
+                    continue;
+                }
+                emitWarning(file, line, "ignoring invalid metadata `" + *i + "'");
+            }
+        }
+    }
+
+    void validateGetSet(const SyntaxTreeBasePtr& p, const StringList& metaData, const string& file, const string& line)
+    {
+        for(StringList::const_iterator i = metaData.begin(); i != metaData.end(); ++i)
+        {
+            //
+            // The "getset" metadata can only be specified on a class, struct, exception or data member.
+            //
+            if((*i) == "java:getset" &&
+               (!ClassDefPtr::dynamicCast(p) && !StructPtr::dynamicCast(p) && !ExceptionPtr::dynamicCast(p) &&
+                !DataMemberPtr::dynamicCast(p)))
+            {
+                string str;
+                ContainedPtr cont = ContainedPtr::dynamicCast(p);
+                if(cont)
+                {
+                    str = cont->kindOf();
+                }
+                else
+                {
+                    BuiltinPtr b = BuiltinPtr::dynamicCast(p);
+                    assert(b);
+                    str = b->typeId();
+                }
+                emitWarning(file, line, "invalid metadata for " + str);
+            }
+        }
+    }
+
+    StringSet _history;
+};
+
 }
 
 long
@@ -161,8 +593,6 @@ Slice::computeSerialVersionUUID(const ExceptionPtr& p)
     hashAdd(hashCode, data);
     return hashCode;
 }
-
-
 
 Slice::JavaOutput::JavaOutput()
 {
@@ -286,7 +716,7 @@ Slice::JavaOutput::printHeader()
     static const char* header =
 "// **********************************************************************\n"
 "//\n"
-"// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.\n"
+"// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.\n"
 "//\n"
 "// This copy of Ice is licensed to you under the terms described in the\n"
 "// ICE_LICENSE file included in this distribution.\n"
@@ -302,15 +732,15 @@ Slice::JavaOutput::printHeader()
     print("//\n");
 }
 
-const string Slice::JavaGenerator::_getSetMetaData = "java:getset";
+const string Slice::JavaCompatGenerator::_getSetMetaData = "java:getset";
 
-Slice::JavaGenerator::JavaGenerator(const string& dir) :
+Slice::JavaCompatGenerator::JavaCompatGenerator(const string& dir) :
     _dir(dir),
     _out(0)
 {
 }
 
-Slice::JavaGenerator::~JavaGenerator()
+Slice::JavaCompatGenerator::~JavaCompatGenerator()
 {
     // If open throws an exception other generators could be left open
     // during the stack unwind.
@@ -322,7 +752,7 @@ Slice::JavaGenerator::~JavaGenerator()
 }
 
 void
-Slice::JavaGenerator::open(const string& absolute, const string& file)
+Slice::JavaCompatGenerator::open(const string& absolute, const string& file)
 {
     assert(_out == 0);
 
@@ -340,7 +770,7 @@ Slice::JavaGenerator::open(const string& absolute, const string& file)
 }
 
 void
-Slice::JavaGenerator::close()
+Slice::JavaCompatGenerator::close()
 {
     assert(_out != 0);
     *_out << nl;
@@ -349,73 +779,10 @@ Slice::JavaGenerator::close()
 }
 
 Output&
-Slice::JavaGenerator::output() const
+Slice::JavaCompatGenerator::output() const
 {
     assert(_out != 0);
     return *_out;
-}
-
-static string
-lookupKwd(const string& name)
-{
-    //
-    // Keyword list. *Must* be kept in alphabetical order. Note that checkedCast and uncheckedCast
-    // are not Java keywords, but are in this list to prevent illegal code being generated if
-    // someone defines Slice operations with that name.
-    //
-    // NOTE: Any changes made to this list must also be made in BasicStream.java.
-    //
-    static const string keywordList[] =
-    {
-        "abstract", "assert", "boolean", "break", "byte", "case", "catch",
-        "char", "checkedCast", "class", "clone", "const", "continue", "default", "do",
-        "double", "else", "enum", "equals", "extends", "false", "final", "finalize",
-        "finally", "float", "for", "getClass", "goto", "hashCode", "if",
-        "implements", "import", "instanceof", "int", "interface", "long",
-        "native", "new", "notify", "notifyAll", "null", "package", "private",
-        "protected", "public", "return", "short", "static", "strictfp", "super", "switch",
-        "synchronized", "this", "throw", "throws", "toString", "transient",
-        "true", "try", "uncheckedCast", "void", "volatile", "wait", "while"
-    };
-    bool found =  binary_search(&keywordList[0],
-                                &keywordList[sizeof(keywordList) / sizeof(*keywordList)],
-                                name);
-    return found ? "_" + name : name;
-}
-
-//
-// Split a scoped name into its components and return the components as a list of (unscoped) identifiers.
-//
-static StringList
-splitScopedName(const string& scoped)
-{
-    assert(scoped[0] == ':');
-    StringList ids;
-    string::size_type next = 0;
-    string::size_type pos;
-    while((pos = scoped.find("::", next)) != string::npos)
-    {
-        pos += 2;
-        if(pos != scoped.size())
-        {
-            string::size_type endpos = scoped.find("::", pos);
-            if(endpos != string::npos)
-            {
-                ids.push_back(scoped.substr(pos, endpos - pos));
-            }
-        }
-        next = pos;
-    }
-    if(next != scoped.size())
-    {
-        ids.push_back(scoped.substr(next));
-    }
-    else
-    {
-        ids.push_back("");
-    }
-
-    return ids;
 }
 
 //
@@ -426,7 +793,7 @@ splitScopedName(const string& scoped)
 // otherwise, return the name unchanged.
 //
 string
-Slice::JavaGenerator::fixKwd(const string& name) const
+Slice::JavaCompatGenerator::fixKwd(const string& name) const
 {
     if(name.empty())
     {
@@ -447,7 +814,7 @@ Slice::JavaGenerator::fixKwd(const string& name) const
 }
 
 string
-Slice::JavaGenerator::convertScopedName(const string& scoped, const string& prefix, const string& suffix) const
+Slice::JavaCompatGenerator::convertScopedName(const string& scoped, const string& prefix, const string& suffix) const
 {
     string result;
     string::size_type start = 0;
@@ -497,7 +864,7 @@ Slice::JavaGenerator::convertScopedName(const string& scoped, const string& pref
 }
 
 string
-Slice::JavaGenerator::getPackagePrefix(const ContainedPtr& cont) const
+Slice::JavaCompatGenerator::getPackagePrefix(const ContainedPtr& cont) const
 {
     UnitPtr unit = cont->container()->unit();
     string file = cont->file();
@@ -522,7 +889,7 @@ Slice::JavaGenerator::getPackagePrefix(const ContainedPtr& cont) const
 }
 
 string
-Slice::JavaGenerator::getPackage(const ContainedPtr& cont) const
+Slice::JavaCompatGenerator::getPackage(const ContainedPtr& cont) const
 {
     string scope = convertScopedName(cont->scope());
     string prefix = getPackagePrefix(cont);
@@ -542,10 +909,10 @@ Slice::JavaGenerator::getPackage(const ContainedPtr& cont) const
 }
 
 string
-Slice::JavaGenerator::getAbsolute(const ContainedPtr& cont,
-                                  const string& package,
-                                  const string& prefix,
-                                  const string& suffix) const
+Slice::JavaCompatGenerator::getAbsolute(const ContainedPtr& cont,
+                                   const string& package,
+                                   const string& prefix,
+                                   const string& suffix) const
 {
     string name = cont->name();
     if(prefix == "" && suffix == "")
@@ -568,12 +935,12 @@ Slice::JavaGenerator::getAbsolute(const ContainedPtr& cont,
 }
 
 string
-Slice::JavaGenerator::getStaticId(const TypePtr& type, const string& package) const
+Slice::JavaCompatGenerator::getStaticId(const TypePtr& type, const string& package) const
 {
     BuiltinPtr b = BuiltinPtr::dynamicCast(type);
     ClassDeclPtr cl = ClassDeclPtr::dynamicCast(type);
 
-    assert((b && b->kind() == Builtin::KindObject) || cl);
+    assert((b && b->usesClasses()) || cl);
 
     if(b)
     {
@@ -590,7 +957,7 @@ Slice::JavaGenerator::getStaticId(const TypePtr& type, const string& package) co
 }
 
 bool
-Slice::JavaGenerator::useOptionalMapping(const OperationPtr& p)
+Slice::JavaCompatGenerator::useOptionalMapping(const OperationPtr& p)
 {
     //
     // The "java:optional" metadata can be applied to an operation or its
@@ -607,7 +974,7 @@ Slice::JavaGenerator::useOptionalMapping(const OperationPtr& p)
 }
 
 string
-Slice::JavaGenerator::getOptionalFormat(const TypePtr& type)
+Slice::JavaCompatGenerator::getOptionalFormat(const TypePtr& type)
 {
     BuiltinPtr bp = BuiltinPtr::dynamicCast(type);
     if(bp)
@@ -650,6 +1017,10 @@ Slice::JavaGenerator::getOptionalFormat(const TypePtr& type)
             assert(false);
             break;
         }
+        case Builtin::KindValue:
+        {
+            return "Ice.OptionalFormat.Class";
+        }
         }
     }
 
@@ -688,12 +1059,12 @@ Slice::JavaGenerator::getOptionalFormat(const TypePtr& type)
 }
 
 string
-Slice::JavaGenerator::typeToString(const TypePtr& type,
-                                   TypeMode mode,
-                                   const string& package,
-                                   const StringList& metaData,
-                                   bool formal,
-                                   bool optional) const
+Slice::JavaCompatGenerator::typeToString(const TypePtr& type,
+                                    TypeMode mode,
+                                    const string& package,
+                                    const StringList& metaData,
+                                    bool formal,
+                                    bool optional) const
 {
     static const char* builtinTable[] =
     {
@@ -707,7 +1078,8 @@ Slice::JavaGenerator::typeToString(const TypePtr& type,
         "String",
         "Ice.Object",
         "Ice.ObjectPrx",
-        "java.lang.Object"
+        "java.lang.Object",
+        "Ice.Object" // Ice.Value
     };
     static const char* builtinHolderTable[] =
     {
@@ -721,7 +1093,8 @@ Slice::JavaGenerator::typeToString(const TypePtr& type,
         "Ice.StringHolder",
         "Ice.ObjectHolder",
         "Ice.ObjectPrxHolder",
-        "Ice.LocalObjectHolder"
+        "Ice.LocalObjectHolder",
+        "Ice.ObjectHolder" // Ice.ValueHolder
     };
     static const char* builtinOptionalTable[] =
     {
@@ -732,6 +1105,7 @@ Slice::JavaGenerator::typeToString(const TypePtr& type,
         "Ice.LongOptional",
         "Ice.FloatOptional",
         "Ice.DoubleOptional",
+        "???",
         "???",
         "???",
         "???",
@@ -765,6 +1139,7 @@ Slice::JavaGenerator::typeToString(const TypePtr& type,
                 case Builtin::KindObject:
                 case Builtin::KindObjectProxy:
                 case Builtin::KindLocalObject:
+                case Builtin::KindValue:
                 {
                     break;
                 }
@@ -886,11 +1261,11 @@ Slice::JavaGenerator::typeToString(const TypePtr& type,
 }
 
 string
-Slice::JavaGenerator::typeToObjectString(const TypePtr& type,
-                                         TypeMode mode,
-                                         const string& package,
-                                         const StringList& metaData,
-                                         bool formal) const
+Slice::JavaCompatGenerator::typeToObjectString(const TypePtr& type,
+                                          TypeMode mode,
+                                          const string& package,
+                                          const StringList& metaData,
+                                          bool formal) const
 {
     static const char* builtinTable[] =
     {
@@ -904,7 +1279,8 @@ Slice::JavaGenerator::typeToObjectString(const TypePtr& type,
         "java.lang.String",
         "Ice.Object",
         "Ice.ObjectPrx",
-        "java.lang.Object"
+        "java.lang.Object",
+        "Ice.Object" // Ice.Value
     };
 
     BuiltinPtr builtin = BuiltinPtr::dynamicCast(type);
@@ -917,18 +1293,18 @@ Slice::JavaGenerator::typeToObjectString(const TypePtr& type,
 }
 
 void
-Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
-                                                const string& package,
-                                                const TypePtr& type,
-                                                OptionalMode mode,
-                                                bool optionalMapping,
-                                                int tag,
-                                                const string& param,
-                                                bool marshal,
-                                                int& iter,
-                                                bool holder,
-                                                const StringList& metaData,
-                                                const string& patchParams)
+Slice::JavaCompatGenerator::writeMarshalUnmarshalCode(Output& out,
+                                                 const string& package,
+                                                 const TypePtr& type,
+                                                 OptionalMode mode,
+                                                 bool optionalMapping,
+                                                 int tag,
+                                                 const string& param,
+                                                 bool marshal,
+                                                 int& iter,
+                                                 bool holder,
+                                                 const StringList& metaData,
+                                                 const string& patchParams)
 {
     string stream = marshal ? "__os" : "__is";
     string v;
@@ -1157,37 +1533,38 @@ Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
                 break;
             }
             case Builtin::KindObject:
+            case Builtin::KindValue:
             {
                 if(marshal)
                 {
                     if(optionalParam)
                     {
-                        out << nl << stream << ".writeObject(" << tag << ", " << v << ");";
+                        out << nl << stream << ".writeValue(" << tag << ", " << v << ");";
                     }
                     else
                     {
-                        out << nl << stream << ".writeObject(" << v << ");";
+                        out << nl << stream << ".writeValue(" << v << ");";
                     }
                 }
                 else
                 {
                     if(optionalParam)
                     {
-                        out << nl << stream << ".readObject(" << tag << ", " << param << ");";
+                        out << nl << stream << ".readValue(" << tag << ", " << param << ");";
                     }
                     else if(holder && mode == OptionalNone)
                     {
-                        out << nl << stream << ".readObject(" << param << ");";
+                        out << nl << stream << ".readValue(" << param << ");";
                     }
                     else
                     {
                         if(patchParams.empty())
                         {
-                            out << nl << stream << ".readObject(new Patcher());";
+                            out << nl << stream << ".readValue(new Patcher());";
                         }
                         else
                         {
-                            out << nl << stream << ".readObject(" << patchParams << ");";
+                            out << nl << stream << ".readValue(" << patchParams << ");";
                         }
                     }
                 }
@@ -1249,20 +1626,20 @@ Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
             {
                 if(optionalMapping)
                 {
-                    out << nl << "if(" << v << " != null && " << v << ".isSet() && " << stream << ".writeOpt(" << tag
-                        << ", " << getOptionalFormat(type) << "))";
+                    out << nl << "if(" << v << " != null && " << v << ".isSet() && " << stream << ".writeOptional("
+                        << tag << ", " << getOptionalFormat(type) << "))";
                     out << sb;
                     out << nl << "int __pos = " << stream << ".startSize();";
-                    out << nl << typeS << "Helper.__write(" << stream << ", " << v << ".get());";
+                    out << nl << typeS << "Helper.write(" << stream << ", " << v << ".get());";
                     out << nl << stream << ".endSize(__pos);";
                     out << eb;
                 }
                 else
                 {
-                    out << nl << "if(" << stream << ".writeOpt(" << tag << ", " << getOptionalFormat(type) << "))";
+                    out << nl << "if(" << stream << ".writeOptional(" << tag << ", " << getOptionalFormat(type) << "))";
                     out << sb;
                     out << nl << "int __pos = " << stream << ".startSize();";
-                    out << nl << typeS << "Helper.__write(" << stream << ", " << v << ");";
+                    out << nl << typeS << "Helper.write(" << stream << ", " << v << ");";
                     out << nl << stream << ".endSize(__pos);";
                     out << eb;
                 }
@@ -1270,22 +1647,22 @@ Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
             else if(mode == OptionalMember)
             {
                 out << nl << "int __pos = " << stream << ".startSize();";
-                out << nl << typeS << "Helper.__write(" << stream << ", " << v << ");";
+                out << nl << typeS << "Helper.write(" << stream << ", " << v << ");";
                 out << nl << stream << ".endSize(__pos);";
             }
             else
             {
-                out << nl << typeS << "Helper.__write(" << stream << ", " << v << ");";
+                out << nl << typeS << "Helper.write(" << stream << ", " << v << ");";
             }
         }
         else
         {
             if(optionalParam)
             {
-                out << nl << "if(" << stream << ".readOpt(" << tag << ", " << getOptionalFormat(type) << "))";
+                out << nl << "if(" << stream << ".readOptional(" << tag << ", " << getOptionalFormat(type) << "))";
                 out << sb;
                 out << nl << stream << ".skip(4);";
-                out << nl << v << ".set(" << typeS << "Helper.__read(" << stream << "));";
+                out << nl << v << ".set(" << typeS << "Helper.read(" << stream << "));";
                 out << eb;
                 if(mode == OptionalOutParam)
                 {
@@ -1298,11 +1675,11 @@ Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
             else if(mode == OptionalMember)
             {
                 out << nl << stream << ".skip(4);";
-                out << nl << v << " = " << typeS << "Helper.__read(" << stream << ");";
+                out << nl << v << " = " << typeS << "Helper.read(" << stream << ");";
             }
             else
             {
-                out << nl << v << " = " << typeS << "Helper.__read(" << stream << ");";
+                out << nl << v << " = " << typeS << "Helper.read(" << stream << ");";
             }
         }
         return;
@@ -1315,11 +1692,11 @@ Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
         {
             if(optionalParam)
             {
-                out << nl << stream << ".writeObject(" << tag << ", " << v << ");";
+                out << nl << stream << ".writeValue(" << tag << ", " << v << ");";
             }
             else
             {
-                out << nl << stream << ".writeObject(" << v << ");";
+                out << nl << stream << ".writeValue(" << v << ");";
             }
         }
         else
@@ -1327,9 +1704,9 @@ Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
             if(optionalParam)
             {
                 string typeS = typeToString(type, TypeModeIn, package);
-                out << nl << "if(" << stream << ".readOpt(" << tag << ", " << getOptionalFormat(type) << "))";
+                out << nl << "if(" << stream << ".readOptional(" << tag << ", " << getOptionalFormat(type) << "))";
                 out << sb;
-                out << nl << stream << ".readObject(new Ice.OptionalObject(" << v << ", " << typeS << ".class, "
+                out << nl << stream << ".readValue(new Ice.OptionalObject(" << v << ", " << typeS << ".class, "
                     << getStaticId(type, package) << "));";
                 out << eb;
                 if(mode == OptionalOutParam)
@@ -1344,17 +1721,17 @@ Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
             {
                 if(holder && mode == OptionalNone)
                 {
-                    out << nl << stream << ".readObject(" << param << ");";
+                    out << nl << stream << ".readValue(" << param << ");";
                 }
                 else
                 {
                     if(patchParams.empty())
                     {
-                        out << nl << stream << ".readObject(new Patcher());";
+                        out << nl << stream << ".readValue(new Patcher());";
                     }
                     else
                     {
-                        out << nl << stream << ".readObject(" << patchParams << ");";
+                        out << nl << stream << ".readValue(" << patchParams << ");";
                     }
                 }
             }
@@ -1375,13 +1752,14 @@ Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
                 {
                     if(optionalMapping)
                     {
-                        out << nl << "if(" << v << " != null && " << v << ".isSet() && " << stream << ".writeOpt("
+                        out << nl << "if(" << v << " != null && " << v << ".isSet() && " << stream << ".writeOptional("
                             << tag << ", " << getOptionalFormat(type) << "))";
                         val = v + ".get()";
                     }
                     else
                     {
-                        out << nl << "if(" << stream << ".writeOpt(" << tag << ", " << getOptionalFormat(type) << "))";
+                        out << nl << "if(" << stream << ".writeOptional(" << tag << ", " << getOptionalFormat(type)
+                            << "))";
                         val = v;
                     }
                     out << sb;
@@ -1394,13 +1772,13 @@ Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
                 if(st->isVariableLength())
                 {
                     out << nl << "int __pos = " <<  stream << ".startSize();";
-                    out << nl << typeS << ".__write(" << stream << ", " << val << ");";
+                    out << nl << typeS << ".write(" << stream << ", " << val << ");";
                     out << nl << stream << ".endSize(__pos);";
                 }
                 else
                 {
                     out << nl << stream << ".writeSize(" << st->minWireSize() << ");";
-                    out << nl << typeS << ".__write(" << stream << ", " << val << ");";
+                    out << nl << typeS << ".write(" << stream << ", " << val << ");";
                 }
                 if(optionalParam)
                 {
@@ -1409,14 +1787,14 @@ Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
             }
             else
             {
-                out << nl << typeS << ".__write(" << stream << ", " << v << ");";
+                out << nl << typeS << ".write(" << stream << ", " << v << ");";
             }
         }
         else
         {
             if(optionalParam)
             {
-                out << nl << "if(" << stream << ".readOpt(" << tag << ", " << getOptionalFormat(type) << "))";
+                out << nl << "if(" << stream << ".readOptional(" << tag << ", " << getOptionalFormat(type) << "))";
                 out << sb;
 
                 if(st->isVariableLength())
@@ -1452,11 +1830,11 @@ Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
                 {
                     out << nl << stream << ".skipSize();";
                 }
-                out << nl << v << " = " << typeS << ".__read(" << stream << ", " << v << ");";
+                out << nl << v << " = " << typeS << ".read(" << stream << ", " << v << ");";
             }
             else
             {
-                out << nl << v << " = " << typeS << ".__read(" << stream << ", " << v << ");";
+                out << nl << v << " = " << typeS << ".read(" << stream << ", " << v << ");";
             }
         }
         return;
@@ -1472,32 +1850,32 @@ Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
             {
                 if(optionalMapping)
                 {
-                    out << nl << "if(" << v << " != null && " << v << ".isSet() && " << stream << ".writeOpt(" << tag
-                        << ", " << getOptionalFormat(type) << "))";
+                    out << nl << "if(" << v << " != null && " << v << ".isSet() && " << stream << ".writeOptional("
+                        << tag << ", " << getOptionalFormat(type) << "))";
                     out << sb;
-                    out << nl << typeS << ".__write(" << stream << ", " << v << ".get());";
+                    out << nl << typeS << ".write(" << stream << ", " << v << ".get());";
                     out << eb;
                 }
                 else
                 {
-                    out << nl << "if(" << stream << ".writeOpt(" << tag << ", " << getOptionalFormat(type) << "))";
+                    out << nl << "if(" << stream << ".writeOptional(" << tag << ", " << getOptionalFormat(type) << "))";
                     out << sb;
-                    out << nl << typeS << ".__write(" << stream << ", " << v << ");";
+                    out << nl << typeS << ".write(" << stream << ", " << v << ");";
                     out << eb;
                 }
             }
             else
             {
-                out << nl << typeS << ".__write(" << stream << ", " << v << ");";
+                out << nl << typeS << ".write(" << stream << ", " << v << ");";
             }
         }
         else
         {
             if(optionalParam)
             {
-                out << nl << "if(" << stream << ".readOpt(" << tag << ", " << getOptionalFormat(type) << "))";
+                out << nl << "if(" << stream << ".readOptional(" << tag << ", " << getOptionalFormat(type) << "))";
                 out << sb;
-                out << nl << v << ".set(" << typeS << ".__read(" << stream << "));";
+                out << nl << v << ".set(" << typeS << ".read(" << stream << "));";
                 out << eb;
                 if(mode == OptionalOutParam)
                 {
@@ -1509,7 +1887,7 @@ Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
             }
             else
             {
-                out << nl << v << " = " << typeS << ".__read(" << stream << ");";
+                out << nl << v << " = " << typeS << ".read(" << stream << ");";
             }
         }
         return;
@@ -1530,13 +1908,14 @@ Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
                 {
                     if(optionalMapping)
                     {
-                        out << nl << "if(" << v << " != null && " << v << ".isSet() && " << stream << ".writeOpt("
+                        out << nl << "if(" << v << " != null && " << v << ".isSet() && " << stream << ".writeOptional("
                             << tag << ", " << getOptionalFormat(type) << "))";
                         out << sb;
                     }
                     else
                     {
-                        out << nl << "if(" << stream << ".writeOpt(" << tag << ", " << getOptionalFormat(type) << "))";
+                        out << nl << "if(" << stream << ".writeOptional(" << tag << ", " << getOptionalFormat(type)
+                            << "))";
                         out << sb;
                     }
                 }
@@ -1579,7 +1958,7 @@ Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
                 if(optionalParam)
                 {
                     tmpName = "__optDict";
-                    out << nl << "if(" << stream << ".readOpt(" << tag << ", " << getOptionalFormat(type) << "))";
+                    out << nl << "if(" << stream << ".readOptional(" << tag << ", " << getOptionalFormat(type) << "))";
                     out << sb;
                     out << nl << typeS << ' ' << tmpName << ';';
                 }
@@ -1630,7 +2009,8 @@ Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
             BuiltinPtr elemBuiltin = BuiltinPtr::dynamicCast(elemType);
 
             if(optionalParam && elemBuiltin && elemBuiltin->kind() != Builtin::KindObject &&
-               elemBuiltin->kind() != Builtin::KindObjectProxy && !hasTypeMetaData(seq, metaData))
+               elemBuiltin->kind() != Builtin::KindObjectProxy && elemBuiltin->kind() != Builtin::KindValue &&
+               !hasTypeMetaData(seq, metaData))
             {
                 static const char* builtinTable[] =
                 {
@@ -1670,6 +2050,7 @@ Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
                         }
                         return;
                     }
+                    case Builtin::KindValue:
                     case Builtin::KindObject:
                     case Builtin::KindObjectProxy:
                     case Builtin::KindLocalObject:
@@ -1689,12 +2070,13 @@ Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
                 {
                     if(optionalMapping)
                     {
-                        out << nl << "if(" << v << " != null && " << v << ".isSet() && " << stream << ".writeOpt("
+                        out << nl << "if(" << v << " != null && " << v << ".isSet() && " << stream << ".writeOptional("
                             << tag << ", " << getOptionalFormat(type) << "))";
                     }
                     else
                     {
-                        out << nl << "if(" << stream << ".writeOpt(" << tag << ", " << getOptionalFormat(type) << "))";
+                        out << nl << "if(" << stream << ".writeOptional(" << tag << ", " << getOptionalFormat(type)
+                            << "))";
                     }
 
                     out << sb;
@@ -1781,7 +2163,7 @@ Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
                 if(optionalParam)
                 {
                     tmpName = "__optSeq";
-                    out << nl << "if(" << stream << ".readOpt(" << tag << ", " << getOptionalFormat(type) << "))";
+                    out << nl << "if(" << stream << ".readOptional(" << tag << ", " << getOptionalFormat(type) << "))";
                     out << sb;
                     out << nl << typeS << ' ' << tmpName << ';';
                 }
@@ -1849,14 +2231,14 @@ Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
 }
 
 void
-Slice::JavaGenerator::writeDictionaryMarshalUnmarshalCode(Output& out,
-                                                          const string& package,
-                                                          const DictionaryPtr& dict,
-                                                          const string& param,
-                                                          bool marshal,
-                                                          int& iter,
-                                                          bool useHelper,
-                                                          const StringList& metaData)
+Slice::JavaCompatGenerator::writeDictionaryMarshalUnmarshalCode(Output& out,
+                                                           const string& package,
+                                                           const DictionaryPtr& dict,
+                                                           const string& param,
+                                                           bool marshal,
+                                                           int& iter,
+                                                           bool useHelper,
+                                                           const StringList& metaData)
 {
     string stream = marshal ? "__os" : "__is";
     string v = param;
@@ -1972,14 +2354,14 @@ Slice::JavaGenerator::writeDictionaryMarshalUnmarshalCode(Output& out,
             }
 
             BuiltinPtr b = BuiltinPtr::dynamicCast(type);
-            if(ClassDeclPtr::dynamicCast(type) || (b && b->kind() == Builtin::KindObject))
+            if(ClassDeclPtr::dynamicCast(type) || (b && b->usesClasses()))
             {
                 string keyTypeStr = typeToObjectString(key, TypeModeIn, package);
                 string valueTypeStr = typeToObjectString(value, TypeModeIn, package);
                 writeMarshalUnmarshalCode(out, package, type, OptionalNone, false, 0, arg, false, iter, false,
                                           StringList(),
                                           "new IceInternal.DictionaryPatcher<" + keyTypeStr + ", " + valueTypeStr +
-                                          ">(" + v + ", " + typeS + ".class, \"" + type->typeId() + "\", __key)");
+                                          ">(" + v + ", " + typeS + ".class, __key)");
             }
             else
             {
@@ -1995,7 +2377,7 @@ Slice::JavaGenerator::writeDictionaryMarshalUnmarshalCode(Output& out,
             }
         }
         BuiltinPtr builtin = BuiltinPtr::dynamicCast(value);
-        if(!(builtin && builtin->kind() == Builtin::KindObject) && !ClassDeclPtr::dynamicCast(value))
+        if(!(builtin && builtin->usesClasses()) && !ClassDeclPtr::dynamicCast(value))
         {
             out << nl << "" << v << ".put(__key, __value);";
         }
@@ -2004,14 +2386,14 @@ Slice::JavaGenerator::writeDictionaryMarshalUnmarshalCode(Output& out,
 }
 
 void
-Slice::JavaGenerator::writeSequenceMarshalUnmarshalCode(Output& out,
-                                                        const string& package,
-                                                        const SequencePtr& seq,
-                                                        const string& param,
-                                                        bool marshal,
-                                                        int& iter,
-                                                        bool useHelper,
-                                                        const StringList& metaData)
+Slice::JavaCompatGenerator::writeSequenceMarshalUnmarshalCode(Output& out,
+                                                         const string& package,
+                                                         const SequencePtr& seq,
+                                                         const string& param,
+                                                         bool marshal,
+                                                         int& iter,
+                                                         bool useHelper,
+                                                         const StringList& metaData)
 {
     string stream = marshal ? "__os" : "__is";
     string v = param;
@@ -2153,6 +2535,7 @@ Slice::JavaGenerator::writeSequenceMarshalUnmarshalCode(Output& out,
                 case Builtin::KindObject:
                 case Builtin::KindObjectProxy:
                 case Builtin::KindLocalObject:
+                case Builtin::KindValue:
                 {
                     assert(false);
                     break;
@@ -2263,33 +2646,13 @@ Slice::JavaGenerator::writeSequenceMarshalUnmarshalCode(Output& out,
         {
             bool isObject = false;
             ClassDeclPtr cl = ClassDeclPtr::dynamicCast(type);
-            if((b && b->kind() == Builtin::KindObject) || cl)
+            if((b && b->usesClasses()) || cl)
             {
                 isObject = true;
             }
             out << nl << v << " = new " << instanceType << "();";
             out << nl << "final int __len" << iter << " = " << stream << ".readAndCheckSeqSize(" << type->minWireSize()
                 << ");";
-            if(isObject)
-            {
-                if(b)
-                {
-                    out << nl << "final String __type" << iter << " = Ice.ObjectImpl.ice_staticId();";
-                }
-                else
-                {
-                    assert(cl);
-                    if(cl->isInterface())
-                    {
-                        out << nl << "final String __type" << iter << " = "
-                            << getAbsolute(cl, package, "_", "Disp") << ".ice_staticId();";
-                    }
-                    else
-                    {
-                        out << nl << "final String __type" << iter << " = " << origContentS << ".ice_staticId();";
-                    }
-                }
-            }
             out << nl << "for(int __i" << iter << " = 0; __i" << iter << " < __len" << iter << "; __i" << iter
                 << "++)";
             out << sb;
@@ -2301,7 +2664,7 @@ Slice::JavaGenerator::writeSequenceMarshalUnmarshalCode(Output& out,
                 out << nl << v << ".add(null);";
                 ostringstream patchParams;
                 patchParams << "new IceInternal.ListPatcher<" << origContentS << ">(" << v << ", " << origContentS
-                            << ".class, __type" << iter << ", __i" << iter << ')';
+                            << ".class, __i" << iter << ')';
                 writeMarshalUnmarshalCode(out, package, type, OptionalNone, false, 0, "__elem", false, iter,
                                           false, StringList(), patchParams.str());
             }
@@ -2328,7 +2691,9 @@ Slice::JavaGenerator::writeSequenceMarshalUnmarshalCode(Output& out,
     else
     {
         BuiltinPtr b = BuiltinPtr::dynamicCast(type);
-        if(b && b->kind() != Builtin::KindObject && b->kind() != Builtin::KindObjectProxy)
+        if(b && b->kind() != Builtin::KindObject &&
+                b->kind() != Builtin::KindValue &&
+                b->kind() != Builtin::KindObjectProxy)
         {
             switch(b->kind())
             {
@@ -2428,6 +2793,7 @@ Slice::JavaGenerator::writeSequenceMarshalUnmarshalCode(Output& out,
                     }
                     break;
                 }
+                case Builtin::KindValue:
                 case Builtin::KindObject:
                 case Builtin::KindObjectProxy:
                 case Builtin::KindLocalObject:
@@ -2462,32 +2828,12 @@ Slice::JavaGenerator::writeSequenceMarshalUnmarshalCode(Output& out,
             {
                 bool isObject = false;
                 ClassDeclPtr cl = ClassDeclPtr::dynamicCast(origContent);
-                if((b && b->kind() == Builtin::KindObject) || cl)
+                if((b && b->usesClasses()) || cl)
                 {
                     isObject = true;
                 }
                 out << nl << "final int __len" << iter << " = " << stream << ".readAndCheckSeqSize("
                     << type->minWireSize() << ");";
-                if(isObject)
-                {
-                    if(b)
-                    {
-                        out << nl << "final String __type" << iter << " = Ice.ObjectImpl.ice_staticId();";
-                    }
-                    else
-                    {
-                        assert(cl);
-                        if(cl->isInterface())
-                        {
-                            out << nl << "final String __type" << iter << " = "
-                                << getAbsolute(cl, package, "_", "Disp") << ".ice_staticId();";
-                        }
-                        else
-                        {
-                            out << nl << "final String __type" << iter << " = " << origContentS << ".ice_staticId();";
-                        }
-                    }
-                }
                 //
                 // We cannot allocate an array of a generic type, such as
                 //
@@ -2538,7 +2884,7 @@ Slice::JavaGenerator::writeSequenceMarshalUnmarshalCode(Output& out,
                 if(isObject)
                 {
                     patchParams << "new IceInternal.SequencePatcher(" << v << ", " << origContentS
-                                << ".class, __type" << iter << ", __i" << iter << ')';
+                                << ".class, __i" << iter << ')';
                     writeMarshalUnmarshalCode(out, package, type, OptionalNone, false, 0, o.str(), false, iter,
                                               false, StringList(), patchParams.str());
                 }
@@ -2553,31 +2899,804 @@ Slice::JavaGenerator::writeSequenceMarshalUnmarshalCode(Output& out,
     }
 }
 
-void
-Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
-                                                      const string& package,
-                                                      const TypePtr& type,
-                                                      bool optional,
-                                                      int /*tag*/,
-                                                      const string& param,
-                                                      bool marshal,
-                                                      int& iter,
-                                                      bool holder,
-                                                      const StringList& metaData,
-                                                      const string& patchParams)
+bool
+Slice::JavaCompatGenerator::findMetaData(const string& prefix, const StringList& metaData, string& value)
 {
-    string stream = marshal ? "__outS" : "__inS";
-    string v;
-    if(holder && !optional)
+    for(StringList::const_iterator q = metaData.begin(); q != metaData.end(); ++q)
     {
-        v = param + ".value";
+        if(q->find(prefix) == 0)
+        {
+            value = *q;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool
+Slice::JavaCompatGenerator::getTypeMetaData(const StringList& metaData, string& instanceType, string& formalType)
+{
+    //
+    // Extract the instance type and an optional formal type.
+    // The correct syntax is "java:type:instance-type[:formal-type]".
+    //
+    static const string prefix = "java:type:";
+    string directive;
+    if(findMetaData(prefix, metaData, directive))
+    {
+        string::size_type pos = directive.find(':', prefix.size());
+        if(pos != string::npos)
+        {
+            instanceType = directive.substr(prefix.size(), pos - prefix.size());
+            formalType = directive.substr(pos + 1);
+        }
+        else
+        {
+            instanceType = directive.substr(prefix.size());
+            formalType.clear();
+        }
+        return true;
+    }
+
+    return false;
+}
+
+bool
+Slice::JavaCompatGenerator::hasTypeMetaData(const TypePtr& type, const StringList& localMetaData)
+{
+    ContainedPtr cont = ContainedPtr::dynamicCast(type);
+    if(cont)
+    {
+        static const string prefix = "java:type:";
+        string directive;
+
+        if(findMetaData(prefix, localMetaData, directive))
+        {
+            return true;
+        }
+
+        StringList metaData = cont->getMetaData();
+
+        if(findMetaData(prefix, metaData, directive))
+        {
+            return true;
+        }
+
+        if(findMetaData("java:protobuf:", metaData, directive) ||
+           findMetaData("java:serializable:", metaData, directive))
+        {
+            SequencePtr seq = SequencePtr::dynamicCast(cont);
+            if(seq)
+            {
+                BuiltinPtr builtin = BuiltinPtr::dynamicCast(seq->type());
+                if(builtin && builtin->kind() == Builtin::KindByte)
+                {
+                    return true;
+                }
+            }
+        }
+
+        if(findMetaData("java:buffer", localMetaData, directive))
+        {
+            SequencePtr seq = SequencePtr::dynamicCast(cont);
+            if(seq)
+            {
+                BuiltinPtr builtin = BuiltinPtr::dynamicCast(seq->type());
+                if(builtin &&
+                   (builtin->kind() == Builtin::KindByte || builtin->kind() == Builtin::KindShort ||
+                    builtin->kind() == Builtin::KindInt || builtin->kind() == Builtin::KindLong ||
+                    builtin->kind() == Builtin::KindFloat || builtin->kind() == Builtin::KindDouble))
+                {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+bool
+Slice::JavaCompatGenerator::getDictionaryTypes(const DictionaryPtr& dict,
+                                          const string& package,
+                                          const StringList& metaData,
+                                          string& instanceType,
+                                          string& formalType) const
+{
+    //
+    // Get the types of the key and value.
+    //
+    string keyTypeStr = typeToObjectString(dict->keyType(), TypeModeIn, package);
+    string valueTypeStr = typeToObjectString(dict->valueType(), TypeModeIn, package);
+
+    //
+    // Collect metadata for a custom type.
+    //
+    if(getTypeMetaData(metaData, instanceType, formalType) ||
+       getTypeMetaData(dict->getMetaData(), instanceType, formalType))
+    {
+        assert(!instanceType.empty());
+        if(formalType.empty())
+        {
+            formalType = "java.util.Map<" + keyTypeStr + ", " + valueTypeStr + ">";
+        }
+        return true;
+    }
+
+    //
+    // Return a default type for the platform.
+    //
+    instanceType = "java.util.HashMap<" + keyTypeStr + ", " + valueTypeStr + ">";
+    formalType = "java.util.Map<" + keyTypeStr + ", " + valueTypeStr + ">";
+    return false;
+}
+
+bool
+Slice::JavaCompatGenerator::getSequenceTypes(const SequencePtr& seq,
+                                        const string& package,
+                                        const StringList& metaData,
+                                        string& instanceType,
+                                        string& formalType) const
+{
+    BuiltinPtr builtin = BuiltinPtr::dynamicCast(seq->type());
+    if(builtin)
+    {
+        if(builtin->kind() == Builtin::KindByte)
+        {
+            string prefix = "java:serializable:";
+            string meta;
+            if(seq->findMetaData(prefix, meta))
+            {
+                instanceType = formalType = meta.substr(prefix.size());
+                return true;
+            }
+            prefix = "java:protobuf:";
+            if(seq->findMetaData(prefix, meta))
+            {
+                instanceType = formalType = meta.substr(prefix.size());
+                return true;
+            }
+        }
+
+        if((builtin->kind() == Builtin::KindByte || builtin->kind() == Builtin::KindShort ||
+            builtin->kind() == Builtin::KindInt || builtin->kind() == Builtin::KindLong ||
+            builtin->kind() == Builtin::KindFloat || builtin->kind() == Builtin::KindDouble))
+        {
+            string prefix = "java:buffer";
+            string meta;
+            string ignore;
+            if(seq->findMetaData(prefix, meta) || findMetaData(prefix, metaData, ignore))
+            {
+                instanceType = formalType = typeToBufferString(seq->type());
+                return true;
+            }
+        }
+    }
+
+    //
+    // Collect metadata for a custom type.
+    //
+    if(getTypeMetaData(metaData, instanceType, formalType) ||
+       getTypeMetaData(seq->getMetaData(), instanceType, formalType))
+    {
+        assert(!instanceType.empty());
+        if(formalType.empty())
+        {
+            formalType = "java.util.List<" + typeToObjectString(seq->type(), TypeModeIn, package) + ">";
+        }
+        return true;
+    }
+
+    //
+    // The default mapping is a native array.
+    //
+    instanceType = formalType = typeToString(seq->type(), TypeModeIn, package, metaData) + "[]";
+    return false;
+}
+
+bool
+Slice::JavaCompatGenerator::sequenceHasHolder(const SequencePtr& p) const
+{
+    BuiltinPtr builtin = BuiltinPtr::dynamicCast(p->type());
+    if(builtin && builtin->kind() == Builtin::KindByte)
+    {
+        string prefix = "java:serializable:";
+        string meta;
+        if(p->findMetaData(prefix, meta))
+        {
+            return false;
+        }
+        prefix = "java:protobuf:";
+        if(p->findMetaData(prefix, meta))
+        {
+            return false;
+        }
+    }
+
+    if(builtin &&
+       (builtin->kind() == Builtin::KindByte || builtin->kind() == Builtin::KindShort ||
+        builtin->kind() == Builtin::KindInt || builtin->kind() == Builtin::KindLong ||
+        builtin->kind() == Builtin::KindFloat || builtin->kind() == Builtin::KindDouble))
+    {
+        string meta;
+        string prefix = "java:buffer";
+        if(p->findMetaData(prefix, meta))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+JavaOutput*
+Slice::JavaCompatGenerator::createOutput()
+{
+    return new JavaOutput;
+}
+
+void
+Slice::JavaCompatGenerator::validateMetaData(const UnitPtr& u)
+{
+    MetaDataVisitor visitor;
+    u->visit(&visitor, true);
+}
+
+const string Slice::JavaGenerator::_getSetMetaData = "java:getset";
+
+Slice::JavaGenerator::JavaGenerator(const string& dir) :
+    _dir(dir),
+    _out(0)
+{
+}
+
+Slice::JavaGenerator::~JavaGenerator()
+{
+    // If open throws an exception other generators could be left open
+    // during the stack unwind.
+    if(_out != 0)
+    {
+        close();
+    }
+    assert(_out == 0);
+}
+
+void
+Slice::JavaGenerator::open(const string& absolute, const string& file)
+{
+    assert(_out == 0);
+
+    JavaOutput* out = createOutput();
+    try
+    {
+        out->openClass(absolute, _dir, file);
+    }
+    catch(const FileException&)
+    {
+        delete out;
+        throw;
+    }
+    _out = out;
+}
+
+void
+Slice::JavaGenerator::close()
+{
+    assert(_out != 0);
+    *_out << nl;
+    delete _out;
+    _out = 0;
+}
+
+Output&
+Slice::JavaGenerator::output() const
+{
+    assert(_out != 0);
+    return *_out;
+}
+
+//
+// If the passed name is a scoped name, return the identical scoped name,
+// but with all components that are Java keywords replaced by
+// their "_"-prefixed version; otherwise, if the passed name is
+// not scoped, but a Java keyword, return the "_"-prefixed name;
+// otherwise, return the name unchanged.
+//
+string
+Slice::JavaGenerator::fixKwd(const string& name) const
+{
+    if(name.empty())
+    {
+        return name;
+    }
+    if(name[0] != ':')
+    {
+        return lookupKwd(name);
+    }
+    StringList ids = splitScopedName(name);
+    transform(ids.begin(), ids.end(), ids.begin(), ptr_fun(lookupKwd));
+    stringstream result;
+    for(StringList::const_iterator i = ids.begin(); i != ids.end(); ++i)
+    {
+        result << "::" + *i;
+    }
+    return result.str();
+}
+
+string
+Slice::JavaGenerator::convertScopedName(const string& scoped, const string& prefix, const string& suffix) const
+{
+    string result;
+    string::size_type start = 0;
+    string fscoped = fixKwd(scoped);
+
+    //
+    // Skip leading "::"
+    //
+    if(fscoped[start] == ':')
+    {
+        assert(fscoped[start + 1] == ':');
+        start += 2;
+    }
+
+    //
+    // Convert all occurrences of "::" to "."
+    //
+    string::size_type pos;
+    do
+    {
+        pos = fscoped.find(':', start);
+        string fix;
+        if(pos == string::npos)
+        {
+            string s = fscoped.substr(start);
+            if(!s.empty())
+            {
+                fix = prefix + fixKwd(s) + suffix;
+            }
+        }
+        else
+        {
+            assert(fscoped[pos + 1] == ':');
+            fix = fixKwd(fscoped.substr(start, pos - start));
+            start = pos + 2;
+        }
+
+        if(!result.empty() && !fix.empty())
+        {
+            result += ".";
+        }
+        result += fix;
+    }
+    while(pos != string::npos);
+
+    return result;
+}
+
+string
+Slice::JavaGenerator::getPackagePrefix(const ContainedPtr& cont) const
+{
+    UnitPtr unit = cont->container()->unit();
+    string file = cont->file();
+    assert(!file.empty());
+
+    map<string, string>::const_iterator p = _filePackagePrefix.find(file);
+    if(p != _filePackagePrefix.end())
+    {
+        return p->second;
+    }
+
+    static const string prefix = "java:package:";
+    DefinitionContextPtr dc = unit->findDefinitionContext(file);
+    assert(dc);
+    string q = dc->findMetaData(prefix);
+    if(!q.empty())
+    {
+        q = q.substr(prefix.size());
+    }
+    _filePackagePrefix[file] = q;
+    return q;
+}
+
+string
+Slice::JavaGenerator::getPackage(const ContainedPtr& cont) const
+{
+    string scope = convertScopedName(cont->scope());
+    string prefix = getPackagePrefix(cont);
+    if(!prefix.empty())
+    {
+        if(!scope.empty())
+        {
+            return prefix + "." + scope;
+        }
+        else
+        {
+            return prefix;
+        }
+    }
+
+    return scope;
+}
+
+string
+Slice::JavaGenerator::getAbsolute(const ContainedPtr& cont,
+                                  const string& package,
+                                  const string& prefix,
+                                  const string& suffix) const
+{
+    string name = cont->name();
+    if(prefix == "" && suffix == "")
+    {
+        name = fixKwd(name);
+    }
+    string contPkg = getPackage(cont);
+    if(contPkg == package)
+    {
+        return prefix + name + suffix;
+    }
+    else if(!contPkg.empty())
+    {
+        return contPkg + "." + prefix + name + suffix;
     }
     else
     {
-        v = param;
+        return prefix + name + suffix;
+    }
+}
+
+string
+Slice::JavaGenerator::getStaticId(const TypePtr& type, const string& package) const
+{
+    BuiltinPtr b = BuiltinPtr::dynamicCast(type);
+    ClassDeclPtr cl = ClassDeclPtr::dynamicCast(type);
+
+    assert((b && b->usesClasses()) || cl);
+
+    if(b && b->kind() == Builtin::KindObject)
+    {
+        return "com.zeroc.Ice.Object.ice_staticId";
+    }
+    else if(b && b->kind() == Builtin::KindValue)
+    {
+        return "com.zeroc.Ice.Value.ice_staticId";
+    }
+    else
+    {
+        return getAbsolute(cl, package) + ".ice_staticId";
+    }
+}
+
+bool
+Slice::JavaGenerator::useOptionalMapping(const OperationPtr& p)
+{
+    //
+    // The "java:optional" metadata can be applied to an operation or its
+    // interface to force the mapping to use the Optional types.
+    //
+    // Without the tag, parameters use the normal (non-optional) mapping.
+    //
+    static const string tag = "java:optional";
+
+    ClassDefPtr cl = ClassDefPtr::dynamicCast(p->container());
+    assert(cl);
+
+    return p->hasMetaData(tag) || cl->hasMetaData(tag);
+}
+
+string
+Slice::JavaGenerator::getOptionalFormat(const TypePtr& type)
+{
+    const string prefix = "com.zeroc.Ice.OptionalFormat.";
+
+    BuiltinPtr bp = BuiltinPtr::dynamicCast(type);
+    if(bp)
+    {
+        switch(bp->kind())
+        {
+        case Builtin::KindByte:
+        case Builtin::KindBool:
+        {
+            return prefix + "F1";
+        }
+        case Builtin::KindShort:
+        {
+            return prefix + "F2";
+        }
+        case Builtin::KindInt:
+        case Builtin::KindFloat:
+        {
+            return prefix + "F4";
+        }
+        case Builtin::KindLong:
+        case Builtin::KindDouble:
+        {
+            return prefix + "F8";
+        }
+        case Builtin::KindString:
+        {
+            return prefix + "VSize";
+        }
+        case Builtin::KindObject:
+        {
+            return prefix + "Class";
+        }
+        case Builtin::KindObjectProxy:
+        {
+            return prefix + "FSize";
+        }
+        case Builtin::KindLocalObject:
+        {
+            assert(false);
+            break;
+        }
+        case Builtin::KindValue:
+        {
+            return prefix + "Class";
+        }
+        }
+    }
+
+    if(EnumPtr::dynamicCast(type))
+    {
+        return prefix + "Size";
+    }
+
+    SequencePtr seq = SequencePtr::dynamicCast(type);
+    if(seq)
+    {
+        return seq->type()->isVariableLength() ? prefix + "FSize" : prefix + "VSize";
+    }
+
+    DictionaryPtr d = DictionaryPtr::dynamicCast(type);
+    if(d)
+    {
+        return (d->keyType()->isVariableLength() || d->valueType()->isVariableLength()) ?
+            prefix + "FSize" : prefix + "VSize";
+    }
+
+    StructPtr st = StructPtr::dynamicCast(type);
+    if(st)
+    {
+        return st->isVariableLength() ? prefix + "FSize" : prefix + "VSize";
+    }
+
+    if(ProxyPtr::dynamicCast(type))
+    {
+        return prefix + "FSize";
+    }
+
+    ClassDeclPtr cl = ClassDeclPtr::dynamicCast(type);
+    assert(cl);
+    return prefix + "Class";
+}
+
+string
+Slice::JavaGenerator::typeToString(const TypePtr& type,
+                                   TypeMode mode,
+                                   const string& package,
+                                   const StringList& metaData,
+                                   bool formal,
+                                   bool optional,
+                                   bool local) const
+{
+    static const char* builtinTable[] =
+    {
+        "byte",
+        "boolean",
+        "short",
+        "int",
+        "long",
+        "float",
+        "double",
+        "String",
+        "com.zeroc.Ice.Value",
+        "com.zeroc.Ice.ObjectPrx",
+        "java.lang.Object",
+        "com.zeroc.Ice.Value"
+    };
+    static const char* builtinLocalTable[] =
+    {
+        "byte",
+        "boolean",
+        "short",
+        "int",
+        "long",
+        "float",
+        "double",
+        "String",
+        "com.zeroc.Ice.Object",
+        "com.zeroc.Ice.ObjectPrx",
+        "java.lang.Object",
+        "com.zeroc.Ice.Value"
+    };
+    static const char* builtinOptionalTable[] =
+    {
+        "java.util.Optional<java.lang.Byte>",
+        "java.util.Optional<java.lang.Boolean>",
+        "java.util.Optional<java.lang.Short>",
+        "java.util.OptionalInt",
+        "java.util.OptionalLong",
+        "java.util.Optional<java.lang.Float>",
+        "java.util.OptionalDouble",
+        "???",
+        "???",
+        "???",
+        "???",
+        "???"
+    };
+
+    if(!type)
+    {
+        assert(mode == TypeModeReturn);
+        return "void";
     }
 
     BuiltinPtr builtin = BuiltinPtr::dynamicCast(type);
+    if(builtin)
+    {
+        if(optional)
+        {
+            switch(builtin->kind())
+            {
+                case Builtin::KindByte:
+                case Builtin::KindBool:
+                case Builtin::KindShort:
+                case Builtin::KindInt:
+                case Builtin::KindLong:
+                case Builtin::KindFloat:
+                case Builtin::KindDouble:
+                {
+                    return builtinOptionalTable[builtin->kind()];
+                }
+                case Builtin::KindString:
+                case Builtin::KindObject:
+                case Builtin::KindObjectProxy:
+                case Builtin::KindLocalObject:
+                case Builtin::KindValue:
+                {
+                    break;
+                }
+            }
+        }
+        else
+        {
+            return local ? builtinLocalTable[builtin->kind()] : builtinTable[builtin->kind()];
+        }
+    }
+
+    ClassDeclPtr cl = ClassDeclPtr::dynamicCast(type);
+
+    if(optional)
+    {
+        return "java.util.Optional<" + typeToObjectString(type, mode, package, metaData, formal, local) + ">";
+    }
+
+    if(cl)
+    {
+        if(cl->isInterface() && !local)
+        {
+            return "com.zeroc.Ice.Value";
+        }
+        else
+        {
+            return getAbsolute(cl, package);
+        }
+    }
+
+    ProxyPtr proxy = ProxyPtr::dynamicCast(type);
+    if(proxy)
+    {
+        ClassDefPtr def = proxy->_class()->definition();
+        assert(def);
+        if(def->isAbstract())
+        {
+            return getAbsolute(proxy->_class(), package, "", "Prx");
+        }
+        else
+        {
+            return "com.zeroc.Ice.ObjectPrx";
+        }
+    }
+
+    DictionaryPtr dict = DictionaryPtr::dynamicCast(type);
+    if(dict)
+    {
+        string instanceType, formalType;
+        getDictionaryTypes(dict, package, metaData, instanceType, formalType, local);
+        return formal ? formalType : instanceType;
+    }
+
+    SequencePtr seq = SequencePtr::dynamicCast(type);
+    if(seq)
+    {
+        string instanceType, formalType;
+        getSequenceTypes(seq, package, metaData, instanceType, formalType, local);
+        return formal ? formalType : instanceType;
+    }
+
+    ContainedPtr contained = ContainedPtr::dynamicCast(type);
+    if(contained)
+    {
+        if(mode == TypeModeOut)
+        {
+            return getAbsolute(contained, package, "", "Holder");
+        }
+        else
+        {
+            return getAbsolute(contained, package);
+        }
+    }
+
+    return "???";
+}
+
+string
+Slice::JavaGenerator::typeToObjectString(const TypePtr& type,
+                                         TypeMode mode,
+                                         const string& package,
+                                         const StringList& metaData,
+                                         bool formal,
+                                         bool local) const
+{
+    static const char* builtinTable[] =
+    {
+        "java.lang.Byte",
+        "java.lang.Boolean",
+        "java.lang.Short",
+        "java.lang.Integer",
+        "java.lang.Long",
+        "java.lang.Float",
+        "java.lang.Double",
+        "java.lang.String",
+        "com.zeroc.Ice.Value",
+        "com.zeroc.Ice.ObjectPrx",
+        "java.lang.Object",
+        "com.zeroc.Ice.Value"
+    };
+    static const char* builtinLocalTable[] =
+    {
+        "java.lang.Byte",
+        "java.lang.Boolean",
+        "java.lang.Short",
+        "java.lang.Integer",
+        "java.lang.Long",
+        "java.lang.Float",
+        "java.lang.Double",
+        "java.lang.String",
+        "com.zeroc.Ice.Object",
+        "com.zeroc.Ice.ObjectPrx",
+        "java.lang.Object",
+        "com.zeroc.Ice.Value"
+    };
+
+    BuiltinPtr builtin = BuiltinPtr::dynamicCast(type);
+    if(builtin && mode != TypeModeOut)
+    {
+        return local ? builtinLocalTable[builtin->kind()] : builtinTable[builtin->kind()];
+    }
+
+    return typeToString(type, mode, package, metaData, formal, false, local);
+}
+
+void
+Slice::JavaGenerator::writeMarshalUnmarshalCode(Output& out,
+                                                const string& package,
+                                                const TypePtr& type,
+                                                OptionalMode mode,
+                                                bool optionalMapping,
+                                                int tag,
+                                                const string& param,
+                                                bool marshal,
+                                                int& iter,
+                                                const StringList& metaData,
+                                                const string& patchParams)
+{
+    const string stream = marshal ? "__os" : "__is";
+    const bool optionalParam = mode == OptionalInParam || mode == OptionalOutParam || mode == OptionalReturnParam;
+
+    const BuiltinPtr builtin = BuiltinPtr::dynamicCast(type);
     if(builtin)
     {
         switch(builtin->kind())
@@ -2586,11 +3705,25 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
             {
                 if(marshal)
                 {
-                    out << nl << stream << ".writeByte(" << v << ");";
+                    if(optionalParam)
+                    {
+                        out << nl << stream << ".writeByte(" << tag << ", " << param << ");";
+                    }
+                    else
+                    {
+                        out << nl << stream << ".writeByte(" << param << ");";
+                    }
                 }
                 else
                 {
-                    out << nl << v << " = " << stream << ".readByte();";
+                    if(optionalParam)
+                    {
+                        out << nl << param << " = " << stream << ".readByte(" << tag << ");";
+                    }
+                    else
+                    {
+                        out << nl << param << " = " << stream << ".readByte();";
+                    }
                 }
                 break;
             }
@@ -2598,11 +3731,25 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
             {
                 if(marshal)
                 {
-                    out << nl << stream << ".writeBool(" << v << ");";
+                    if(optionalParam)
+                    {
+                        out << nl << stream << ".writeBool(" << tag << ", " << param << ");";
+                    }
+                    else
+                    {
+                        out << nl << stream << ".writeBool(" << param << ");";
+                    }
                 }
                 else
                 {
-                    out << nl << v << " = " << stream << ".readBool();";
+                    if(optionalParam)
+                    {
+                        out << nl << param << " = " << stream << ".readBool(" << tag << ");";
+                    }
+                    else
+                    {
+                        out << nl << param << " = " << stream << ".readBool();";
+                    }
                 }
                 break;
             }
@@ -2610,11 +3757,25 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
             {
                 if(marshal)
                 {
-                    out << nl << stream << ".writeShort(" << v << ");";
+                    if(optionalParam)
+                    {
+                        out << nl << stream << ".writeShort(" << tag << ", " << param << ");";
+                    }
+                    else
+                    {
+                        out << nl << stream << ".writeShort(" << param << ");";
+                    }
                 }
                 else
                 {
-                    out << nl << v << " = " << stream << ".readShort();";
+                    if(optionalParam)
+                    {
+                        out << nl << param << " = " << stream << ".readShort(" << tag << ");";
+                    }
+                    else
+                    {
+                        out << nl << param << " = " << stream << ".readShort();";
+                    }
                 }
                 break;
             }
@@ -2622,11 +3783,25 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
             {
                 if(marshal)
                 {
-                    out << nl << stream << ".writeInt(" << v << ");";
+                    if(optionalParam)
+                    {
+                        out << nl << stream << ".writeInt(" << tag << ", " << param << ");";
+                    }
+                    else
+                    {
+                        out << nl << stream << ".writeInt(" << param << ");";
+                    }
                 }
                 else
                 {
-                    out << nl << v << " = " << stream << ".readInt();";
+                    if(optionalParam)
+                    {
+                        out << nl << param << " = " << stream << ".readInt(" << tag << ");";
+                    }
+                    else
+                    {
+                        out << nl << param << " = " << stream << ".readInt();";
+                    }
                 }
                 break;
             }
@@ -2634,11 +3809,25 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
             {
                 if(marshal)
                 {
-                    out << nl << stream << ".writeLong(" << v << ");";
+                    if(optionalParam)
+                    {
+                        out << nl << stream << ".writeLong(" << tag << ", " << param << ");";
+                    }
+                    else
+                    {
+                        out << nl << stream << ".writeLong(" << param << ");";
+                    }
                 }
                 else
                 {
-                    out << nl << v << " = " << stream << ".readLong();";
+                    if(optionalParam)
+                    {
+                        out << nl << param << " = " << stream << ".readLong(" << tag << ");";
+                    }
+                    else
+                    {
+                        out << nl << param << " = " << stream << ".readLong();";
+                    }
                 }
                 break;
             }
@@ -2646,11 +3835,25 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
             {
                 if(marshal)
                 {
-                    out << nl << stream << ".writeFloat(" << v << ");";
+                    if(optionalParam)
+                    {
+                        out << nl << stream << ".writeFloat(" << tag << ", " << param << ");";
+                    }
+                    else
+                    {
+                        out << nl << stream << ".writeFloat(" << param << ");";
+                    }
                 }
                 else
                 {
-                    out << nl << v << " = " << stream << ".readFloat();";
+                    if(optionalParam)
+                    {
+                        out << nl << param << " = " << stream << ".readFloat(" << tag << ");";
+                    }
+                    else
+                    {
+                        out << nl << param << " = " << stream << ".readFloat();";
+                    }
                 }
                 break;
             }
@@ -2658,11 +3861,25 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
             {
                 if(marshal)
                 {
-                    out << nl << stream << ".writeDouble(" << v << ");";
+                    if(optionalParam)
+                    {
+                        out << nl << stream << ".writeDouble(" << tag << ", " << param << ");";
+                    }
+                    else
+                    {
+                        out << nl << stream << ".writeDouble(" << param << ");";
+                    }
                 }
                 else
                 {
-                    out << nl << v << " = " << stream << ".readDouble();";
+                    if(optionalParam)
+                    {
+                        out << nl << param << " = " << stream << ".readDouble(" << tag << ");";
+                    }
+                    else
+                    {
+                        out << nl << param << " = " << stream << ".readDouble();";
+                    }
                 }
                 break;
             }
@@ -2670,36 +3887,52 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
             {
                 if(marshal)
                 {
-                    out << nl << stream << ".writeString(" << v << ");";
+                    if(optionalParam)
+                    {
+                        out << nl << stream << ".writeString(" << tag << ", " << param << ");";
+                    }
+                    else
+                    {
+                        out << nl << stream << ".writeString(" << param << ");";
+                    }
                 }
                 else
                 {
-                    out << nl << v << " = " << stream << ".readString();";
+                    if(optionalParam)
+                    {
+                        out << nl << param << " = " << stream << ".readString(" << tag << ");";
+                    }
+                    else
+                    {
+                        out << nl << param << " = " << stream << ".readString();";
+                    }
                 }
                 break;
             }
             case Builtin::KindObject:
+            case Builtin::KindValue:
             {
                 if(marshal)
                 {
-                    out << nl << stream << ".writeObject(" << v << ");";
-                }
-                else
-                {
-                    if(holder && !optional)
+                    if(optionalParam)
                     {
-                        out << nl << stream << ".readObject(" << param << ");";
+                        out << nl << stream << ".writeValue(" << tag << ", " << param << ");";
                     }
                     else
                     {
-                        if(patchParams.empty())
-                        {
-                            out << nl << stream << ".readObject(new Patcher());";
-                        }
-                        else
-                        {
-                            out << nl << stream << ".readObject(" << patchParams << ");";
-                        }
+                        out << nl << stream << ".writeValue(" << param << ");";
+                    }
+                }
+                else
+                {
+                    assert(!patchParams.empty());
+                    if(optionalParam)
+                    {
+                        out << nl << stream << ".readValue(" << tag << ", " << patchParams << ");";
+                    }
+                    else
+                    {
+                        out << nl << stream << ".readValue(" << patchParams << ");";
                     }
                 }
                 break;
@@ -2708,24 +3941,36 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
             {
                 if(marshal)
                 {
-                    if(optional)
+                    if(optionalParam)
                     {
-                        out << nl << "int __pos = " <<  stream << ".startSize();";
-                        out << nl << stream << ".writeProxy(" << v << ");";
+                        out << nl << stream << ".writeProxy(" << tag << ", " << param << ");";
+                    }
+                    else if(mode == OptionalMember)
+                    {
+                        out << nl << "int __pos = " << stream << ".startSize();";
+                        out << nl << stream << ".writeProxy(" << param << ");";
                         out << nl << stream << ".endSize(__pos);";
                     }
                     else
                     {
-                        out << nl << stream << ".writeProxy(" << v << ");";
+                        out << nl << stream << ".writeProxy(" << param << ");";
                     }
                 }
                 else
                 {
-                    if(optional)
+                    if(optionalParam)
+                    {
+                        out << nl << param << " = " << stream << ".readProxy(" << tag << ");";
+                    }
+                    else if(mode == OptionalMember)
                     {
                         out << nl << stream << ".skip(4);";
+                        out << nl << param << " = " << stream << ".readProxy();";
                     }
-                    out << nl << v << " = " << stream << ".readProxy();";
+                    else
+                    {
+                        out << nl << param << " = " << stream << ".readProxy();";
+                    }
                 }
                 break;
             }
@@ -2744,24 +3989,63 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
         string typeS = typeToString(type, TypeModeIn, package);
         if(marshal)
         {
-            if(optional)
+            if(optionalParam)
             {
-                out << nl << "int __pos = " <<  stream << ".startSize();";
-                out << nl << typeS << "Helper.write(" << stream << ", " << v << ");";
+                if(optionalMapping)
+                {
+                    out << nl << "if(" << param << " != null && " << param << ".isPresent() && " << stream
+                        << ".writeOptional(" << tag << ", " << getOptionalFormat(type) << "))";
+                    out << sb;
+                    out << nl << "int __pos = " << stream << ".startSize();";
+                    out << nl << stream << ".writeProxy(" << param << ".get());";
+                    out << nl << stream << ".endSize(__pos);";
+                    out << eb;
+                }
+                else
+                {
+                    out << nl << "if(" << stream << ".writeOptional(" << tag << ", " << getOptionalFormat(type) << "))";
+                    out << sb;
+                    out << nl << "int __pos = " << stream << ".startSize();";
+                    out << nl << stream << ".writeProxy(" << param << ");";
+                    out << nl << stream << ".endSize(__pos);";
+                    out << eb;
+                }
+            }
+            else if(mode == OptionalMember)
+            {
+                out << nl << "int __pos = " << stream << ".startSize();";
+                out << nl << stream << ".writeProxy(" << param << ");";
                 out << nl << stream << ".endSize(__pos);";
             }
             else
             {
-                out << nl << typeS << "Helper.write(" << stream << ", " << v << ");";
+                out << nl << stream << ".writeProxy(" << param << ");";
             }
         }
         else
         {
-            if(optional)
+            if(optionalParam)
+            {
+                out << nl << "if(" << stream << ".readOptional(" << tag << ", " << getOptionalFormat(type) << "))";
+                out << sb;
+                out << nl << stream << ".skip(4);";
+                out << nl << param << " = java.util.Optional.ofNullable(" << typeS << ".uncheckedCast(" << stream
+                    << ".readProxy()));";
+                out << eb;
+                out << nl << "else";
+                out << sb;
+                out << nl << param << " = java.util.Optional.empty();";
+                out << eb;
+            }
+            else if(mode == OptionalMember)
             {
                 out << nl << stream << ".skip(4);";
+                out << nl << param << " = " << typeS << ".uncheckedCast(" << stream << ".readProxy());";
             }
-            out << nl << v << " = " << typeS << "Helper.read(" << stream << ");";
+            else
+            {
+                out << nl << param << " = " << typeS << ".uncheckedCast(" << stream << ".readProxy());";
+            }
         }
         return;
     }
@@ -2771,24 +4055,25 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
     {
         if(marshal)
         {
-            out << nl << stream << ".writeObject(" << v << ");";
-        }
-        else
-        {
-            if(holder && !optional)
+            if(optionalParam)
             {
-                out << nl << stream << ".readObject(" << param << ");";
+                out << nl << stream << ".writeValue(" << tag << ", " << param << ");";
             }
             else
             {
-                if(patchParams.empty())
-                {
-                    out << nl << stream << ".readObject(new Patcher());";
-                }
-                else
-                {
-                    out << nl << stream << ".readObject(" << patchParams << ");";
-                }
+                out << nl << stream << ".writeValue(" << param << ");";
+            }
+        }
+        else
+        {
+            assert(!patchParams.empty());
+            if(optionalParam)
+            {
+                out << nl << stream << ".readValue(" << tag << ", " << patchParams << ");";
+            }
+            else
+            {
+                out << nl << stream << ".readValue(" << patchParams << ");";
             }
         }
         return;
@@ -2797,31 +4082,80 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
     StructPtr st = StructPtr::dynamicCast(type);
     if(st)
     {
-        string typeS = typeToString(type, TypeModeIn, package);
+        string typeS = typeToString(type, TypeModeIn, package, metaData);
         if(marshal)
         {
-            if(optional)
+            if(optionalParam || mode == OptionalMember)
             {
+                string val;
+                if(optionalParam)
+                {
+                    if(optionalMapping)
+                    {
+                        out << nl << "if(" << param << " != null && " << param << ".isPresent() && " << stream
+                            << ".writeOptional(" << tag << ", " << getOptionalFormat(type) << "))";
+                        val = param + ".get()";
+                    }
+                    else
+                    {
+                        out << nl << "if(" << stream << ".writeOptional(" << tag << ", " << getOptionalFormat(type)
+                            << "))";
+                        val = param;
+                    }
+                    out << sb;
+                }
+                else
+                {
+                    val = param;
+                }
+
                 if(st->isVariableLength())
                 {
                     out << nl << "int __pos = " <<  stream << ".startSize();";
-                    out << nl << typeS << ".ice_write(" << stream << ", " << v << ");";
+                    out << nl << typeS << ".write(" << stream << ", " << val << ");";
                     out << nl << stream << ".endSize(__pos);";
                 }
                 else
                 {
                     out << nl << stream << ".writeSize(" << st->minWireSize() << ");";
-                    out << nl << typeS << ".ice_write(" << stream << ", " << v << ");";
+                    out << nl << typeS << ".write(" << stream << ", " << val << ");";
+                }
+                if(optionalParam)
+                {
+                    out << eb;
                 }
             }
             else
             {
-                out << nl << typeS << ".ice_write(" << stream << ", " << v << ");";
+                out << nl << typeS << ".write(" << stream << ", " << param << ");";
             }
         }
         else
         {
-            if(optional)
+            if(optionalParam)
+            {
+                out << nl << "if(" << stream << ".readOptional(" << tag << ", " << getOptionalFormat(type) << "))";
+                out << sb;
+
+                if(st->isVariableLength())
+                {
+                    out << nl << stream << ".skip(4);";
+                }
+                else
+                {
+                    out << nl << stream << ".skipSize();";
+                }
+
+                out << nl << param << " = java.util.Optional.of(" << typeS << ".read(" << stream
+                    << ", null));";
+
+                out << eb;
+                out << nl << "else";
+                out << sb;
+                out << nl << param << " = java.util.Optional.empty();";
+                out << eb;
+            }
+            else if(mode == OptionalMember)
             {
                 if(st->isVariableLength())
                 {
@@ -2831,8 +4165,12 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
                 {
                     out << nl << stream << ".skipSize();";
                 }
+                out << nl << param << " = " << typeS << ".read(" << stream << ", " << param << ");";
             }
-            out << nl << v << " = " << typeS << ".ice_read(" << stream << ", " << v << ");";
+            else
+            {
+                out << nl << param << " = " << typeS << ".read(" << stream << ", " << param << ");";
+            }
         }
         return;
     }
@@ -2840,14 +4178,49 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
     EnumPtr en = EnumPtr::dynamicCast(type);
     if(en)
     {
-        string typeS = typeToString(type, TypeModeIn, package);
+        string typeS = typeToString(type, TypeModeIn, package, metaData);
         if(marshal)
         {
-            out << nl << typeS << ".ice_write(" << stream << ", " << v << ");";
+            if(optionalParam)
+            {
+                if(optionalMapping)
+                {
+                    out << nl << "if(" << param << " != null && " << param << ".isPresent() && " << stream
+                        << ".writeOptional(" << tag << ", " << getOptionalFormat(type) << "))";
+                    out << sb;
+                    out << nl << typeS << ".write(" << stream << ", " << param << ".get());";
+                    out << eb;
+                }
+                else
+                {
+                    out << nl << "if(" << stream << ".writeOptional(" << tag << ", " << getOptionalFormat(type) << "))";
+                    out << sb;
+                    out << nl << typeS << ".write(" << stream << ", " << param << ");";
+                    out << eb;
+                }
+            }
+            else
+            {
+                out << nl << typeS << ".write(" << stream << ", " << param << ");";
+            }
         }
         else
         {
-            out << nl << v << " = " << typeS << ".ice_read(" << stream << ");";
+            if(optionalParam)
+            {
+                out << nl << "if(" << stream << ".readOptional(" << tag << ", " << getOptionalFormat(type) << "))";
+                out << sb;
+                out << nl << param << " = java.util.Optional.of(" << typeS << ".read(" << stream << "));";
+                out << eb;
+                out << nl << "else";
+                out << sb;
+                out << nl << param << " = java.util.Optional.empty();";
+                out << eb;
+            }
+            else
+            {
+                out << nl << param << " = " << typeS << ".read(" << stream << ");";
+            }
         }
         return;
     }
@@ -2855,7 +4228,7 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
     DictionaryPtr dict = DictionaryPtr::dynamicCast(type);
     if(dict)
     {
-        if(optional)
+        if(optionalParam || mode == OptionalMember)
         {
             string typeS = typeToString(type, TypeModeIn, package, metaData);
             TypePtr keyType = dict->keyType();
@@ -2863,23 +4236,69 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
 
             if(marshal)
             {
+                if(optionalParam)
+                {
+                    if(optionalMapping)
+                    {
+                        out << nl << "if(" << param << " != null && " << param << ".isPresent() && " << stream
+                            << ".writeOptional(" << tag << ", " << getOptionalFormat(type) << "))";
+                        out << sb;
+                    }
+                    else
+                    {
+                        out << nl << "if(" << stream << ".writeOptional(" << tag << ", " << getOptionalFormat(type)
+                            << "))";
+                        out << sb;
+                    }
+                }
+
                 if(keyType->isVariableLength() || valueType->isVariableLength())
                 {
+                    string d = optionalParam && optionalMapping ? param + ".get()" : param;
                     out << nl << "int __pos = " <<  stream << ".startSize();";
-                    writeStreamDictionaryMarshalUnmarshalCode(out, package, dict, v, marshal, iter, true, metaData);
+                    writeDictionaryMarshalUnmarshalCode(out, package, dict, d, marshal, iter, true, metaData);
                     out << nl << stream << ".endSize(__pos);";
                 }
                 else
                 {
                     const size_t wireSize = keyType->minWireSize() + valueType->minWireSize();
-                    out << nl << "final int __optSize = " << v << " == null ? 0 : " << v << ".size();";
+                    string tmpName;
+                    if(optionalParam && optionalMapping)
+                    {
+                        tmpName = "__optDict";
+                        out << nl << "final " << typeS << ' ' << tmpName << " = " << param << ".get();";
+                    }
+                    else
+                    {
+                        tmpName = param;
+                    }
+                    out << nl << "final int __optSize = " << tmpName << " == null ? 0 : " << tmpName << ".size();";
                     out << nl << stream << ".writeSize(__optSize > 254 ? __optSize * " << wireSize
                         << " + 5 : __optSize * " << wireSize << " + 1);";
-                    writeStreamDictionaryMarshalUnmarshalCode(out, package, dict, v, marshal, iter, true, metaData);
+                    writeDictionaryMarshalUnmarshalCode(out, package, dict, tmpName, marshal, iter, true, metaData);
+                }
+
+                if(optionalParam)
+                {
+                    out << eb;
                 }
             }
             else
             {
+                string tmpName;
+
+                if(optionalParam)
+                {
+                    tmpName = "__optDict";
+                    out << nl << "if(" << stream << ".readOptional(" << tag << ", " << getOptionalFormat(type) << "))";
+                    out << sb;
+                    out << nl << typeS << ' ' << tmpName << ';';
+                }
+                else
+                {
+                    tmpName = param;
+                }
+
                 if(keyType->isVariableLength() || valueType->isVariableLength())
                 {
                     out << nl << stream << ".skip(4);";
@@ -2889,12 +4308,22 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
                     out << nl << stream << ".skipSize();";
                 }
 
-                writeStreamDictionaryMarshalUnmarshalCode(out, package, dict, v, marshal, iter, true, metaData);
+                writeDictionaryMarshalUnmarshalCode(out, package, dict, tmpName, marshal, iter, true, metaData);
+
+                if(optionalParam)
+                {
+                    out << nl << param << " = java.util.Optional.of(" << tmpName << ");";
+                    out << eb;
+                    out << nl << "else";
+                    out << sb;
+                    out << nl << param << " = java.util.Optional.empty();";
+                    out << eb;
+                }
             }
         }
         else
         {
-            writeStreamDictionaryMarshalUnmarshalCode(out, package, dict, v, marshal, iter, true, metaData);
+            writeDictionaryMarshalUnmarshalCode(out, package, dict, param, marshal, iter, true, metaData);
         }
         return;
     }
@@ -2902,20 +4331,91 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
     SequencePtr seq = SequencePtr::dynamicCast(type);
     if(seq)
     {
-        if(optional)
+        if(optionalParam || mode == OptionalMember)
         {
             string typeS = typeToString(type, TypeModeIn, package, metaData);
             TypePtr elemType = seq->type();
             BuiltinPtr elemBuiltin = BuiltinPtr::dynamicCast(elemType);
 
+            if(optionalParam && elemBuiltin && elemBuiltin->kind() != Builtin::KindObject &&
+               elemBuiltin->kind() != Builtin::KindObjectProxy && elemBuiltin->kind() != Builtin::KindValue &&
+               !hasTypeMetaData(seq, metaData))
+            {
+                static const char* builtinTable[] =
+                {
+                    "Byte",
+                    "Bool",
+                    "Short",
+                    "Int",
+                    "Long",
+                    "Float",
+                    "Double",
+                    "String",
+                    "???",
+                    "???",
+                    "???"
+                };
+
+                switch(elemBuiltin->kind())
+                {
+                    case Builtin::KindByte:
+                    case Builtin::KindBool:
+                    case Builtin::KindShort:
+                    case Builtin::KindInt:
+                    case Builtin::KindLong:
+                    case Builtin::KindFloat:
+                    case Builtin::KindDouble:
+                    case Builtin::KindString:
+                    {
+                        string bs = builtinTable[elemBuiltin->kind()];
+
+                        if(marshal)
+                        {
+                            out << nl << stream << ".write" << bs << "Seq(" << tag << ", " << param << ");";
+                        }
+                        else
+                        {
+                            out << nl << param << " = " << stream << ".read" << bs << "Seq(" << tag << ");";
+                        }
+                        return;
+                    }
+                    case Builtin::KindValue:
+                    case Builtin::KindObject:
+                    case Builtin::KindObjectProxy:
+                    case Builtin::KindLocalObject:
+                    {
+                        assert(false);
+                        break;
+                    }
+                }
+            }
+
             string ignore;
+            const size_t wireSize = elemType->minWireSize();
 
             if(marshal)
             {
+                if(optionalParam)
+                {
+                    if(optionalMapping)
+                    {
+                        out << nl << "if(" << param << " != null && " << param << ".isPresent() && " << stream
+                            << ".writeOptional(" << tag << ", " << getOptionalFormat(type) << "))";
+                    }
+                    else
+                    {
+                        out << nl << "if(" << stream << ".writeOptional(" << tag << ", " << getOptionalFormat(type)
+                            << "))";
+                    }
+
+                    out << sb;
+                }
+
                 if(elemType->isVariableLength())
                 {
-                    out << nl << "int __pos = " << stream << ".startSize();";
-                    writeStreamSequenceMarshalUnmarshalCode(out, package, seq, v, marshal, iter, true, metaData);
+                    string s = optionalParam && optionalMapping ? param + ".get()" : param;
+                    out << nl << "int __pos = " <<  stream << ".startSize();";
+                    writeSequenceMarshalUnmarshalCode(out, package, seq, s, marshal, iter, true, metaData);
                     out << nl << stream << ".endSize(__pos);";
                 }
                 else if(findMetaData("java:type:", metaData, ignore) ||
@@ -2926,26 +4426,24 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
                     // If the element type is bool or byte, we do NOT write an extra size.
                     //
 
-                    if(!elemBuiltin ||
-                       (elemBuiltin->kind() != Builtin::KindByte && elemBuiltin->kind() != Builtin::KindBool))
+                    string tmpName;
+                    if(optionalParam && optionalMapping)
                     {
-                        out << nl << "final int __optSize = " << v << " == null ? 0 : " << v << ".size();";
-                        const size_t wireSize = elemType->minWireSize();
-
-                        if(wireSize > 1)
-                        {
-                            out << nl << stream << ".writeSize(__optSize > 254 ? __optSize * " << wireSize
-                                << " + 5 : __optSize * " << wireSize << " + 1);";
-                        }
-                        else
-                        {
-                            //
-                            // The element type could be a struct with a wire size of 1.
-                            //
-                            out << nl << stream << ".writeSize(__optSize > 254 ? __optSize + 5 : __optSize + 1);";
-                        }
+                        tmpName = "__optSeq";
+                        out << nl << "final " << typeS << ' ' << tmpName << " = " << param << ".get();";
                     }
-                    writeStreamSequenceMarshalUnmarshalCode(out, package, seq, v, marshal, iter, true, metaData);
+                    else
+                    {
+                        tmpName = param;
+                    }
+
+                    if(wireSize > 1)
+                    {
+                        out << nl << "final int __optSize = " << tmpName << " == null ? 0 : " << tmpName << ".size();";
+                        out << nl << stream << ".writeSize(__optSize > 254 ? __optSize * " << wireSize
+                            << " + 5 : __optSize * " << wireSize << " + 1);";
+                    }
+                    writeSequenceMarshalUnmarshalCode(out, package, seq, tmpName, marshal, iter, true, metaData);
                 }
                 else if(findMetaData("java:protobuf:", seq->getMetaData(), ignore) ||
                         findMetaData("java:serializable:", seq->getMetaData(), ignore))
@@ -2953,7 +4451,8 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
                     //
                     // This just writes a byte sequence.
                     //
-                    writeStreamSequenceMarshalUnmarshalCode(out, package, seq, v, marshal, iter, true, metaData);
+                    string s = optionalParam && optionalMapping ? param + ".get()" : param;
+                    writeSequenceMarshalUnmarshalCode(out, package, seq, s, marshal, iter, true, metaData);
                 }
                 else
                 {
@@ -2961,65 +4460,85 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
                     // At this point we have a regular Java array of a fixed-size type.
                     //
 
-                    if(!elemBuiltin || (elemBuiltin->kind() != Builtin::KindByte &&
-                       elemBuiltin->kind() != Builtin::KindBool))
+                    string tmpName;
+                    if(optionalParam && optionalMapping)
                     {
-                        out << nl << "final int __optSize = " << v << " == null ? 0 : " << v << ".length;";
-                        const size_t wireSize = elemType->minWireSize();
-
-                        if(wireSize > 1)
-                        {
-                            out << nl << stream << ".writeSize(__optSize > 254 ? __optSize * " << wireSize
-                                << " + 5 : __optSize * " << wireSize << " + 1);";
-                        }
-                        else
-                        {
-                            //
-                            // The element type could be a struct with a wire size of 1.
-                            //
-                            out << nl << stream << ".writeSize(__optSize > 254 ? __optSize + 5 : __optSize + 1);";
-                        }
+                        tmpName = "__optSeq";
+                        out << nl << "final " << typeS << ' ' << tmpName << " = " << param << ".get();";
+                    }
+                    else
+                    {
+                        tmpName = param;
                     }
 
-                    writeStreamSequenceMarshalUnmarshalCode(out, package, seq, v, marshal, iter, true, metaData);
+                    if(wireSize > 1)
+                    {
+                        out << nl << "final int __optSize = " << tmpName << " == null ? 0 : " << tmpName << ".length;";
+                        out << nl << stream << ".writeSize(__optSize > 254 ? __optSize * " << wireSize
+                            << " + 5 : __optSize * " << wireSize << " + 1);";
+                    }
+
+                    writeSequenceMarshalUnmarshalCode(out, package, seq, tmpName, marshal, iter, true, metaData);
+                }
+
+                if(optionalParam)
+                {
+                    out << eb;
                 }
             }
             else
             {
+                string tmpName;
+                if(optionalParam)
+                {
+                    tmpName = "__optSeq";
+                    out << nl << "if(" << stream << ".readOptional(" << tag << ", " << getOptionalFormat(type) << "))";
+                    out << sb;
+                    out << nl << typeS << ' ' << tmpName << ';';
+                }
+                else
+                {
+                    tmpName = param;
+                }
+
                 if(elemType->isVariableLength())
                 {
                     out << nl << stream << ".skip(4);";
                 }
-                else if(findMetaData("java:type:", metaData, ignore) ||
-                        findMetaData("java:type:", seq->getMetaData(), ignore))
+                else if(wireSize > 1)
                 {
-                    //
-                    // The sequence is an instance of java.util.List<E>, where E is a fixed-size type.
-                    // If the element type is bool or byte, we do NOT write an extra size.
-                    //
-
-                    if(!elemBuiltin ||
-                       (elemBuiltin->kind() != Builtin::KindByte && elemBuiltin->kind() != Builtin::KindBool))
+                    if(findMetaData("java:type:", metaData, ignore) ||
+                       findMetaData("java:type:", seq->getMetaData(), ignore))
                     {
+                        //
+                        // The sequence is an instance of java.util.List<E>, where E is a fixed-size type.
+                        //
+
                         out << nl << stream << ".skipSize();";
                     }
-                }
-                else if(!findMetaData("java:protobuf:", seq->getMetaData(), ignore) &&
-                        !findMetaData("java:serializable:", seq->getMetaData(), ignore))
-                {
-                    if(!elemBuiltin ||
-                       (elemBuiltin->kind() != Builtin::KindByte && elemBuiltin->kind() != Builtin::KindBool))
+                    else if(!findMetaData("java:protobuf:", seq->getMetaData(), ignore) &&
+                            !findMetaData("java:serializable:", seq->getMetaData(), ignore))
                     {
                         out << nl << stream << ".skipSize();";
                     }
                 }
 
-                writeStreamSequenceMarshalUnmarshalCode(out, package, seq, v, marshal, iter, true, metaData);
+                writeSequenceMarshalUnmarshalCode(out, package, seq, tmpName, marshal, iter, true, metaData);
+
+                if(optionalParam)
+                {
+                    out << nl << param << " = java.util.Optional.of(" << tmpName << ");";
+                    out << eb;
+                    out << nl << "else";
+                    out << sb;
+                    out << nl << param << " = java.util.Optional.empty();";
+                    out << eb;
+                }
             }
         }
         else
         {
-            writeStreamSequenceMarshalUnmarshalCode(out, package, seq, v, marshal, iter, true, metaData);
+            writeSequenceMarshalUnmarshalCode(out, package, seq, param, marshal, iter, true, metaData);
         }
         return;
     }
@@ -3029,26 +4548,28 @@ Slice::JavaGenerator::writeStreamMarshalUnmarshalCode(Output& out,
     string typeS = getAbsolute(constructed, package);
     if(marshal)
     {
-        out << nl << typeS << "Helper.write(" << stream << ", " << v << ");";
+        out << nl << typeS << ".write(" << stream << ", " << param << ");";
     }
     else
     {
-        out << nl << v << " = " << typeS << "Helper.read(" << stream << ");";
+        out << nl << param << " = " << typeS << ".read(" << stream << ");";
     }
 }
 
 void
-Slice::JavaGenerator::writeStreamDictionaryMarshalUnmarshalCode(Output& out,
-                                                                const string& package,
-                                                                const DictionaryPtr& dict,
-                                                                const string& param,
-                                                                bool marshal,
-                                                                int& iter,
-                                                                bool useHelper,
-                                                                const StringList& metaData)
+Slice::JavaGenerator::writeDictionaryMarshalUnmarshalCode(Output& out,
+                                                          const string& package,
+                                                          const DictionaryPtr& dict,
+                                                          const string& param,
+                                                          bool marshal,
+                                                          int& iter,
+                                                          bool useHelper,
+                                                          const StringList& metaData)
 {
-    string stream = marshal ? "__outS" : "__inS";
+    string stream = marshal ? "__os" : "__is";
     string v = param;
+
+    string instanceType;
 
     //
     // We have to determine whether it's possible to use the
@@ -3064,10 +4585,10 @@ Slice::JavaGenerator::writeStreamDictionaryMarshalUnmarshalCode(Output& out,
     // without local metadata to determine whether we can use
     // the helper.
     //
-    string instanceType, formalType;
-    getDictionaryTypes(dict, "", metaData, instanceType, formalType);
+    string formalType;
+    getDictionaryTypes(dict, "", metaData, instanceType, formalType, false);
     string origInstanceType, origFormalType;
-    getDictionaryTypes(dict, "", StringList(), origInstanceType, origFormalType);
+    getDictionaryTypes(dict, "", StringList(), origInstanceType, origFormalType, false);
     if((formalType != origFormalType) || (!marshal && instanceType != origInstanceType))
     {
         useHelper = false;
@@ -3105,11 +4626,11 @@ Slice::JavaGenerator::writeStreamDictionaryMarshalUnmarshalCode(Output& out,
     {
         out << nl << "if(" << v << " == null)";
         out << sb;
-        out << nl << "__outS.writeSize(0);";
+        out << nl << "__os.writeSize(0);";
         out << eb;
         out << nl << "else";
         out << sb;
-        out << nl << "__outS.writeSize(" << v << ".size());";
+        out << nl << "__os.writeSize(" << v << ".size());";
         string keyObjectS = typeToObjectString(key, TypeModeIn, package);
         string valueObjectS = typeToObjectString(value, TypeModeIn, package);
         out << nl << "for(java.util.Map.Entry<" << keyObjectS << ", " << valueObjectS << "> __e : " << v
@@ -3129,7 +4650,7 @@ Slice::JavaGenerator::writeStreamDictionaryMarshalUnmarshalCode(Output& out,
                 arg = "__e.getValue()";
                 type = value;
             }
-            writeStreamMarshalUnmarshalCode(out, package, type, false, 0, arg, true, iter, false);
+            writeMarshalUnmarshalCode(out, package, type, OptionalNone, false, 0, arg, true, iter);
         }
         out << eb;
         out << eb;
@@ -3137,7 +4658,7 @@ Slice::JavaGenerator::writeStreamDictionaryMarshalUnmarshalCode(Output& out,
     else
     {
         out << nl << v << " = new " << instanceType << "();";
-        out << nl << "int __sz" << iterS << " = __inS.readSize();";
+        out << nl << "int __sz" << iterS << " = __is.readSize();";
         out << nl << "for(int __i" << iterS << " = 0; __i" << iterS << " < __sz" << iterS << "; __i" << iterS << "++)";
         out << sb;
         for(int i = 0; i < 2; i++)
@@ -3159,31 +4680,30 @@ Slice::JavaGenerator::writeStreamDictionaryMarshalUnmarshalCode(Output& out,
             }
 
             BuiltinPtr b = BuiltinPtr::dynamicCast(type);
-            string s = typeToString(type, TypeModeIn, package);
-            if(ClassDeclPtr::dynamicCast(type) || (b && b->kind() == Builtin::KindObject))
+            if(ClassDeclPtr::dynamicCast(type) || (b && b->usesClasses()))
             {
                 string keyTypeStr = typeToObjectString(key, TypeModeIn, package);
                 string valueTypeStr = typeToObjectString(value, TypeModeIn, package);
-                writeStreamMarshalUnmarshalCode(out, package, type, false, 0, arg, false, iter, false,
-                                                StringList(), "new IceInternal.DictionaryPatcher<" + keyTypeStr +
-                                                ", " + valueTypeStr + ">(" + v + ", " + s + ".class, \"" +
-                                                type->typeId() + "\", __key)");
+                writeMarshalUnmarshalCode(out, package, type, OptionalNone, false, 0, arg, false, iter, StringList(),
+                                          "new com.zeroc.IceInternal.DictionaryPatcher<" + keyTypeStr + ", " +
+                                          valueTypeStr + ">(" + v + ", " + typeS + ".class, " + typeS +
+                                          ".ice_staticId, __key)");
             }
             else
             {
                 if(StructPtr::dynamicCast(type))
                 {
-                    out << nl << s << ' ' << arg << " = null;";
+                    out << nl << typeS << ' ' << arg << " = null;";
                 }
                 else
                 {
-                    out << nl << s << ' ' << arg << ';';
+                    out << nl << typeS << ' ' << arg << ';';
                 }
-                writeStreamMarshalUnmarshalCode(out, package, type, false, 0, arg, false, iter, false);
+                writeMarshalUnmarshalCode(out, package, type, OptionalNone, false, 0, arg, false, iter);
             }
         }
         BuiltinPtr builtin = BuiltinPtr::dynamicCast(value);
-        if(!(builtin && builtin->kind() == Builtin::KindObject) && !ClassDeclPtr::dynamicCast(value))
+        if(!(builtin && builtin->usesClasses()) && !ClassDeclPtr::dynamicCast(value))
         {
             out << nl << "" << v << ".put(__key, __value);";
         }
@@ -3192,16 +4712,16 @@ Slice::JavaGenerator::writeStreamDictionaryMarshalUnmarshalCode(Output& out,
 }
 
 void
-Slice::JavaGenerator::writeStreamSequenceMarshalUnmarshalCode(Output& out,
-                                                              const string& package,
-                                                              const SequencePtr& seq,
-                                                              const string& param,
-                                                              bool marshal,
-                                                              int& iter,
-                                                              bool useHelper,
-                                                              const StringList& metaData)
+Slice::JavaGenerator::writeSequenceMarshalUnmarshalCode(Output& out,
+                                                        const string& package,
+                                                        const SequencePtr& seq,
+                                                        const string& param,
+                                                        bool marshal,
+                                                        int& iter,
+                                                        bool useHelper,
+                                                        const StringList& metaData)
 {
-    string stream = marshal ? "__outS" : "__inS";
+    string stream = marshal ? "__os" : "__is";
     string v = param;
 
     //
@@ -3233,22 +4753,20 @@ Slice::JavaGenerator::writeStreamSequenceMarshalUnmarshalCode(Output& out,
             {
                 out << nl << "if(!" << v << ".isInitialized())";
                 out << sb;
-                out << nl << "throw new Ice.MarshalException(\"type not fully initialized\");";
+                out << nl << "throw new com.zeroc.Ice.MarshalException(\"type not fully initialized\");";
                 out << eb;
                 out << nl << stream << ".writeByteSeq(" << v << ".toByteArray());";
             }
             else
             {
-                string type = meta.substr(protobuf.size());
+                string type = typeToString(seq, TypeModeIn, package);
                 out << nl << "try";
                 out << sb;
                 out << nl << v << " = " << type << ".parseFrom(" << stream << ".readByteSeq());";
                 out << eb;
                 out << nl << "catch(com.google.protobuf.InvalidProtocolBufferException __ex)";
                 out << sb;
-                out << nl << "Ice.MarshalException __mex = new Ice.MarshalException();";
-                out << nl << "__mex.initCause(__ex);";
-                out << nl << "throw __mex;";
+                out << nl << "throw new com.zeroc.Ice.MarshalException(__ex);";
                 out << eb;
             }
             return;
@@ -3343,6 +4861,7 @@ Slice::JavaGenerator::writeStreamSequenceMarshalUnmarshalCode(Output& out,
                 case Builtin::KindObject:
                 case Builtin::KindObjectProxy:
                 case Builtin::KindLocalObject:
+                case Builtin::KindValue:
                 {
                     assert(false);
                     break;
@@ -3351,6 +4870,9 @@ Slice::JavaGenerator::writeStreamSequenceMarshalUnmarshalCode(Output& out,
             return;
         }
     }
+
+    bool customType = false;
+    string instanceType;
 
     //
     // We have to determine whether it's possible to use the
@@ -3366,10 +4888,10 @@ Slice::JavaGenerator::writeStreamSequenceMarshalUnmarshalCode(Output& out,
     // without local metadata to determine whether we can use
     // the helper.
     //
-    string instanceType, formalType;
-    bool customType = getSequenceTypes(seq, "", metaData, instanceType, formalType);
+    string formalType;
+    customType = getSequenceTypes(seq, "", metaData, instanceType, formalType, false);
     string origInstanceType, origFormalType;
-    getSequenceTypes(seq, "", StringList(), origInstanceType, origFormalType);
+    getSequenceTypes(seq, "", StringList(), origInstanceType, origFormalType, false);
     if((formalType != origFormalType) || (!marshal && instanceType != origInstanceType))
     {
         useHelper = false;
@@ -3393,7 +4915,7 @@ Slice::JavaGenerator::writeStreamSequenceMarshalUnmarshalCode(Output& out,
     }
 
     //
-    // Determine sequence depth
+    // Determine sequence depth.
     //
     int depth = 0;
     TypePtr origContent = seq->type();
@@ -3442,7 +4964,7 @@ Slice::JavaGenerator::writeStreamSequenceMarshalUnmarshalCode(Output& out,
             string typeS = typeToString(type, TypeModeIn, package);
             out << nl << "for(" << typeS << " __elem : " << v << ')';
             out << sb;
-            writeStreamMarshalUnmarshalCode(out, package, type, false, 0, "__elem", true, iter, false);
+            writeMarshalUnmarshalCode(out, package, type, OptionalNone, false, 0, "__elem", true, iter);
             out << eb;
             out << eb; // else
         }
@@ -3450,33 +4972,13 @@ Slice::JavaGenerator::writeStreamSequenceMarshalUnmarshalCode(Output& out,
         {
             bool isObject = false;
             ClassDeclPtr cl = ClassDeclPtr::dynamicCast(type);
-            if((b && b->kind() == Builtin::KindObject) || cl)
+            if((b && b->usesClasses()) || cl)
             {
                 isObject = true;
             }
             out << nl << v << " = new " << instanceType << "();";
             out << nl << "final int __len" << iter << " = " << stream << ".readAndCheckSeqSize(" << type->minWireSize()
                 << ");";
-            if(isObject)
-            {
-                if(b)
-                {
-                    out << nl << "final String __type" << iter << " = Ice.ObjectImpl.ice_staticId();";
-                }
-                else
-                {
-                    assert(cl);
-                    if(cl->isInterface())
-                    {
-                        out << nl << "final String __type" << iter << " = "
-                            << getAbsolute(cl, package, "_", "Disp") << ".ice_staticId();";
-                    }
-                    else
-                    {
-                        out << nl << "final String __type" << iter << " = " << origContentS << ".ice_staticId();";
-                    }
-                }
-            }
             out << nl << "for(int __i" << iter << " = 0; __i" << iter << " < __len" << iter << "; __i" << iter
                 << "++)";
             out << sb;
@@ -3487,10 +4989,10 @@ Slice::JavaGenerator::writeStreamSequenceMarshalUnmarshalCode(Output& out,
                 //
                 out << nl << v << ".add(null);";
                 ostringstream patchParams;
-                patchParams << "new IceInternal.ListPatcher<" << origContentS << ">(" << v << ", " << origContentS
-                            << ".class, __type" << iter << ", __i" << iter << ')';
-                writeStreamMarshalUnmarshalCode(out, package, type, false, 0, "__elem", false, iter, false,
-                                                StringList(), patchParams.str());
+                patchParams << "new com.zeroc.IceInternal.ListPatcher<" << origContentS << ">(" << v << ", "
+                            << origContentS << ".class, " << origContentS << ".ice_staticId, __i" << iter << ')';
+                writeMarshalUnmarshalCode(out, package, type, OptionalNone, false, 0, "__elem", false, iter,
+                                          StringList(), patchParams.str());
             }
             else
             {
@@ -3502,7 +5004,7 @@ Slice::JavaGenerator::writeStreamSequenceMarshalUnmarshalCode(Output& out,
                 {
                     out << nl << cont << " __elem;";
                 }
-                writeStreamMarshalUnmarshalCode(out, package, type, false, 0, "__elem", false, iter, false);
+                writeMarshalUnmarshalCode(out, package, type, OptionalNone, false, 0, "__elem", false, iter);
             }
             if(!isObject)
             {
@@ -3515,7 +5017,9 @@ Slice::JavaGenerator::writeStreamSequenceMarshalUnmarshalCode(Output& out,
     else
     {
         BuiltinPtr b = BuiltinPtr::dynamicCast(type);
-        if(b && b->kind() != Builtin::KindObject && b->kind() != Builtin::KindObjectProxy)
+        if(b && b->kind() != Builtin::KindObject &&
+                b->kind() != Builtin::KindValue &&
+                b->kind() != Builtin::KindObjectProxy)
         {
             switch(b->kind())
             {
@@ -3615,6 +5119,7 @@ Slice::JavaGenerator::writeStreamSequenceMarshalUnmarshalCode(Output& out,
                     }
                     break;
                 }
+                case Builtin::KindValue:
                 case Builtin::KindObject:
                 case Builtin::KindObjectProxy:
                 case Builtin::KindLocalObject:
@@ -3641,7 +5146,7 @@ Slice::JavaGenerator::writeStreamSequenceMarshalUnmarshalCode(Output& out,
                 ostringstream o;
                 o << v << "[__i" << iter << "]";
                 iter++;
-                writeStreamMarshalUnmarshalCode(out, package, type, false, 0, o.str(), true, iter, false);
+                writeMarshalUnmarshalCode(out, package, type, OptionalNone, false, 0, o.str(), true, iter);
                 out << eb;
                 out << eb;
             }
@@ -3649,32 +5154,12 @@ Slice::JavaGenerator::writeStreamSequenceMarshalUnmarshalCode(Output& out,
             {
                 bool isObject = false;
                 ClassDeclPtr cl = ClassDeclPtr::dynamicCast(origContent);
-                if((b && b->kind() == Builtin::KindObject) || cl)
+                if((b && b->usesClasses()) || cl)
                 {
                     isObject = true;
                 }
                 out << nl << "final int __len" << iter << " = " << stream << ".readAndCheckSeqSize("
                     << type->minWireSize() << ");";
-                if(isObject)
-                {
-                    if(b)
-                    {
-                        out << nl << "final String __type" << iter << " = Ice.ObjectImpl.ice_staticId();";
-                    }
-                    else
-                    {
-                        assert(cl);
-                        if(cl->isInterface())
-                        {
-                            out << nl << "final String __type" << iter << " = "
-                                << getAbsolute(cl, package, "_", "Disp") << ".ice_staticId();";
-                        }
-                        else
-                        {
-                            out << nl << "final String __type" << iter << " = " << origContentS << ".ice_staticId();";
-                        }
-                    }
-                }
                 //
                 // We cannot allocate an array of a generic type, such as
                 //
@@ -3721,17 +5206,18 @@ Slice::JavaGenerator::writeStreamSequenceMarshalUnmarshalCode(Output& out,
                 out << sb;
                 ostringstream o;
                 o << v << "[__i" << iter << "]";
-                ostringstream patchParams;
                 if(isObject)
                 {
-                    patchParams << "new IceInternal.SequencePatcher(" << v << ", " << origContentS
-                                << ".class, __type" << iter << ", __i" << iter << ')';
-                    writeStreamMarshalUnmarshalCode(out, package, type, false, 0, o.str(), false, iter, false,
-                                                    StringList(), patchParams.str());
+                    ostringstream patchParams;
+                    patchParams << "new com.zeroc.IceInternal.SequencePatcher<" << origContentS << ">(" << v << ", "
+                                << origContentS << ".class, " << origContentS << ".ice_staticId, __i" << iter
+                                << ')';
+                    writeMarshalUnmarshalCode(out, package, type, OptionalNone, false, 0, o.str(), false, iter,
+                                              StringList(), patchParams.str());
                 }
                 else
                 {
-                    writeStreamMarshalUnmarshalCode(out, package, type, false, 0, o.str(), false, iter, false);
+                    writeMarshalUnmarshalCode(out, package, type, OptionalNone, false, 0, o.str(), false, iter);
                 }
                 out << eb;
                 iter++;
@@ -3843,13 +5329,14 @@ Slice::JavaGenerator::getDictionaryTypes(const DictionaryPtr& dict,
                                          const string& package,
                                          const StringList& metaData,
                                          string& instanceType,
-                                         string& formalType) const
+                                         string& formalType,
+                                         bool local) const
 {
     //
     // Get the types of the key and value.
     //
-    string keyTypeStr = typeToObjectString(dict->keyType(), TypeModeIn, package);
-    string valueTypeStr = typeToObjectString(dict->valueType(), TypeModeIn, package);
+    string keyTypeStr = typeToObjectString(dict->keyType(), TypeModeIn, package, StringList(), true, local);
+    string valueTypeStr = typeToObjectString(dict->valueType(), TypeModeIn, package, StringList(), true, local);
 
     //
     // Collect metadata for a custom type.
@@ -3878,7 +5365,8 @@ Slice::JavaGenerator::getSequenceTypes(const SequencePtr& seq,
                                        const string& package,
                                        const StringList& metaData,
                                        string& instanceType,
-                                       string& formalType) const
+                                       string& formalType,
+                                       bool local) const
 {
     BuiltinPtr builtin = BuiltinPtr::dynamicCast(seq->type());
     if(builtin)
@@ -3924,7 +5412,8 @@ Slice::JavaGenerator::getSequenceTypes(const SequencePtr& seq,
         assert(!instanceType.empty());
         if(formalType.empty())
         {
-            formalType = "java.util.List<" + typeToObjectString(seq->type(), TypeModeIn, package) + ">";
+            formalType = "java.util.List<" +
+                typeToObjectString(seq->type(), TypeModeIn, package, StringList(), true, local) + ">";
         }
         return true;
     }
@@ -3932,45 +5421,9 @@ Slice::JavaGenerator::getSequenceTypes(const SequencePtr& seq,
     //
     // The default mapping is a native array.
     //
-    instanceType = formalType = typeToString(seq->type(), TypeModeIn, package, metaData) + "[]";
+    instanceType = formalType = typeToString(seq->type(), TypeModeIn, package, metaData, true, false, local) + "[]";
     return false;
 }
-
-bool
-Slice::JavaGenerator::sequenceHasHolder(const SequencePtr& p) const
-{
-    BuiltinPtr builtin = BuiltinPtr::dynamicCast(p->type());
-    if(builtin && builtin->kind() == Builtin::KindByte)
-    {
-        string prefix = "java:serializable:";
-        string meta;
-        if(p->findMetaData(prefix, meta))
-        {
-            return false;
-        }
-        prefix = "java:protobuf:";
-        if(p->findMetaData(prefix, meta))
-        {
-            return false;
-        }
-    }
-
-    if(builtin &&
-       (builtin->kind() == Builtin::KindByte || builtin->kind() == Builtin::KindShort ||
-        builtin->kind() == Builtin::KindInt || builtin->kind() == Builtin::KindLong ||
-        builtin->kind() == Builtin::KindFloat || builtin->kind() == Builtin::KindDouble))
-    {
-        string meta;
-        string prefix = "java:buffer";
-        if(p->findMetaData(prefix, meta))
-        {
-            return false;
-        }
-    }
-
-    return true;
-}
-
 
 JavaOutput*
 Slice::JavaGenerator::createOutput()
@@ -3983,366 +5436,4 @@ Slice::JavaGenerator::validateMetaData(const UnitPtr& u)
 {
     MetaDataVisitor visitor;
     u->visit(&visitor, true);
-}
-
-bool
-Slice::JavaGenerator::MetaDataVisitor::visitUnitStart(const UnitPtr& p)
-{
-    static const string prefix = "java:";
-
-    //
-    // Validate global metadata in the top-level file and all included files.
-    //
-    StringList files = p->allFiles();
-
-    for(StringList::iterator q = files.begin(); q != files.end(); ++q)
-    {
-        string file = *q;
-        DefinitionContextPtr dc = p->findDefinitionContext(file);
-        assert(dc);
-        StringList globalMetaData = dc->getMetaData();
-        for(StringList::const_iterator r = globalMetaData.begin(); r != globalMetaData.end(); ++r)
-        {
-            string s = *r;
-            if(_history.count(s) == 0)
-            {
-                if(s.find(prefix) == 0)
-                {
-                    bool ok = false;
-
-                    static const string packagePrefix = "java:package:";
-                    if(s.find(packagePrefix) == 0 && s.size() > packagePrefix.size())
-                    {
-                        ok = true;
-                    }
-
-                    if(!ok)
-                    {
-                        emitWarning(file, "",  "ignoring invalid global metadata `" + s + "'");
-                    }
-                }
-                _history.insert(s);
-            }
-        }
-    }
-    return true;
-}
-
-bool
-Slice::JavaGenerator::MetaDataVisitor::visitModuleStart(const ModulePtr& p)
-{
-    StringList metaData = getMetaData(p);
-    validateType(p, metaData, p->file(), p->line());
-    validateGetSet(p, metaData, p->file(), p->line());
-    return true;
-}
-
-void
-Slice::JavaGenerator::MetaDataVisitor::visitClassDecl(const ClassDeclPtr& p)
-{
-    StringList metaData = getMetaData(p);
-    validateType(p, metaData, p->file(), p->line());
-    validateGetSet(p, metaData, p->file(), p->line());
-}
-
-bool
-Slice::JavaGenerator::MetaDataVisitor::visitClassDefStart(const ClassDefPtr& p)
-{
-    StringList metaData = getMetaData(p);
-    validateType(p, metaData, p->file(), p->line());
-    validateGetSet(p, metaData, p->file(), p->line());
-    return true;
-}
-
-bool
-Slice::JavaGenerator::MetaDataVisitor::visitExceptionStart(const ExceptionPtr& p)
-{
-    StringList metaData = getMetaData(p);
-    validateType(p, metaData, p->file(), p->line());
-    validateGetSet(p, metaData, p->file(), p->line());
-    return true;
-}
-
-bool
-Slice::JavaGenerator::MetaDataVisitor::visitStructStart(const StructPtr& p)
-{
-    StringList metaData = getMetaData(p);
-    validateType(p, metaData, p->file(), p->line());
-    validateGetSet(p, metaData, p->file(), p->line());
-    return true;
-}
-
-void
-Slice::JavaGenerator::MetaDataVisitor::visitOperation(const OperationPtr& p)
-{
-    if(p->hasMetaData("UserException"))
-    {
-        ClassDefPtr cl = ClassDefPtr::dynamicCast(p->container());
-        if(!cl->isLocal())
-        {
-            ostringstream os;
-            os << "ignoring invalid metadata `UserException': directive applies only to local operations "
-               << "but enclosing " << (cl->isInterface() ? "interface" : "class") << " `" << cl->name()
-               << "' is not local";
-            emitWarning(p->file(), p->line(), os.str());
-        }
-    }
-    StringList metaData = getMetaData(p);
-    TypePtr returnType = p->returnType();
-    if(!metaData.empty())
-    {
-        if(!returnType)
-        {
-            for(StringList::const_iterator q = metaData.begin(); q != metaData.end(); ++q)
-            {
-                if(q->find("java:type:", 0) == 0)
-                {
-                    emitWarning(p->file(), p->line(), "ignoring invalid metadata `" + *q +
-                                "' for operation with void return type");
-                    break;
-                }
-            }
-        }
-        else
-        {
-            validateType(returnType, metaData, p->file(), p->line());
-        }
-    }
-
-    ParamDeclList params = p->parameters();
-    for(ParamDeclList::iterator q = params.begin(); q != params.end(); ++q)
-    {
-        metaData = getMetaData(*q);
-        validateType((*q)->type(), metaData, p->file(), (*q)->line());
-    }
-
-    validateGetSet(p, metaData, p->file(), p->line());
-}
-
-void
-Slice::JavaGenerator::MetaDataVisitor::visitDataMember(const DataMemberPtr& p)
-{
-    StringList metaData = getMetaData(p);
-    validateType(p->type(), metaData, p->file(), p->line());
-    validateGetSet(p, metaData, p->file(), p->line());
-}
-
-void
-Slice::JavaGenerator::MetaDataVisitor::visitSequence(const SequencePtr& p)
-{
-    static const string protobuf = "java:protobuf:";
-    static const string serializable = "java:serializable:";
-    static const string bytebuffer = "java:buffer";
-    StringList metaData = getMetaData(p);
-    const string file =  p->file();
-    const string line = p->line();
-    for(StringList::const_iterator q = metaData.begin(); q != metaData.end(); )
-    {
-        string s = *q++;
-        if(_history.count(s) == 0) // Don't complain about the same metadata more than once.
-        {
-            if(s.find(protobuf) == 0 || s.find(serializable) == 0)
-            {
-                //
-                // Remove from list so validateType does not try to handle as well.
-                //
-                metaData.remove(s);
-
-                BuiltinPtr builtin = BuiltinPtr::dynamicCast(p->type());
-                if(!builtin || builtin->kind() != Builtin::KindByte)
-                {
-                    _history.insert(s);
-                    emitWarning(file, line, "ignoring invalid metadata `" + s + "': " +
-                                "this metadata can only be used with a byte sequence");
-                }
-            }
-            else if(s.find(bytebuffer) == 0)
-            {
-                metaData.remove(s);
-
-                BuiltinPtr builtin = BuiltinPtr::dynamicCast(p->type());
-                if(!builtin ||
-                   (builtin->kind() != Builtin::KindByte && builtin->kind() != Builtin::KindShort &&
-                    builtin->kind() != Builtin::KindInt && builtin->kind() != Builtin::KindLong &&
-                    builtin->kind() != Builtin::KindFloat && builtin->kind() != Builtin::KindDouble))
-                {
-                    _history.insert(s);
-                    emitWarning(file, line, "ignoring invalid metadata `" + s + "': " +
-                                "this metadata can not be used with this type");
-                }
-            }
-        }
-    }
-
-    validateType(p, metaData, file, line);
-    validateGetSet(p, metaData, file, line);
-}
-
-void
-Slice::JavaGenerator::MetaDataVisitor::visitDictionary(const DictionaryPtr& p)
-{
-    StringList metaData = getMetaData(p);
-    validateType(p, metaData, p->file(), p->line());
-    validateGetSet(p, metaData, p->file(), p->line());
-}
-
-void
-Slice::JavaGenerator::MetaDataVisitor::visitEnum(const EnumPtr& p)
-{
-    StringList metaData = getMetaData(p);
-    validateType(p, metaData, p->file(), p->line());
-    validateGetSet(p, metaData, p->file(), p->line());
-}
-
-void
-Slice::JavaGenerator::MetaDataVisitor::visitConst(const ConstPtr& p)
-{
-    StringList metaData = getMetaData(p);
-    validateType(p, metaData, p->file(), p->line());
-    validateGetSet(p, metaData, p->file(), p->line());
-}
-
-StringList
-Slice::JavaGenerator::MetaDataVisitor::getMetaData(const ContainedPtr& cont)
-{
-    static const string prefix = "java:";
-
-    StringList metaData = cont->getMetaData();
-    StringList result;
-
-    for(StringList::const_iterator p = metaData.begin(); p != metaData.end(); ++p)
-    {
-        string s = *p;
-        if(_history.count(s) == 0) // Don't complain about the same metadata more than once.
-        {
-            if(s.find(prefix) == 0)
-            {
-                string::size_type pos = s.find(':', prefix.size());
-                if(pos == string::npos)
-                {
-                    if(s.size() > prefix.size())
-                    {
-                        string rest = s.substr(prefix.size());
-                        if(rest == "getset")
-                        {
-                            result.push_back(s);
-                        }
-                        else if(rest == "buffer")
-                        {
-                            result.push_back(s);
-                        }
-                        continue;
-                    }
-                }
-                else if(s.substr(prefix.size(), pos - prefix.size()) == "type")
-                {
-                    result.push_back(s);
-                    continue;
-                }
-                else if(s.substr(prefix.size(), pos - prefix.size()) == "serializable")
-                {
-                    result.push_back(s);
-                    continue;
-                }
-                else if(s.substr(prefix.size(), pos - prefix.size()) == "protobuf")
-                {
-                    result.push_back(s);
-                    continue;
-                }
-                else if(s.substr(prefix.size(), pos - prefix.size()) == "serialVersionUID")
-                {
-                    result.push_back(s);
-                    continue;
-                }
-
-                emitWarning(cont->file(), cont->line(), "ignoring invalid metadata `" + s + "'");
-            }
-
-            _history.insert(s);
-        }
-    }
-
-    return result;
-}
-
-void
-Slice::JavaGenerator::MetaDataVisitor::validateType(const SyntaxTreeBasePtr& p, const StringList& metaData,
-                                                    const string& file, const string& line)
-{
-    for(StringList::const_iterator i = metaData.begin(); i != metaData.end(); ++i)
-    {
-        //
-        // Type metadata ("java:type:Foo") is only supported by sequences and dictionaries.
-        //
-        if(i->find("java:type:", 0) == 0 && (!SequencePtr::dynamicCast(p) && !DictionaryPtr::dynamicCast(p)))
-        {
-            string str;
-            ContainedPtr cont = ContainedPtr::dynamicCast(p);
-            if(cont)
-            {
-                str = cont->kindOf();
-            }
-            else
-            {
-                BuiltinPtr b = BuiltinPtr::dynamicCast(p);
-                assert(b);
-                str = b->typeId();
-            }
-            emitWarning(file, line, "invalid metadata for " + str);
-        }
-        else if(i->find("java:buffer") == 0)
-        {
-            SequencePtr seq = SequencePtr::dynamicCast(p);
-            if(seq)
-            {
-                BuiltinPtr builtin = BuiltinPtr::dynamicCast(seq->type());
-                if(builtin &&
-                   (builtin->kind() == Builtin::KindByte || builtin->kind() == Builtin::KindShort ||
-                    builtin->kind() == Builtin::KindInt || builtin->kind() == Builtin::KindLong ||
-                    builtin->kind() == Builtin::KindFloat || builtin->kind() == Builtin::KindDouble))
-                {
-                    continue;
-                }
-
-            }
-            emitWarning(file, line, "ignoring invalid metadata `" + *i + "'");
-        }
-        else if(i->find("java:protobuf:") == 0 || i->find("java:serializable:") == 0)
-        {
-            //
-            // Only valid in sequence defintion which is checked in visitSequence
-            //
-            emitWarning(file, line, "ignoring invalid metadata `" + *i + "'");
-        }
-    }
-}
-
-void
-Slice::JavaGenerator::MetaDataVisitor::validateGetSet(const SyntaxTreeBasePtr& p, const StringList& metaData,
-                                                      const string& file, const string& line)
-{
-    for(StringList::const_iterator i = metaData.begin(); i != metaData.end(); ++i)
-    {
-        //
-        // The "getset" metadata can only be specified on a class, struct, exception or data member.
-        //
-        if((*i) == "java:getset" &&
-           (!ClassDefPtr::dynamicCast(p) && !StructPtr::dynamicCast(p) && !ExceptionPtr::dynamicCast(p) &&
-            !DataMemberPtr::dynamicCast(p)))
-        {
-            string str;
-            ContainedPtr cont = ContainedPtr::dynamicCast(p);
-            if(cont)
-            {
-                str = cont->kindOf();
-            }
-            else
-            {
-                BuiltinPtr b = BuiltinPtr::dynamicCast(p);
-                assert(b);
-                str = b->typeId();
-            }
-            emitWarning(file, line, "invalid metadata for " + str);
-        }
-    }
 }

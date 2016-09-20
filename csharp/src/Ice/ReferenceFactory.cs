@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,7 +8,6 @@
 // **********************************************************************
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
@@ -135,7 +134,7 @@ namespace IceInternal
             //
             // Parsing the identity may raise IdentityParseException.
             //
-            Ice.Identity ident = instance_.stringToIdentity(idstr);
+            Ice.Identity ident = Ice.Util.stringToIdentity(idstr);
 
             if(ident.name.Length == 0)
             {
@@ -551,7 +550,7 @@ namespace IceInternal
             throw ex;
         }
 
-        public Reference create(Ice.Identity ident, BasicStream s)
+        public Reference create(Ice.Identity ident, Ice.InputStream s)
         {
             //
             // Don't read the identity here. Operations calling this
@@ -591,7 +590,7 @@ namespace IceInternal
 
             Ice.ProtocolVersion protocol;
             Ice.EncodingVersion encoding;
-            if(!s.getReadEncoding().Equals(Ice.Util.Encoding_1_0))
+            if(!s.getEncoding().Equals(Ice.Util.Encoding_1_0))
             {
                 protocol = new Ice.ProtocolVersion();
                 protocol.read__(s);

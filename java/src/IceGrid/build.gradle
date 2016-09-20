@@ -1,19 +1,24 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
 
-sourceCompatibility = iceSourceCompatibility
-targetCompatibility = iceTargetCompatibility
+//sourceCompatibility = iceSourceCompatibility
+//targetCompatibility = iceTargetCompatibility
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+project.ext.displayName = "IceGrid"
+project.ext.description = "Locate, deploy, and manage Ice servers"
 
 slice {
     java {
         set1 {
-            args = "--ice --tie --checksum IceGrid.SliceChecksums"
+            args = "--ice --checksum com.zeroc.IceGrid.SliceChecksums"
             files = fileTree(dir: "$sliceDir/IceGrid", includes:['*.ice'], excludes:["*F.ice"])
         }
     }

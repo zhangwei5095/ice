@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -18,20 +18,19 @@ class InterceptorI : public Ice::DispatchInterceptor
 public:
 
     InterceptorI(const Ice::ObjectPtr&);
-    
-    virtual Ice::DispatchStatus dispatch(Ice::Request& request);
-    
-    Ice::DispatchStatus getLastStatus() const;
+
+    virtual bool dispatch(Ice::Request& request);
+
+    bool getLastStatus() const;
     const std::string& getLastOperation() const;
-    
+
     virtual void clear();
 
 protected:
     const Ice::ObjectPtr _servant;
     std::string _lastOperation;
-    Ice::DispatchStatus _lastStatus;
+    bool _lastStatus;
 };
-
-typedef IceUtil::Handle<InterceptorI> InterceptorIPtr;
+ICE_DEFINE_PTR(InterceptorIPtr, InterceptorI);
 
 #endif

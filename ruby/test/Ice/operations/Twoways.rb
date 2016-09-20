@@ -1,13 +1,95 @@
+# encoding: utf-8
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
 #
 # **********************************************************************
 
+
 def twoways(communicator, p)
+
+    literals = p.opStringLiterals();
+
+    test(Test::S0 == "\\" &&
+         Test::S0 == Test::Sw0 &&
+         Test::S0 == literals[0] &&
+         Test::S0 == literals[11]);
+
+    test(Test::S1 == "A" &&
+         Test::S1 == Test::Sw1 &&
+         Test::S1 == literals[1] &&
+         Test::S1 == literals[12]);
+
+    test(Test::S2 == "Ice" &&
+         Test::S2 == Test::Sw2 &&
+         Test::S2 == literals[2] &&
+         Test::S2 == literals[13]);
+
+    test(Test::S3 == "A21" &&
+         Test::S3 == Test::Sw3 &&
+         Test::S3 == literals[3] &&
+         Test::S3 == literals[14]);
+
+    test(Test::S4 == "\\u0041 \\U00000041" &&
+         Test::S4 == Test::Sw4 &&
+         Test::S4 == literals[4] &&
+         Test::S4 == literals[15]);
+
+    test(Test::S5 == "\xc3\xbf" &&
+         Test::S5 == Test::Sw5 &&
+         Test::S5 == literals[5] &&
+         Test::S5 == literals[16]);
+
+    test(Test::S6 == "\xcf\xbf" &&
+         Test::S6 == Test::Sw6 &&
+         Test::S6 == literals[6] &&
+         Test::S6 == literals[17]);
+
+    test(Test::S7 == "\xd7\xb0" &&
+         Test::S7 == Test::Sw7 &&
+         Test::S7 == literals[7] &&
+         Test::S7 == literals[18]);
+
+    test(Test::S8 == "\xf0\x90\x80\x80" &&
+         Test::S8 == Test::Sw8 &&
+         Test::S8 == literals[8] &&
+         Test::S8 == literals[19]);
+
+    test(Test::S9 == "\xf0\x9f\x8d\x8c" &&
+         Test::S9 == Test::Sw9 &&
+         Test::S9 == literals[9] &&
+         Test::S9 == literals[20]);
+
+    test(Test::S10 == "\xe0\xb6\xa7" &&
+         Test::S10 == Test::Sw10 &&
+         Test::S10 == literals[10] &&
+         Test::S10 == literals[21]);
+
+    test(Test::Ss0 == "\'\"\x3f\\\a\b\f\n\r\t\v" &&
+         Test::Ss0 == Test::Ss1 &&
+         Test::Ss0 == Test::Ss2 &&
+         Test::Ss0 == literals[22] &&
+         Test::Ss0 == literals[23] &&
+         Test::Ss0 == literals[24]);
+
+    test(Test::Ss3 == "\\\\U\\u\\" &&
+         Test::Ss3 == literals[25]);
+
+    test(Test::Ss4 == "\\A\\" &&
+         Test::Ss4 == literals[26]);
+
+    test(Test::Ss5 == "\\u0041\\" &&
+         Test::Ss5 == literals[27]);
+
+    test(Test::Su0 == Test::Su1 &&
+         Test::Su0 == Test::Su2 &&
+         Test::Su0 == literals[28] &&
+         Test::Su0 == literals[29] &&
+         Test::Su0 == literals[30]);
+
     #
     # ice_ping
     #
@@ -135,6 +217,23 @@ def twoways(communicator, p)
     r, f, d = p.opFloatDouble(3.402823466E38, 0.0)
     r, f, d = p.opFloatDouble(-3.402823466E38, 0.0)
 
+    #
+    # For portability, don't use Float::NAN here.
+    #
+    nan = 0.0 / 0.0
+    for val in [nan, -nan]
+        r, f, d = p.opFloatDouble(val, val)
+        test(r.nan? && f.nan? && d.nan?)
+    end
+    #
+    # For portability, don't use Float::INFINITY here.
+    #
+    inf = 1.0 / 0.0
+    for val in [inf, -inf]
+        r, f, d = p.opFloatDouble(val, val)
+        test(r.infinite? != 0 && f.infinite? != 0 && d.infinite? != 0)
+    end
+
     begin
         r, f, d = p.opFloatDouble(3.402823466E38*2, 0.0)
         test(false)
@@ -168,9 +267,9 @@ def twoways(communicator, p)
     test(Ice::proxyIdentityAndFacetEqual(c1, p))
     test(!Ice::proxyIdentityAndFacetEqual(c2, p))
     test(Ice::proxyIdentityAndFacetEqual(r, p))
-    test(c1.ice_getIdentity() == communicator.stringToIdentity("test"))
-    test(c2.ice_getIdentity() == communicator.stringToIdentity("noSuchIdentity"))
-    test(r.ice_getIdentity() == communicator.stringToIdentity("test"))
+    test(c1.ice_getIdentity() == Ice::stringToIdentity("test"))
+    test(c2.ice_getIdentity() == Ice::stringToIdentity("noSuchIdentity"))
+    test(r.ice_getIdentity() == Ice::stringToIdentity("test"))
     r.opVoid()
     c1.opVoid()
     begin
@@ -1112,6 +1211,22 @@ def twoways(communicator, p)
     test(c.tesT == "Test.MyClass1.testT")
     test(c.myClass == nil)
     test(c.myClass1 == "Test.MyClass1.myClass1")
+
+    p1 = p.opMStruct1()
+    p1.e = Test::MyEnum::Enum3
+    (p3, p2) = p.opMStruct2(p1)
+    test(p2 == p1 && p3 == p1)
+
+    p.opMSeq1();
+    p1 = ["test"]
+    (p3, p2) = p.opMSeq2(p1)
+    test(p2[0] == "test" && p3[0] == "test");
+
+    p.opMDict1();
+
+    p1 = { "test" => "test" }
+    (p3, p2) = p.opMDict2(p1)
+    test(p3["test"] == "test" && p2["test"] == "test")
 
     #
     # Test implicit context propagation

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -14,7 +14,9 @@ using namespace std;
 using namespace Ice;
 using namespace IceInternal;
 
+#ifndef ICE_CPP11_MAPPING
 IceUtil::Shared* IceInternal::upCast(EventHandler* p) { return p; }
+#endif
 
 IceInternal::EventHandler::EventHandler() :
 #if defined(ICE_USE_IOCP) || defined(ICE_OS_WINRT)

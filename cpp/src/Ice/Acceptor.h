@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -19,9 +19,10 @@
 namespace IceInternal
 {
 
-class ICE_API Acceptor : virtual public ::IceUtil::Shared
+class ICE_API Acceptor : public virtual ::IceUtil::Shared
 {
 public:
+    virtual ~Acceptor();
 
     virtual NativeInfoPtr getNativeInfo() = 0;
     virtual void close() = 0;

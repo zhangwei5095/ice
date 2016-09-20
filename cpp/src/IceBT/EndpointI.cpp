@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -14,19 +14,38 @@
 #include <IceBT/Instance.h>
 #include <IceBT/Util.h>
 
-#include <Ice/BasicStream.h>
-#include <Ice/LocalException.h>
+#include <Ice/OutputStream.h>
+#include <Ice/InputStream.h>
 #include <Ice/DefaultsAndOverrides.h>
 #include <Ice/HashUtil.h>
+#include <Ice/LocalException.h>
+#include <Ice/Logger.h>
 #include <Ice/Object.h>
 #include <Ice/Properties.h>
+#include <IceUtil/Random.h>
 #include <IceUtil/StringUtil.h>
+#include <Ice/UUID.h>
 
 using namespace std;
 using namespace Ice;
 using namespace IceBT;
 
+#ifndef ICE_CPP11_MAPPING
 IceUtil::Shared* IceBT::upCast(EndpointI* p) { return p; }
+#endif
+
+namespace
+{
+
+struct RandomNumberGenerator : public std::unary_function<ptrdiff_t, ptrdiff_t>
+{
+    ptrdiff_t operator()(ptrdiff_t d)
+    {
+        return IceUtilInternal::random(static_cast<int>(d));
+    }
+};
+
+}
 
 IceBT::EndpointI::EndpointI(const InstancePtr& instance, const string& addr, const string& uuid, const string& name,
                             Int channel, Int timeout, const string& connectionId, bool compress) :
@@ -39,7 +58,7 @@ IceBT::EndpointI::EndpointI(const InstancePtr& instance, const string& addr, con
     _connectionId(connectionId),
     _compress(compress),
     _hashValue(0),
-    _connectPending(false)
+    _findPending(false)
 {
     hashInit();
 }
@@ -50,17 +69,17 @@ IceBT::EndpointI::EndpointI(const InstancePtr& instance) :
     _timeout(instance->defaultTimeout()),
     _compress(false),
     _hashValue(0),
-    _connectPending(false)
+    _findPending(false)
 {
 }
 
-IceBT::EndpointI::EndpointI(const InstancePtr& instance, IceInternal::BasicStream* s) :
+IceBT::EndpointI::EndpointI(const InstancePtr& instance, InputStream* s) :
     _instance(instance),
     _channel(0),
     _timeout(-1),
     _compress(false),
     _hashValue(0),
-    _connectPending(false)
+    _findPending(false)
 {
     //
     // _name and _channel are not marshaled.
@@ -73,17 +92,15 @@ IceBT::EndpointI::EndpointI(const InstancePtr& instance, IceInternal::BasicStrea
 }
 
 void
-IceBT::EndpointI::streamWrite(IceInternal::BasicStream* s) const
+IceBT::EndpointI::streamWriteImpl(OutputStream* s) const
 {
     //
     // _name and _channel are not marshaled.
     //
-    s->startWriteEncaps();
     s->write(_addr, false);
     s->write(_uuid, false);
     s->write(_timeout);
     s->write(_compress);
-    s->endWriteEncaps();
 }
 
 Ice::Short
@@ -109,11 +126,11 @@ IceBT::EndpointI::timeout(Int timeout) const
 {
     if(timeout == _timeout)
     {
-        return const_cast<EndpointI*>(this);
+        return ICE_SHARED_FROM_CONST_THIS(EndpointI);
     }
     else
     {
-        return new EndpointI(_instance, _addr, _uuid, _name, _channel, timeout, _connectionId, _compress);
+        return ICE_MAKE_SHARED(EndpointI, _instance, _addr, _uuid, _name, _channel, timeout, _connectionId, _compress);
     }
 }
 
@@ -128,11 +145,11 @@ IceBT::EndpointI::connectionId(const string& connectionId) const
 {
     if(connectionId == _connectionId)
     {
-        return const_cast<EndpointI*>(this);
+        return ICE_SHARED_FROM_CONST_THIS(EndpointI);
     }
     else
     {
-        return new EndpointI(_instance, _addr, _uuid, _name, _channel, _timeout, connectionId, _compress);
+        return ICE_MAKE_SHARED(EndpointI, _instance, _addr, _uuid, _name, _channel, _timeout, connectionId, _compress);
     }
 }
 
@@ -147,11 +164,11 @@ IceBT::EndpointI::compress(bool compress) const
 {
     if(compress == _compress)
     {
-        return const_cast<EndpointI*>(this);
+        return ICE_SHARED_FROM_CONST_THIS(EndpointI);
     }
     else
     {
-        return new EndpointI(_instance, _addr, _uuid, _name, _channel, _timeout, _connectionId, compress);
+        return ICE_MAKE_SHARED(EndpointI, _instance, _addr, _uuid, _name, _channel, _timeout, _connectionId, compress);
     }
 }
 
@@ -178,11 +195,17 @@ IceBT::EndpointI::connectors_async(EndpointSelectionType selType, const IceInter
 {
     IceUtil::Monitor<IceUtil::Mutex>::Lock lock(_lock);
 
-    if(!_connectPending)
+    if(!_findPending)
     {
         assert(_callbacks.empty());
-        _instance->engine()->connect(_addr, _uuid, new ConnectCallbackI(const_cast<EndpointI*>(this)));
-        const_cast<bool&>(_connectPending) = true;
+        const_cast<bool&>(_findPending) = true;
+        if(_instance->traceLevel() > 1)
+        {
+            ostringstream ostr;
+            ostr << "searching for service " << _uuid << " at " << _addr;
+            _instance->logger()->trace(_instance->traceCategory(), ostr.str());
+        }
+        _instance->engine()->findService(_addr, _uuid, new FindCallbackI(ICE_SHARED_FROM_CONST_THIS(EndpointI), selType));
     }
 
     const_cast<vector<IceInternal::EndpointI_connectorsPtr>&>(_callbacks).push_back(cb);
@@ -191,7 +214,7 @@ IceBT::EndpointI::connectors_async(EndpointSelectionType selType, const IceInter
 IceInternal::AcceptorPtr
 IceBT::EndpointI::acceptor(const string& adapterName) const
 {
-    return new AcceptorI(const_cast<EndpointI*>(this), _instance, adapterName, _addr, _uuid, _name, _channel);
+    return new AcceptorI(ICE_SHARED_FROM_CONST_THIS(EndpointI), _instance, adapterName, _addr, _uuid, _name, _channel);
 }
 
 vector<IceInternal::EndpointIPtr>
@@ -201,7 +224,7 @@ IceBT::EndpointI::expand() const
     // Nothing to do here.
     //
     vector<IceInternal::EndpointIPtr> endps;
-    endps.push_back(const_cast<EndpointI*>(this));
+    endps.push_back(ICE_SHARED_FROM_CONST_THIS(EndpointI));
     return endps;
 }
 
@@ -217,7 +240,11 @@ IceBT::EndpointI::equivalent(const IceInternal::EndpointIPtr& endpoint) const
 }
 
 bool
+#ifdef ICE_CPP11_MAPPING
+IceBT::EndpointI::operator==(const Ice::Endpoint& r) const
+#else
 IceBT::EndpointI::operator==(const Ice::LocalObject& r) const
+#endif
 {
     const EndpointI* p = dynamic_cast<const EndpointI*>(&r);
     if(!p)
@@ -264,7 +291,11 @@ IceBT::EndpointI::operator==(const Ice::LocalObject& r) const
 }
 
 bool
+#ifdef ICE_CPP11_MAPPING
+IceBT::EndpointI::operator<(const Ice::Endpoint& r) const
+#else
 IceBT::EndpointI::operator<(const Ice::LocalObject& r) const
+#endif
 {
     const EndpointI* p = dynamic_cast<const EndpointI*>(&r);
     if(!p)
@@ -396,7 +427,7 @@ IceBT::EndpointI::options() const
         }
     }
 
-    if(_channel != 0)
+    if(_channel > 0)
     {
         s << " -c " << _channel;
     }
@@ -421,7 +452,7 @@ IceBT::EndpointI::options() const
 Ice::EndpointInfoPtr
 IceBT::EndpointI::getInfo() const
 {
-    EndpointInfoPtr info = new EndpointInfoI(const_cast<EndpointI*>(this));
+    EndpointInfoPtr info = ICE_MAKE_SHARED(EndpointInfoI, ICE_SHARED_FROM_CONST_THIS(EndpointI));
     info->addr = _addr;
     info->uuid = _uuid;
     return info;
@@ -434,22 +465,24 @@ IceBT::EndpointI::initWithOptions(vector<string>& args, bool oaEndpoint)
 
     if(_addr.empty())
     {
-        const_cast<string&>(_addr) = _instance->properties()->getProperty("IceBT.DefaultAddress");
+        const_cast<string&>(_addr) = _instance->defaultHost();
     }
 
-    if(oaEndpoint && _addr.empty())
+    if(_addr.empty() || _addr == "*")
     {
-        //
-        // getDefaultAdapterAddress can throw BluetoothException.
-        //
-        const_cast<string&>(_addr) = _instance->engine()->getDefaultAdapterAddress();
-    }
-
-    if(!oaEndpoint && _addr.empty())
-    {
-        Ice::EndpointParseException ex(__FILE__, __LINE__);
-        ex.str = "a device address must be specified using the -a option or IceBT.DefaultAddress";
-        throw ex;
+        if(oaEndpoint)
+        {
+            //
+            // getDefaultAdapterAddress can throw BluetoothException.
+            //
+            const_cast<string&>(_addr) = _instance->engine()->getDefaultAdapterAddress();
+        }
+        else
+        {
+            Ice::EndpointParseException ex(__FILE__, __LINE__);
+            ex.str = "a device address must be specified using the -a option or Ice.Default.Host";
+            throw ex;
+        }
     }
 
     if(_name.empty())
@@ -459,9 +492,19 @@ IceBT::EndpointI::initWithOptions(vector<string>& args, bool oaEndpoint)
 
     if(_uuid.empty())
     {
-        Ice::EndpointParseException ex(__FILE__, __LINE__);
-        ex.str = "a UUID must be specified using the -u option";
-        throw ex;
+        if(oaEndpoint)
+        {
+            //
+            // Generate a UUID for object adapters that don't specify one.
+            //
+            const_cast<string&>(_uuid) = Ice::generateUUID();
+        }
+        else
+        {
+            Ice::EndpointParseException ex(__FILE__, __LINE__);
+            ex.str = "a UUID must be specified using the -u option";
+            throw ex;
+        }
     }
 
     if(_channel < 0)
@@ -482,18 +525,19 @@ IceBT::EndpointI::initWithOptions(vector<string>& args, bool oaEndpoint)
 IceBT::EndpointIPtr
 IceBT::EndpointI::endpoint(const AcceptorIPtr& acceptor) const
 {
-    return new EndpointI(_instance, _addr, _uuid, _name, acceptor->effectiveChannel(), _timeout, _connectionId,
-                         _compress);
+    return ICE_MAKE_SHARED(EndpointI, _instance, _addr, _uuid, _name, acceptor->effectiveChannel(), _timeout, _connectionId,
+                           _compress);
 }
 
 void
 IceBT::EndpointI::hashInit()
 {
     Int h = 5381;
-    IceInternal::hashAdd(h, type());
     IceInternal::hashAdd(h, _addr);
     IceInternal::hashAdd(h, _uuid);
+    IceInternal::hashAdd(h, _timeout);
     IceInternal::hashAdd(h, _connectionId);
+    IceInternal::hashAdd(h, _compress);
     const_cast<Int&>(_hashValue) = h;
 }
 
@@ -509,7 +553,7 @@ IceBT::EndpointI::checkOption(const string& option, const string& argument, cons
             ex.str = "no argument provided for -a option in endpoint " + endpoint;
             throw ex;
         }
-        if(!isValidDeviceAddress(arg))
+        if(arg != "*" && !isValidDeviceAddress(arg))
         {
             Ice::EndpointParseException ex(__FILE__, __LINE__);
             ex.str = "invalid argument provided for -a option in endpoint " + endpoint;
@@ -537,7 +581,7 @@ IceBT::EndpointI::checkOption(const string& option, const string& argument, cons
         }
 
         istringstream t(argument);
-        if(!(t >> const_cast<Int&>(_channel)) || !t.eof() || _channel > 30)
+        if(!(t >> const_cast<Int&>(_channel)) || !t.eof() || _channel < 0 || _channel > 30)
         {
             EndpointParseException ex(__FILE__, __LINE__);
             ex.str = "invalid channel value `" + arg + "' in endpoint " + endpoint;
@@ -596,25 +640,29 @@ IceBT::EndpointI::checkOption(const string& option, const string& argument, cons
 }
 
 void
-IceBT::EndpointI::connectCompleted(int fd, const ConnectionPtr& conn)
+IceBT::EndpointI::findCompleted(const vector<int>& channels, EndpointSelectionType selType)
 {
-    //
-    // We are responsible for closing the given file descriptor and connection.
-    //
+    assert(!channels.empty());
 
     vector<IceInternal::ConnectorPtr> connectors;
-
-    if(fd != -1)
+    for(vector<int>::const_iterator p = channels.begin(); p != channels.end(); ++p)
     {
-        connectors.push_back(new ConnectorI(_instance, fd, conn, _addr, _uuid, _timeout, _connectionId));
+        connectors.push_back(new ConnectorI(_instance, createAddr(_addr, *p), _uuid, _timeout, _connectionId));
+    }
+
+    if(selType == Ice::Random && connectors.size() > 1)
+    {
+        RandomNumberGenerator rng;
+        random_shuffle(connectors.begin(), connectors.end(), rng);
     }
 
     vector<IceInternal::EndpointI_connectorsPtr> callbacks;
+
     {
         IceUtil::Monitor<IceUtil::Mutex>::Lock lock(_lock);
         assert(!_callbacks.empty());
         callbacks.swap(_callbacks);
-        _connectPending = false;
+        _findPending = false;
     }
 
     for(vector<IceInternal::EndpointI_connectorsPtr>::iterator p = callbacks.begin(); p != callbacks.end(); ++p)
@@ -624,38 +672,20 @@ IceBT::EndpointI::connectCompleted(int fd, const ConnectionPtr& conn)
 }
 
 void
-IceBT::EndpointI::connectFailed(const Ice::LocalException& ex)
+IceBT::EndpointI::findException(const LocalException& ex)
 {
     vector<IceInternal::EndpointI_connectorsPtr> callbacks;
+
     {
         IceUtil::Monitor<IceUtil::Mutex>::Lock lock(_lock);
         assert(!_callbacks.empty());
         callbacks.swap(_callbacks);
-        _connectPending = false;
+        _findPending = false;
     }
 
-    //
-    // NoEndpointException means the device address was unknown, so we just return an empty list of
-    // connectors (similar to a DNS lookup failure).
-    //
-    try
+    for(vector<IceInternal::EndpointI_connectorsPtr>::iterator p = callbacks.begin(); p != callbacks.end(); ++p)
     {
-        ex.ice_throw();
-    }
-    catch(const Ice::NoEndpointException&)
-    {
-        vector<IceInternal::ConnectorPtr> connectors;
-        for(vector<IceInternal::EndpointI_connectorsPtr>::iterator p = callbacks.begin(); p != callbacks.end(); ++p)
-        {
-            (*p)->connectors(connectors);
-        }
-    }
-    catch(...)
-    {
-        for(vector<IceInternal::EndpointI_connectorsPtr>::iterator p = callbacks.begin(); p != callbacks.end(); ++p)
-        {
-            (*p)->exception(ex);
-        }
+        (*p)->exception(ex);
     }
 }
 
@@ -708,15 +738,15 @@ IceBT::EndpointFactoryI::protocol() const
 IceInternal::EndpointIPtr
 IceBT::EndpointFactoryI::create(vector<string>& args, bool oaEndpoint) const
 {
-    EndpointIPtr endpt = new EndpointI(_instance);
+    EndpointIPtr endpt = ICE_MAKE_SHARED(EndpointI, _instance);
     endpt->initWithOptions(args, oaEndpoint);
     return endpt;
 }
 
 IceInternal::EndpointIPtr
-IceBT::EndpointFactoryI::read(IceInternal::BasicStream* s) const
+IceBT::EndpointFactoryI::read(InputStream* s) const
 {
-    return new EndpointI(_instance, s);
+    return ICE_MAKE_SHARED(EndpointI, _instance, s);
 }
 
 void
@@ -726,7 +756,8 @@ IceBT::EndpointFactoryI::destroy()
 }
 
 IceInternal::EndpointFactoryPtr
-IceBT::EndpointFactoryI::clone(const IceInternal::ProtocolInstancePtr& instance) const
+IceBT::EndpointFactoryI::clone(const IceInternal::ProtocolInstancePtr& instance,
+                               const IceInternal::EndpointFactoryPtr&) const
 {
     return new EndpointFactoryI(new Instance(_instance->engine(), instance->type(), instance->protocol()));
 }

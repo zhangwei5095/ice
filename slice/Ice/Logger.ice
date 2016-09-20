@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -10,6 +10,10 @@
 #pragma once
 
 [["cpp:header-ext:h", "objc:header-dir:objc"]]
+
+#ifndef __SLICE2JAVA_COMPAT__
+[["java:package:com.zeroc"]]
+#endif
 
 ["objc:prefix:ICE"]
 module Ice
@@ -28,6 +32,7 @@ local interface Logger
      * Print a message. The message is printed literally, without
      * any decorations such as executable name or time stamp.
      *
+     * @param message The message to log.
      **/
     void print(string message);
 
@@ -78,10 +83,10 @@ local interface Logger
      * Returns a clone of the logger with a new prefix.
      *
      * @param prefix The new prefix for the logger.
+     * @return A logger instance.
      *
      */
     Logger cloneWithPrefix(string prefix);
 };
 
 };
-

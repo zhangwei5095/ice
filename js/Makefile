@@ -1,6 +1,6 @@
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -17,11 +17,11 @@ all: npminstall
 dist: npminstall
 	$(NPM) run gulp:dist
 
-clean: npminstall
-	$(NPM) run gulp:clean
+install:
 
-install: npminstall
-	$(NPM) run gulp:install
+
+distclean clean: npminstall
+	$(NPM) run gulp:clean
 
 lint: npminstall
 	$(NPM) run gulp:lint

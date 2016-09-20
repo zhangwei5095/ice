@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -25,11 +25,6 @@ if TestUtil.appverifier:
     targets = [TestUtil.getIceBox()]
     TestUtil.setAppVerifierSettings(targets, cwd = os.getcwd())
 
-#
-# Remove IceStorm databases possibly left from SQL run.
-#
-for filename in [os.path.join("db", f) for f in os.listdir("db") if f.endswith(".db")]:
-    os.remove(filename)
 
 variables = "icebox.exe='%s'" % TestUtil.getIceBox()
 

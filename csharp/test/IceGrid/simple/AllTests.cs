@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,7 +8,6 @@
 // **********************************************************************
 
 using System;
-using System.Threading;
 using Test;
 
 public class AllTests
@@ -147,10 +146,10 @@ public class AllTests
         }
         Console.Out.WriteLine("ok");
 
-        System.Console.Out.Write("shutting down server... ");
-        System.Console.Out.Flush();
+        Console.Out.Write("shutting down server... ");
+        Console.Out.Flush();
         obj.shutdown();
-        System.Console.Out.WriteLine("ok");
+        Console.Out.WriteLine("ok");
     }
 
     public static void

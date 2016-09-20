@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,12 +9,12 @@
 
 package test.Ice.servantLocator;
 
-import test.Ice.servantLocator.Test._TestActivationDisp;
+import test.Ice.servantLocator.Test.TestActivation;
 
-public final class AMDTestActivationI extends _TestActivationDisp
+public final class AMDTestActivationI implements TestActivation
 {
     @Override
-    public void activateServantLocator(boolean activate, Ice.Current current)
+    public void activateServantLocator(boolean activate, com.zeroc.Ice.Current current)
     {
         if(activate)
         {
@@ -23,7 +23,7 @@ public final class AMDTestActivationI extends _TestActivationDisp
         }
         else
         {
-            Ice.ServantLocator locator = current.adapter.removeServantLocator("");
+            com.zeroc.Ice.ServantLocator locator = current.adapter.removeServantLocator("");
             locator.deactivate("");
             locator = current.adapter.removeServantLocator("category");
             locator.deactivate("category");

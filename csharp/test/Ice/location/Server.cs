@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,7 +8,6 @@
 // **********************************************************************
 
 using System;
-using System.Diagnostics;
 using System.Reflection;
 
 [assembly: CLSCompliant(true)]
@@ -40,13 +39,13 @@ public class Server
         //
         ServerLocatorRegistry registry = new ServerLocatorRegistry();
         Ice.Object @object = new ServerManagerI(registry, initData);
-        adapter.add(@object, communicator.stringToIdentity("ServerManager"));
-        registry.addObject(adapter.createProxy(communicator.stringToIdentity("ServerManager")));
+        adapter.add(@object, Ice.Util.stringToIdentity("ServerManager"));
+        registry.addObject(adapter.createProxy(Ice.Util.stringToIdentity("ServerManager")));
         Ice.LocatorRegistryPrx registryPrx = Ice.LocatorRegistryPrxHelper.uncheckedCast(
-                                                adapter.add(registry, communicator.stringToIdentity("registry")));
+                                                adapter.add(registry, Ice.Util.stringToIdentity("registry")));
 
         ServerLocator locator = new ServerLocator(registry, registryPrx);
-        adapter.add(locator, communicator.stringToIdentity("locator"));
+        adapter.add(locator, Ice.Util.stringToIdentity("locator"));
 
         adapter.activate();
         communicator.waitForShutdown();
@@ -66,9 +65,9 @@ public class Server
             communicator = Ice.Util.initialize(ref args, initData);
             status = run(args, communicator, initData);
         }
-        catch(System.Exception ex)
+        catch(Exception ex)
         {
-            System.Console.Error.WriteLine(ex);
+            Console.Error.WriteLine(ex);
             status = 1;
         }
 
@@ -80,7 +79,7 @@ public class Server
             }
             catch(Ice.LocalException ex)
             {
-                System.Console.Error.WriteLine(ex);
+                Console.Error.WriteLine(ex);
                 status = 1;
             }
         }

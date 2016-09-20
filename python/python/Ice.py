@@ -1,6 +1,6 @@
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -178,7 +178,11 @@ class Exception(Exception):     # Derives from built-in base 'Exception' class.
 
     def ice_name(self):
         '''Returns the type name of this exception.'''
-        return self._ice_name
+        return self.ice_id()[2:]
+
+    def ice_id(self):
+        '''Returns the type id of this exception.'''
+        return self._ice_id
 
 class LocalException(Exception):
     '''The base class for all Ice run-time exceptions.'''
@@ -435,8 +439,8 @@ sliceChecksums = {}
 # Import generated Ice modules.
 #
 import Ice_BuiltinSequences_ice
-import Ice_Communicator_ice
 import Ice_Current_ice
+import Ice_Communicator_ice
 import Ice_ImplicitContext_ice
 import Ice_Endpoint_ice
 import Ice_EndpointTypes_ice
@@ -446,6 +450,7 @@ import Ice_Locator_ice
 import Ice_Logger_ice
 import Ice_ObjectAdapter_ice
 import Ice_ObjectFactory_ice
+import Ice_ValueFactory_ice
 import Ice_Process_ice
 import Ice_Properties_ice
 import Ice_RemoteLogger_ice
@@ -473,7 +478,6 @@ del OpaqueEndpointInfo
 OpaqueEndpointInfo =  IcePy.OpaqueEndpointInfo
 
 SSLEndpointInfo = IcePy.SSLEndpointInfo
-WSSEndpointInfo = IcePy.WSSEndpointInfo
 
 #
 # Replace ConnectionInfo with our implementation.
@@ -490,7 +494,6 @@ del WSConnectionInfo
 WSConnectionInfo =  IcePy.WSConnectionInfo
 
 SSLConnectionInfo =  IcePy.SSLConnectionInfo
-WSSConnectionInfo =  IcePy.WSSConnectionInfo
 
 class ThreadNotification(object):
     '''Base class for thread notification callbacks. A subclass must
@@ -560,6 +563,7 @@ threadHook: An object that implements ThreadNotification.
         self.logger = None
         self.threadHook = None
         self.batchRequestInterceptor = None
+        self.valueFactoryManager = None
 
 #
 # Communicator wrapper.
@@ -618,10 +622,14 @@ class CommunicatorI(Communicator):
         return ObjectAdapterI(adapter)
 
     def addObjectFactory(self, factory, id):
-        self._impl.addObjectFactory(factory, id)
+        # The extension implementation requires an extra argument that is a value factory
+        self._impl.addObjectFactory(factory, id, lambda s, factory=factory: factory.create(s))
 
     def findObjectFactory(self, id):
         return self._impl.findObjectFactory(id)
+
+    def getValueFactoryManager(self):
+        return self._impl.getValueFactoryManager()
 
     def getImplicitContext(self):
         context = self._impl.getImplicitContext()
@@ -704,6 +712,18 @@ the list that were recognized by the Ice run time.
 '''
     communicator = IcePy.Communicator(args, data)
     return CommunicatorI(communicator)
+
+#
+# Ice.identityToString
+#
+def identityToString(id):
+    return IcePy.identityToString(id)
+
+#
+# Ice.stringToIdentity
+#
+def stringToIdentity(str):
+    return IcePy.stringToIdentity(str)
 
 #
 # ObjectAdapter wrapper.

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -14,7 +14,7 @@
 #include <IceUtil/DisableWarnings.h>
 #include <Ice/LocalException.h>
 #include <Ice/Protocol.h>
-#include <IceUtil/UUID.h>
+#include <Ice/UUID.h>
 #include <Slice/PythonUtil.h>
 #include <compile.h>
 #include <frameobject.h>
@@ -311,7 +311,7 @@ IcePy::PyException::raise()
         }
         else
         {
-            PyObjectHandle name = PyObject_CallMethod(ex.get(), STRCAST("ice_name"), 0);
+            PyObjectHandle name = PyObject_CallMethod(ex.get(), STRCAST("ice_id"), 0);
             PyErr_Clear();
             if(!name.get())
             {
@@ -818,7 +818,7 @@ convertLocalException(const Ice::LocalException& ex, PyObject* p)
         m = IcePy::createEncodingVersion(e.supported);
         PyObject_SetAttrString(p, STRCAST("supported"), m.get());
     }
-    catch(const Ice::NoObjectFactoryException& e)
+    catch(const Ice::NoValueFactoryException& e)
     {
         IcePy::PyObjectHandle m;
         m = IcePy::createString(e.reason);
@@ -880,7 +880,7 @@ IcePy::convertException(const Ice::Exception& ex)
     }
     catch(const Ice::LocalException& e)
     {
-        type = lookupType(scopedToName(e.ice_name()));
+        type = lookupType(scopedToName(e.ice_id()));
         if(type)
         {
             p = createExceptionInstance(type);
@@ -1158,6 +1158,6 @@ extern "C"
 PyObject*
 IcePy_generateUUID(PyObject* /*self*/)
 {
-    string uuid = IceUtil::generateUUID();
+    string uuid = Ice::generateUUID();
     return IcePy::createString(uuid);
 }

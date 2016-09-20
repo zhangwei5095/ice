@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -33,7 +33,7 @@ namespace Ice
         /// </summary>
         /// <returns>The request proxy.</returns>
         Ice.ObjectPrx getProxy();
-    };
+    }
 
     /// <summary>
     /// Base interface for listening to batch request queues.
@@ -53,5 +53,5 @@ namespace Ice
         /// <param name="queueBatchRequestCount">The number of batch request queued.</param>
         /// <param name="queueBatchRequestSize">The size of the queued batch requests.</param>
         void enqueue(Ice.BatchRequest request, int queueBatchRequestCount, int queueBatchRequestSize);
-    };
-};
+    }
+}

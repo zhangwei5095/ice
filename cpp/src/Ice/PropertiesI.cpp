@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -16,6 +16,7 @@
 #include <Ice/Logger.h>
 #include <Ice/LoggerUtil.h>
 #include <Ice/Communicator.h>
+#include <fstream>
 
 using namespace std;
 using namespace Ice;
@@ -295,6 +296,8 @@ Ice::PropertiesI::parseIceCommandLineOptions(const StringSeq& options)
 void
 Ice::PropertiesI::load(const std::string& file)
 {
+    StringConverterPtr stringConverter = getProcessStringConverter();
+
 //
 // Metro style applications cannot access Windows registry.
 //
@@ -302,7 +305,7 @@ Ice::PropertiesI::load(const std::string& file)
     if(file.find("HKLM\\") == 0)
     {
         HKEY iceKey;
-        const wstring keyName = IceUtil::stringToWstring(file, _converter).substr(5).c_str();
+        const wstring keyName = stringToWstring(file, stringConverter).substr(5).c_str();
         LONG err;
         if((err = RegOpenKeyExW(HKEY_LOCAL_MACHINE, keyName.c_str(), 0, KEY_QUERY_VALUE, &iceKey)) != ERROR_SUCCESS)
         {
@@ -349,8 +352,8 @@ Ice::PropertiesI::load(const std::string& file)
                     getProcessLogger()->warning(os.str());
                     continue;
                 }
-                string name = IceUtil::wstringToString(
-                    wstring(reinterpret_cast<wchar_t*>(&nameBuf[0]), nameBufSize), _converter);
+                string name = wstringToString(
+                    wstring(reinterpret_cast<wchar_t*>(&nameBuf[0]), nameBufSize), stringConverter);
                 if(keyType != REG_SZ && keyType != REG_EXPAND_SZ)
                 {
                     ostringstream os;
@@ -363,7 +366,7 @@ Ice::PropertiesI::load(const std::string& file)
                 wstring valueW = wstring(reinterpret_cast<wchar_t*>(&dataBuf[0]), (dataBufSize / sizeof(wchar_t)) - 1);
                 if(keyType == REG_SZ)
                 {
-                    value = IceUtil::wstringToString(valueW, _converter);
+                    value = wstringToString(valueW, stringConverter);
                 }
                 else // keyType == REG_EXPAND_SZ
                 {
@@ -383,7 +386,7 @@ Ice::PropertiesI::load(const std::string& file)
                             continue;
                         }
                     }
-                    value = IceUtil::wstringToString(wstring(&expandedValue[0], sz -1), _converter);
+                    value = wstringToString(wstring(&expandedValue[0], sz -1), stringConverter);
                 }
                 setProperty(name, value);
             }
@@ -398,7 +401,7 @@ Ice::PropertiesI::load(const std::string& file)
     else
 #endif
     {
-        IceUtilInternal::ifstream in(file);
+        ifstream in(IceUtilInternal::streamFilename(file).c_str());
         if(!in)
         {
             FileException ex(__FILE__, __LINE__);
@@ -426,7 +429,7 @@ Ice::PropertiesI::load(const std::string& file)
                 }
                 firstLine = false;
             }
-            parseLine(line, _converter);
+            parseLine(line, stringConverter);
         }
     }
 }
@@ -435,7 +438,7 @@ PropertiesPtr
 Ice::PropertiesI::clone()
 {
     IceUtil::Mutex::Lock sync(*this);
-    return new PropertiesI(this);
+    return ICE_MAKE_SHARED(PropertiesI, this);
 }
 
 set<string>
@@ -454,18 +457,15 @@ Ice::PropertiesI::getUnusedProperties()
 }
 
 Ice::PropertiesI::PropertiesI(const PropertiesI* p) :
-    _properties(p->_properties),
-    _converter(p->_converter)
+    _properties(p->_properties)
 {
 }
 
-Ice::PropertiesI::PropertiesI(const IceUtil::StringConverterPtr& converter) :
-    _converter(converter)
+Ice::PropertiesI::PropertiesI()
 {
 }
 
-Ice::PropertiesI::PropertiesI(StringSeq& args, const PropertiesPtr& defaults, const IceUtil::StringConverterPtr& converter) :
-    _converter(converter)
+Ice::PropertiesI::PropertiesI(StringSeq& args, const PropertiesPtr& defaults)
 {
     if(defaults != 0)
     {
@@ -536,7 +536,7 @@ Ice::PropertiesI::PropertiesI(StringSeq& args, const PropertiesPtr& defaults, co
 }
 
 void
-Ice::PropertiesI::parseLine(const string& line, const IceUtil::StringConverterPtr& converter)
+Ice::PropertiesI::parseLine(const string& line, const StringConverterPtr& converter)
 {
     string key;
     string value;
@@ -701,8 +701,8 @@ Ice::PropertiesI::parseLine(const string& line, const IceUtil::StringConverterPt
         return;
     }
 
-    key = IceUtil::UTF8ToNative(key, converter);
-    value = IceUtil::UTF8ToNative(value, converter);
+    key = UTF8ToNative(key, converter);
+    value = UTF8ToNative(value, converter);
 
     setProperty(key, value);
 }
@@ -727,7 +727,7 @@ Ice::PropertiesI::loadConfig()
         }
         if(ret > 0)
         {
-            value = IceUtil::wstringToString(wstring(&v[0], ret), _converter);
+            value = wstringToString(wstring(&v[0], ret), getProcessStringConverter());
         }
         else
         {

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -44,14 +44,18 @@ private:
 };
 
 class ICE_API IPEndpointI : public EndpointI
+#ifdef ICE_CPP11_MAPPING
+                          , public std::enable_shared_from_this<IPEndpointI>
+#endif
 {
 public:
+
+    virtual void streamWriteImpl(Ice::OutputStream*) const;
 
     virtual Ice::EndpointInfoPtr getInfo() const;
     virtual Ice::Short type() const;
     virtual const std::string& protocol() const;
     virtual bool secure() const;
-    virtual void streamWrite(BasicStream*) const;
 
     virtual const std::string& connectionId() const;
     virtual EndpointIPtr connectionId(const ::std::string&) const;
@@ -62,14 +66,16 @@ public:
     virtual ::Ice::Int hash() const;
     virtual std::string options() const;
 
+#ifdef ICE_CPP11_MAPPING
+    virtual bool operator==(const Ice::Endpoint&) const;
+    virtual bool operator<(const Ice::Endpoint&) const;
+#else
     virtual bool operator==(const Ice::LocalObject&) const;
     virtual bool operator<(const Ice::LocalObject&) const;
+#endif
 
     virtual std::vector<ConnectorPtr> connectors(const std::vector<Address>&, const NetworkProxyPtr&) const;
-    const std::string& host() const;
-    int port() const;
 
-    virtual void streamWriteImpl(BasicStream*) const;
     virtual void hashInit(Ice::Int&) const;
     virtual void fillEndpointInfo(Ice::IPEndpointInfo*) const;
 
@@ -88,7 +94,7 @@ protected:
 
     IPEndpointI(const ProtocolInstancePtr&, const std::string&, int, const Address&, const std::string&);
     IPEndpointI(const ProtocolInstancePtr&);
-    IPEndpointI(const ProtocolInstancePtr&, BasicStream*);
+    IPEndpointI(const ProtocolInstancePtr&, Ice::InputStream*);
 
     const ProtocolInstancePtr _instance;
     const std::string _host;
@@ -143,6 +149,7 @@ private:
 #endif
 };
 
+#ifndef ICE_CPP11_MAPPING
 inline bool operator==(const IPEndpointI& l, const IPEndpointI& r)
 {
     return static_cast<const ::Ice::LocalObject&>(l) == static_cast<const ::Ice::LocalObject&>(r);
@@ -152,6 +159,7 @@ inline bool operator<(const IPEndpointI& l, const IPEndpointI& r)
 {
     return static_cast<const ::Ice::LocalObject&>(l) < static_cast<const ::Ice::LocalObject&>(r);
 }
+#endif
 
 }
 

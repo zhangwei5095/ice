@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -16,6 +16,10 @@
 #include <Ice/SliceChecksumDict.ice>
 
 #include <IceStorm/Metrics.ice>
+
+#ifndef __SLICE2JAVA_COMPAT__
+[["java:package:com.zeroc"]]
+#endif
 
 /**
  *
@@ -327,22 +331,6 @@ exception NoSuchTopic
 
 /**
  *
- * This exception indicates that an attempt was made to create a topic
- * whose name is invalid.
- *
- **/
-exception InvalidTopic
-{
-    /**
-     *
-     * The reason the topic name is invalid.
-     *
-     */
-    string reason;
-};
-
-/**
- *
  * A topic manager manages topics, and subscribers to topics.
  *
  * @see Topic
@@ -362,10 +350,8 @@ interface TopicManager
      * @throws TopicExists Raised if a topic with the same name already
      * exists.
      *
-     * @throws InvalidTopic Raised if a topic name is invalid.
-     *
      **/
-    Topic* create(string name) throws TopicExists, InvalidTopic;
+    Topic* create(string name) throws TopicExists;
 
     /**
      *
@@ -421,4 +407,3 @@ interface Finder
 };
 
 };
-

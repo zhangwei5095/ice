@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -45,7 +45,7 @@ typedef int ssize_t;
 
 #if defined(__linux) && !defined(ICE_NO_EPOLL)
 #   define ICE_USE_EPOLL 1
-#elif (defined(__APPLE__) || defined(__FreeBSD__)) && TARGET_OS_IPHONE == 0 && !defined(ICE_NO_KQUEUE)
+#elif (defined(__APPLE__) || defined(__FreeBSD__) || defined(__FreeBSD_kernel__)) && TARGET_OS_IPHONE == 0 && !defined(ICE_NO_KQUEUE)
 #   define ICE_USE_KQUEUE 1
 #elif defined(__APPLE__) && !defined(ICE_NO_CFSTREAM)
 #   define ICE_USE_CFSTREAM 1
@@ -179,6 +179,7 @@ struct ICE_API AsyncInfo : WSAOVERLAPPED
 #elif defined(ICE_OS_WINRT)
 struct ICE_API AsyncInfo
 {
+    Windows::Foundation::AsyncOperationCompletedHandler<unsigned int>^ completedHandler;
     int count;
     int error;
 };
@@ -186,17 +187,22 @@ struct ICE_API AsyncInfo
 delegate void SocketOperationCompletedHandler(int);
 #endif
 
-class ICE_API ReadyCallback : virtual public ::IceUtil::Shared
+class ICE_API ReadyCallback : public virtual ::IceUtil::Shared
 {
 public:
+
+    virtual ~ReadyCallback();
+
 
     virtual void ready(SocketOperation, bool) = 0;
 };
 typedef IceUtil::Handle<ReadyCallback> ReadyCallbackPtr;
 
-class ICE_API NativeInfo : virtual public IceUtil::Shared
+class ICE_API NativeInfo : public virtual IceUtil::Shared
 {
 public:
+
+    virtual ~NativeInfo();
 
     NativeInfo(SOCKET socketFd = INVALID_SOCKET) : _fd(socketFd)
     {
@@ -221,10 +227,13 @@ public:
 #if defined(ICE_USE_IOCP)
     virtual AsyncInfo* getAsyncInfo(SocketOperation) = 0;
     void initialize(HANDLE, ULONG_PTR);
-    void completed(SocketOperation operation);
+    void completed(SocketOperation);
 #elif defined(ICE_OS_WINRT)
-    virtual void setCompletedHandler(SocketOperationCompletedHandler^) = 0;
-    void completed(SocketOperation operation);
+    virtual AsyncInfo* getAsyncInfo(SocketOperation) = 0;
+    void queueAction(SocketOperation, Windows::Foundation::IAsyncAction^, bool = false);
+    void queueOperation(SocketOperation, Windows::Foundation::IAsyncOperation<unsigned int>^);
+    void setCompletedHandler(SocketOperationCompletedHandler^);
+    void completed(SocketOperation);
 #endif
 
 protected:
@@ -236,6 +245,7 @@ protected:
     HANDLE _handle;
     ULONG_PTR _key;
 #elif defined(ICE_OS_WINRT)
+    bool checkIfErrorOrCompleted(SocketOperation, Windows::Foundation::IAsyncInfo^, bool = false);
     SocketOperationCompletedHandler^ _completedHandler;
 #endif
 };
@@ -287,6 +297,7 @@ ICE_API void setMcastTtl(SOCKET, int, const Address&);
 ICE_API void setReuseAddress(SOCKET, bool);
 
 ICE_API Address doBind(SOCKET, const Address&);
+ICE_API void doListen(SOCKET, int);
 
 #ifndef ICE_OS_WINRT
 ICE_API bool interrupted();
@@ -301,7 +312,6 @@ ICE_API bool connectionRefused();
 ICE_API bool connectInProgress();
 ICE_API bool connectionLost();
 
-ICE_API void doListen(SOCKET, int);
 ICE_API bool doConnect(SOCKET, const Address&, const Address&);
 ICE_API void doFinishConnect(SOCKET);
 ICE_API SOCKET doAccept(SOCKET);
@@ -312,7 +322,7 @@ ICE_API int getSocketErrno();
 
 ICE_API Address getNumericAddress(const std::string&);
 #else
-ICE_API void checkConnectErrorCode(const char*, int, HRESULT, Windows::Networking::HostName^);
+ICE_API void checkConnectErrorCode(const char*, int, HRESULT);
 ICE_API void checkErrorCode(const char*, int, HRESULT);
 #endif
 

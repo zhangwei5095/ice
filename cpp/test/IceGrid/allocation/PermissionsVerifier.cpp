@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -30,7 +30,7 @@ public:
     virtual int run(int, char*[])
     {
         Ice::ObjectAdapterPtr adapter = communicator()->createObjectAdapter("PermissionsVerifier");
-        adapter->add(new PermissionsVerifierI, communicator()->stringToIdentity("PermissionsVerifier"));
+        adapter->add(new PermissionsVerifierI, Ice::stringToIdentity("PermissionsVerifier"));
         adapter->activate();
         communicator()->waitForShutdown();
         return EXIT_SUCCESS;

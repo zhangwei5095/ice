@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,6 +9,8 @@
 
 #ifndef ICE_CONNECTION_ASYNC_H
 #define ICE_CONNECTION_ASYNC_H
+
+#ifndef ICE_CPP11_MAPPING
 
 #include <Ice/Connection.h>
 #include <Ice/Proxy.h>
@@ -112,4 +114,5 @@ newCallback_Connection_flushBatchRequests(T* instance, void (T::*excb)(const ::I
 
 }
 
+#endif
 #endif

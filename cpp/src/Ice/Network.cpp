@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -21,13 +21,14 @@
 #include <Ice/Network.h>
 #include <Ice/NetworkProxy.h>
 #include <IceUtil/StringUtil.h>
-#include <IceUtil/StringConverter.h>
+#include <Ice/StringConverter.h>
 #include <Ice/LocalException.h>
 #include <Ice/ProtocolInstance.h> // For setTcpBufSize
 #include <Ice/Properties.h> // For setTcpBufSize
 #include <Ice/LoggerUtil.h> // For setTcpBufSize
 #include <Ice/Buffer.h>
 #include <IceUtil/Random.h>
+#include <functional>
 
 #if defined(ICE_OS_WINRT)
 #   include <IceUtil/InputUtil.h>
@@ -85,6 +86,20 @@ using namespace Windows::Storage::Streams;
 using namespace Windows::Networking;
 using namespace Windows::Networking::Sockets;
 using namespace Windows::Networking::Connectivity;
+#endif
+
+#ifdef _WIN32
+int
+IceInternal::getSystemErrno()
+{
+    return GetLastError();
+}
+#else
+int
+IceInternal::getSystemErrno()
+{
+    return errno;
+}
 #endif
 
 namespace
@@ -170,7 +185,7 @@ setTcpLoopbackFastPath(SOCKET fd)
         WSAIoctl(fd, SIO_LOOPBACK_FAST_PATH, &OptionValue, sizeof(OptionValue), NULL, 0, &NumberOfBytesReturned, 0, 0);
     if(status == SOCKET_ERROR)
     {
-	    // On platforms that do not support fast path (< Windows 8), WSAEONOTSUPP is expected.
+            // On platforms that do not support fast path (< Windows 8), WSAEONOTSUPP is expected.
         DWORD LastError = ::GetLastError();
         if(LastError != WSAEOPNOTSUPP)
         {
@@ -569,7 +584,7 @@ getInterfaceIndex(const string& name)
                     // Don't need to pass a wide string converter as the wide string
                     // come from Windows API.
                     //
-                    if(IceUtil::wstringToString(paddrs->FriendlyName, IceUtil::getProcessStringConverter()) == name)
+                    if(wstringToString(paddrs->FriendlyName, getProcessStringConverter()) == name)
                     {
                         index = paddrs->Ipv6IfIndex;
                         break;
@@ -713,7 +728,7 @@ getInterfaceAddress(const string& name)
                 // Don't need to pass a wide string converter as the wide string come
                 // from Windows API.
                 //
-                if(IceUtil::wstringToString(paddrs->FriendlyName, IceUtil::getProcessStringConverter()) == name)
+                if(wstringToString(paddrs->FriendlyName, getProcessStringConverter()) == name)
                 {
                     struct sockaddr_in addrin;
                     memcpy(&addrin, paddrs->FirstUnicastAddress->Address.lpSockaddr,
@@ -762,6 +777,16 @@ getAddressStorageSize(const Address& addr)
 
 }
 
+ReadyCallback::~ReadyCallback()
+{
+    // Out of line to avoid weak vtable
+}
+
+NativeInfo::~NativeInfo()
+{
+    // Out of line to avoid weak vtable
+}
+
 void
 NativeInfo::setReadyCallback(const ReadyCallbackPtr& callback)
 {
@@ -797,10 +822,110 @@ IceInternal::NativeInfo::completed(SocketOperation operation)
 #elif defined(ICE_OS_WINRT)
 
 void
+IceInternal::NativeInfo::queueAction(SocketOperation op, IAsyncAction^ action, bool connect)
+{
+    AsyncInfo* asyncInfo = getAsyncInfo(op);
+    if(checkIfErrorOrCompleted(op, action, connect))
+    {
+        asyncInfo->count = 0;
+    }
+    else
+    {
+        action->Completed = ref new AsyncActionCompletedHandler(
+            [=] (IAsyncAction^ info, Windows::Foundation::AsyncStatus status)
+            {
+                if(status != Windows::Foundation::AsyncStatus::Completed)
+                {
+                    asyncInfo->count = SOCKET_ERROR;
+                    asyncInfo->error = info->ErrorCode.Value;
+                }
+                else
+                {
+                    asyncInfo->count = 0;
+                }
+                completed(op);
+            });
+    }
+}
+
+void
+IceInternal::NativeInfo::queueOperation(SocketOperation op, IAsyncOperation<unsigned int>^ operation)
+{
+    AsyncInfo* info = getAsyncInfo(op);
+    if(checkIfErrorOrCompleted(op, operation))
+    {
+        info->count = static_cast<int>(operation->GetResults());
+    }
+    else
+    {
+        if(!info->completedHandler)
+        {
+            info->completedHandler = ref new AsyncOperationCompletedHandler<unsigned int>(
+                [=] (IAsyncOperation<unsigned int>^ operation, Windows::Foundation::AsyncStatus status)
+                {
+                    if(status != Windows::Foundation::AsyncStatus::Completed)
+                    {
+                        info->count = SOCKET_ERROR;
+                        info->error = operation->ErrorCode.Value;
+                    }
+                    else
+                    {
+                        info->count = static_cast<int>(operation->GetResults());
+                    }
+                    completed(op);
+                });
+        }
+        operation->Completed = info->completedHandler;
+    }
+}
+
+void
+IceInternal::NativeInfo::setCompletedHandler(SocketOperationCompletedHandler^ handler)
+{
+    _completedHandler = handler;
+}
+
+void
 IceInternal::NativeInfo::completed(SocketOperation operation)
 {
     assert(_completedHandler);
     _completedHandler(operation);
+}
+
+bool
+IceInternal::NativeInfo::checkIfErrorOrCompleted(SocketOperation op, IAsyncInfo^ info, bool connect)
+{
+    //
+    // NOTE: It's important to only check for info->Status once as it
+    // might change during the checks below (the Status can be changed
+    // by the Windows thread pool concurrently).
+    //
+    // We consider that a canceled async status is the same as an
+    // error. A canceled async status can occur if there's a timeout
+    // and the socket is closed.
+    //
+    Windows::Foundation::AsyncStatus status = info->Status;
+    if(status == Windows::Foundation::AsyncStatus::Completed)
+    {
+        _completedHandler(op);
+        return true;
+    }
+    else if (status == Windows::Foundation::AsyncStatus::Started)
+    {
+        return false;
+    }
+    else
+    {
+        if(connect) // Connect
+        {
+            checkConnectErrorCode(__FILE__, __LINE__, info->ErrorCode.Value);
+        }
+        else
+        {
+            checkErrorCode(__FILE__, __LINE__, info->ErrorCode.Value);
+        }
+        return true; // Prevent compiler warning.
+    }
 }
 
 #endif
@@ -854,16 +979,16 @@ IceInternal::getAddresses(const string& host, int port, ProtocolSupport, Ice::En
             // to Windows API.
             //
             addr.host = ref new HostName(ref new String(
-                                             IceUtil::stringToWstring(host,
-                                                                      IceUtil::getProcessStringConverter()).c_str()));
+                                             stringToWstring(host,
+                                                             getProcessStringConverter()).c_str()));
         }
         stringstream os;
         os << port;
         //
         // Don't need to use any string converter here as the port number use just
-        // ACII characters.
+        // ASCII characters.
         //
-        addr.port = ref new String(IceUtil::stringToWstring(os.str()).c_str());
+        addr.port = ref new String(stringToWstring(os.str()).c_str());
         result.push_back(addr);
         return result;
     }
@@ -1031,7 +1156,7 @@ IceInternal::getAddressForServer(const string& host, int port, ProtocolSupport p
         // Don't need to use any string converter here as the port number use just
         // ASCII characters.
         //
-        addr.port = ref new String(IceUtil::stringToWstring(os.str()).c_str());
+        addr.port = ref new String(stringToWstring(os.str()).c_str());
         addr.host = nullptr; // Equivalent of inaddr_any, see doBind implementation.
 #else
         memset(&addr.saStorage, 0, sizeof(sockaddr_storage));
@@ -1246,7 +1371,17 @@ IceInternal::closeSocket(SOCKET fd)
     WSASetLastError(error);
 #else
     int error = errno;
+    
+#  if defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
+    //
+    // FreeBSD returns ECONNRESET if the underlying object was 
+    // a stream socket that was shut down by the peer before all
+    // pending data was delivered.
+    //
+    if(close(fd) == SOCKET_ERROR && getSocketErrno() != ECONNRESET)
+#  else
     if(close(fd) == SOCKET_ERROR)
+#  endif
     {
         SocketException ex(__FILE__, __LINE__);
         ex.error = getSocketErrno();
@@ -1271,7 +1406,6 @@ IceInternal::fdToLocalAddress(SOCKET fd, Address& addr)
     socklen_t len = static_cast<socklen_t>(sizeof(sockaddr_storage));
     if(getsockname(fd, &addr.sa, &len) == SOCKET_ERROR)
     {
-        closeSocketNoThrow(fd);
         SocketException ex(__FILE__, __LINE__);
         ex.error = getSocketErrno();
         throw ex;
@@ -1305,7 +1439,6 @@ IceInternal::fdToRemoteAddress(SOCKET fd, Address& addr)
         }
         else
         {
-            closeSocketNoThrow(fd);
             SocketException ex(__FILE__, __LINE__);
             ex.error = getSocketErrno();
             throw ex;
@@ -1470,8 +1603,8 @@ IceInternal::getHostsForEndpointExpand(const string& host, ProtocolSupport proto
             HostName^ h = it->Current;
             if(h->IPInformation != nullptr && h->IPInformation->NetworkAdapter != nullptr)
             {
-                hosts.push_back(IceUtil::wstringToString(h->CanonicalName->Data(),
-                                                         IceUtil::getProcessStringConverter()));
+                hosts.push_back(wstringToString(h->CanonicalName->Data(),
+                                                getProcessStringConverter()));
             }
         }
         if(includeLoopback)
@@ -1539,7 +1672,7 @@ IceInternal::inetAddrToString(const Address& ss)
         // Don't need to pass a wide string converter as the wide string come
         // from Windows API.
         //
-        return IceUtil::wstringToString(ss.host->RawName->Data(), IceUtil::getProcessStringConverter());
+        return wstringToString(ss.host->RawName->Data(), getProcessStringConverter());
     }
 #endif
 }
@@ -1565,7 +1698,7 @@ IceInternal::getPort(const Address& addr)
     //
     // Don't need to use any string converter here as the port number use just ASCII characters.
     //
-    if(addr.port == nullptr || !IceUtilInternal::stringToInt64(IceUtil::wstringToString(addr.port->Data()), port))
+    if(addr.port == nullptr || !IceUtilInternal::stringToInt64(wstringToString(addr.port->Data()), port))
     {
         return -1;
     }
@@ -1591,9 +1724,9 @@ IceInternal::setPort(Address& addr, int port)
     os << port;
     //
     // Don't need to use any string converter here as the port number use just
-    // ACII characters.
+    // ASCII characters.
     //
-    addr.port = ref new String(IceUtil::stringToWstring(os.str()).c_str());
+    addr.port = ref new String(stringToWstring(os.str()).c_str());
 #endif
 }
 
@@ -1618,7 +1751,7 @@ IceInternal::isMulticast(const Address& addr)
     // Don't need to use string converters here, this is just to do a local
     // comparison to find if the address is multicast.
     //
-    string host = IceUtil::wstringToString(addr.host->RawName->Data());
+    string host = wstringToString(addr.host->RawName->Data());
     string ip = IceUtilInternal::toUpper(host);
     vector<string> tokens;
     IceUtilInternal::splitString(ip, ".", tokens);
@@ -1983,6 +2116,9 @@ IceInternal::setReuseAddress(SOCKET fd, bool reuse)
 
 
 #ifdef ICE_OS_WINRT
+namespace
+{
+
 void
 checkResultAndWait(IAsyncAction^ action)
 {
@@ -2009,6 +2145,8 @@ checkResultAndWait(IAsyncAction^ action)
     {
         checkErrorCode(__FILE__, __LINE__, action->ErrorCode.Value);
     }
+}
+
 }
 #endif
 
@@ -2324,12 +2462,20 @@ repeatConnect:
     // port as the server).
     //
     Address localAddr;
-    fdToLocalAddress(fd, localAddr);
-    if(compareAddress(addr, localAddr) == 0)
+    try
     {
-        ConnectionRefusedException ex(__FILE__, __LINE__);
-        ex.error = 0; // No appropriate errno
-        throw ex;
+        fdToLocalAddress(fd, localAddr);
+        if(compareAddress(addr, localAddr) == 0)
+        {
+            ConnectionRefusedException ex(__FILE__, __LINE__);
+            ex.error = 0; // No appropriate errno
+            throw ex;
+        }
+    }
+    catch(const LocalException&)
+    {
+        closeSocketNoThrow(fd);
+        throw;
     }
 #endif
     return true;
@@ -2540,7 +2686,7 @@ IceInternal::createPipe(SOCKET fds[2])
 #else // ICE_OS_WINRT
 
 void
-IceInternal::checkConnectErrorCode(const char* file, int line, HRESULT herr, HostName^ host)
+IceInternal::checkConnectErrorCode(const char* file, int line, HRESULT herr)
 {
     if(herr == E_ACCESSDENIED)
     {
@@ -2570,11 +2716,6 @@ IceInternal::checkConnectErrorCode(const char* file, int line, HRESULT herr, Hos
     {
         DNSException ex(file, line);
         ex.error = static_cast<int>(error);
-        //
-        // Don't need to pass a wide string converter as the wide string come from
-        // Windows API.
-        //
-        ex.host = IceUtil::wstringToString(host->RawName->Data(), IceUtil::getProcessStringConverter());
         throw ex;
     }
     else
@@ -2743,4 +2884,3 @@ IceInternal::doFinishConnectAsync(SOCKET fd, AsyncInfo& info)
     }
 }
 #endif
-

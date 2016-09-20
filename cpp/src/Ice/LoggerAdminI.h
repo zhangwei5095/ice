@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -34,11 +34,11 @@ public:
     // Destroy this logger, in particular join any thread
     // that this logger may have started
     //
-    virtual void destroy() = 0; 
+    virtual void destroy() = 0;
 };
-typedef Handle<LoggerAdminLogger> LoggerAdminLoggerPtr;
+ICE_DEFINE_PTR(LoggerAdminLoggerPtr, LoggerAdminLogger);
 
-LoggerAdminLoggerPtr 
+LoggerAdminLoggerPtr
 createLoggerAdminLogger(const Ice::PropertiesPtr&, const Ice::LoggerPtr&);
 
 }

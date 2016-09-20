@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,18 +9,16 @@
 
 package test.IceGrid.simple;
 
-import test.IceGrid.simple.Test._TestIntfDisp;
+import test.IceGrid.simple.Test.TestIntf;
 
-public class TestI extends _TestIntfDisp
+public class TestI implements TestIntf
 {
-    public
-    TestI()
+    public TestI()
     {
     }
 
     @Override
-    public void
-    shutdown(Ice.Current current)
+    public void shutdown(com.zeroc.Ice.Current current)
     {
         current.adapter.getCommunicator().shutdown();
     }

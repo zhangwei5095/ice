@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -14,13 +14,18 @@
 #include <Ice/EventHandlerF.h>
 #include <Ice/InstanceF.h>
 #include <Ice/ThreadPoolF.h>
-#include <Ice/BasicStream.h>
 #include <Ice/Network.h>
+#include <Ice/VirtualShared.h>
 
 namespace IceInternal
 {
 
-class ICE_API EventHandler : virtual public ::Ice::LocalObject
+class ICE_API EventHandler :
+#ifdef ICE_CPP11_MAPPING
+        public EnableSharedFromThis<EventHandler>
+#else
+        public virtual Ice::LocalObject
+#endif
 {
 public:
 

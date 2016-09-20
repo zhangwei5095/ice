@@ -1,21 +1,19 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_FOR_ACTIONSCRIPT_LICENSE file included in this distribution.
 //
 // **********************************************************************
 
-var Ice = require("../Ice/ModuleRegistry").Ice;
+const Ice = require("../Ice/ModuleRegistry").Ice;
 Ice.__M.require(module,
     [
-        "../Ice/Class",
         "../Ice/AsyncStatus",
         "../Ice/AsyncResult",
-        "../Ice/BasicStream",
+        "../Ice/Stream",
         "../Ice/Debug",
-        "../Ice/HashMap",
         "../Ice/RetryException",
         "../Ice/Current",
         "../Ice/Protocol",
@@ -25,61 +23,52 @@ Ice.__M.require(module,
         "../Ice/Identity"
     ]);
 
-var AsyncStatus = Ice.AsyncStatus;
-var AsyncResult = Ice.AsyncResult;
-var BasicStream = Ice.BasicStream;
-var Debug = Ice.Debug;
-var HashMap = Ice.HashMap;
-var RetryException = Ice.RetryException;
-var OperationMode = Ice.OperationMode;
-var Protocol = Ice.Protocol;
-var Identity = Ice.Identity;
+const AsyncStatus = Ice.AsyncStatus;
+const AsyncResult = Ice.AsyncResult;
+const InputStream = Ice.InputStream;
+const OutputStream = Ice.OutputStream;
+const Debug = Ice.Debug;
+const RetryException = Ice.RetryException;
+const OperationMode = Ice.OperationMode;
+const Protocol = Ice.Protocol;
+const Identity = Ice.Identity;
 
-var OutgoingAsyncBase = Ice.Class(AsyncResult, {
-    __init__ : function(communicator, operation, connection, proxy, adapter)
+class OutgoingAsyncBase extends AsyncResult
+{
+    constructor(communicator, operation, connection, proxy, adapter)
     {
-        if(communicator !== undefined)
-        {
-            AsyncResult.call(this, communicator, operation, connection, proxy, adapter);
-            this._os = new BasicStream(this._instance, Protocol.currentProtocolEncoding);
-        }
-        else
-        {
-            AsyncResult.call(this);
-        }
-    },
-    __os: function()
+        super(communicator, operation, connection, proxy, adapter);
+        this._os = new OutputStream(this._instance, Protocol.currentProtocolEncoding);
+    }
+
+    __os()
     {
         return this._os;
-    },
-    __sent: function()
+    }
+
+    __sent()
     {
         this.__markSent(true);
-    },
-    __completedEx: function(ex)
+    }
+
+    __completedEx(ex)
     {
         this.__markFinishedEx(ex);
     }
-});
+}
 
-
-var ProxyOutgoingAsyncBase = Ice.Class(OutgoingAsyncBase, {
-    __init__ : function(prx, operation)
+class ProxyOutgoingAsyncBase extends OutgoingAsyncBase
+{
+    constructor(prx, operation)
     {
-        if(prx !== undefined)
-        {
-            OutgoingAsyncBase.call(this, prx.ice_getCommunicator(), operation, null, prx, null);
-            this._mode = null;
-            this._cnt = 0;
-            this._sent = false;
-            this._handler = null;
-        }
-        else
-        {
-            AsyncResult.call(this);
-        }
-    },
-    __completedEx: function(ex)
+        super(prx.ice_getCommunicator(), operation, null, prx, null);
+        this._mode = null;
+        this._cnt = 0;
+        this._sent = false;
+        this._handler = null;
+    }
+
+    __completedEx(ex)
     {
         try
         {
@@ -89,8 +78,9 @@ var ProxyOutgoingAsyncBase = Ice.Class(OutgoingAsyncBase, {
         {
             this.__markFinishedEx(ex);
         }
-    },
-    __retryException: function(ex)
+    }
+
+    __retryException(ex)
     {
         try
         {
@@ -101,29 +91,31 @@ var ProxyOutgoingAsyncBase = Ice.Class(OutgoingAsyncBase, {
         {
             this.__completedEx(ex);
         }
-    },
-    __retry: function()
+    }
+
+    __retry()
     {
         this.__invokeImpl(false);
-    },
-    __abort: function(ex)
+    }
+
+    __abort(ex)
     {
         this.__markFinishedEx(ex);
-    },
-    __invokeImpl: function(userThread)
+    }
+    
+    __invokeImpl(userThread)
     {
         try
         {
             if(userThread)
             {
-                var invocationTimeout = this._proxy.__reference().getInvocationTimeout();
+                const invocationTimeout = this._proxy.__reference().getInvocationTimeout();
                 if(invocationTimeout > 0)
                 {
-                    var self = this;
                     this._timeoutToken = this._instance.timer().schedule(
-                        function()
+                        () =>
                         {
-                            self.__cancel(new Ice.InvocationTimeoutException());
+                            this.__cancel(new Ice.InvocationTimeoutException());
                         },
                         invocationTimeout);
                 }
@@ -135,8 +127,7 @@ var ProxyOutgoingAsyncBase = Ice.Class(OutgoingAsyncBase, {
                 {
                     this._sent  = false;
                     this._handler = this._proxy.__getRequestHandler();
-                    var status = this._handler.sendAsyncRequest(this);
-                    if((status & AsyncStatus.Sent) > 0)
+                    if((this._handler.sendAsyncRequest(this) & AsyncStatus.Sent) > 0)
                     {
                         if(userThread)
                         {
@@ -154,7 +145,7 @@ var ProxyOutgoingAsyncBase = Ice.Class(OutgoingAsyncBase, {
                     }
                     else
                     {
-                        var interval = this.__handleException(ex);
+                        const interval = this.__handleException(ex);
                         if(interval > 0)
                         {
                             this._instance.retryQueue().add(this, interval);
@@ -168,8 +159,9 @@ var ProxyOutgoingAsyncBase = Ice.Class(OutgoingAsyncBase, {
         {
             this.__markFinishedEx(ex);
         }
-    },
-    __markSent: function(done)
+    }
+
+    __markSent(done)
     {
         this._sent = true;
         if(done)
@@ -179,43 +171,36 @@ var ProxyOutgoingAsyncBase = Ice.Class(OutgoingAsyncBase, {
                 this._instance.timer().cancel(this._timeoutToken);
             }
         }
-        OutgoingAsyncBase.prototype.__markSent.call(this, done);
-    },
-    __markFinishedEx: function(ex)
+        super.__markSent.call(this, done);
+    }
+
+    __markFinishedEx(ex)
     {
         if(this._timeoutToken)
         {
             this._instance.timer().cancel(this._timeoutToken);
         }
-        OutgoingAsyncBase.prototype.__markFinishedEx.call(this, ex);
-    },
-    __handleException: function(ex)
+        super.__markFinishedEx.call(this, ex);
+    }
+    
+    __handleException(ex)
     {
-        var interval = { value: 0 };
+        const interval = { value: 0 };
         this._cnt = this._proxy.__handleException(ex, this._handler, this._mode, this._sent, interval, this._cnt);
         return interval.value;
     }
-});
+}
 
-var OutgoingAsync = Ice.Class(ProxyOutgoingAsyncBase, {
-    __init__: function(prx, operation, completed)
+class OutgoingAsync extends ProxyOutgoingAsyncBase
+{
+    constructor(prx, operation, completed)
     {
-        //
-        // OutgoingAsync can be constructed by a sub-type's prototype, in which case the
-        // arguments are undefined.
-        //
-        if(prx !== undefined)
-        {
-            ProxyOutgoingAsyncBase.call(this, prx, operation);
-            this._encoding = Protocol.getCompatibleEncoding(this._proxy.__reference().getEncoding());
-            this._completed = completed;
-        }
-        else
-        {
-            ProxyOutgoingAsyncBase.call(this);
-        }
-    },
-    __prepare: function(op, mode, ctx)
+        super(prx, operation);
+        this._encoding = Protocol.getCompatibleEncoding(this._proxy.__reference().getEncoding());
+        this._completed = completed;
+    }
+
+    __prepare(op, mode, ctx)
     {
         Protocol.checkSupportedProtocol(Protocol.getCompatibleProtocol(this._proxy.__reference().getProtocol()));
 
@@ -234,14 +219,14 @@ var OutgoingAsync = Ice.Class(ProxyOutgoingAsyncBase, {
             this._os.writeBlob(Protocol.requestHdr);
         }
 
-        var ref = this._proxy.__reference();
+        const ref = this._proxy.__reference();
 
         ref.getIdentity().__write(this._os);
 
         //
         // For compatibility with the old FacetPath.
         //
-        var facet = ref.getFacet();
+        const facet = ref.getFacet();
         if(facet === null || facet.length === 0)
         {
             Ice.StringSeqHelper.write(this._os, null);
@@ -257,9 +242,9 @@ var OutgoingAsync = Ice.Class(ProxyOutgoingAsyncBase, {
 
         if(ctx !== undefined)
         {
-            if(ctx !== null && !(ctx instanceof HashMap))
+            if(ctx !== null && !(ctx instanceof Map))
             {
-                throw new Error("illegal context value, expecting null or HashMap");
+                throw new Error("illegal context value, expecting null or Map");
             }
 
             //
@@ -272,8 +257,8 @@ var OutgoingAsync = Ice.Class(ProxyOutgoingAsyncBase, {
             //
             // Implicit context
             //
-            var implicitContext = ref.getInstance().getImplicitContext();
-            var prxContext = ref.getContext();
+            const implicitContext = ref.getInstance().getImplicitContext();
+            const prxContext = ref.getContext();
 
             if(implicitContext === null)
             {
@@ -284,24 +269,28 @@ var OutgoingAsync = Ice.Class(ProxyOutgoingAsyncBase, {
                 implicitContext.write(prxContext, this._os);
             }
         }
-    },
-    __sent: function()
+    }
+
+    __sent()
     {
         this.__markSent(!this._proxy.ice_isTwoway());
-    },
-    __invokeRemote: function(connection, compress, response)
+    }
+
+    __invokeRemote(connection, compress, response)
     {
         return connection.sendAsyncRequest(this, compress, response, 0);
-    },
-    __abort: function(ex)
+    }
+
+    __abort(ex)
     {
         if(this._proxy.ice_isBatchOneway() || this._proxy.ice_isBatchDatagram())
         {
             this._proxy.__getBatchRequestQueue().abortBatchRequest(this._os);
         }
-        ProxyOutgoingAsyncBase.prototype.__abort.call(this, ex);
-    },
-    __invoke: function()
+        super.__abort(ex);
+    }
+
+    __invoke()
     {
         if(this._proxy.ice_isBatchOneway() || this._proxy.ice_isBatchDatagram())
         {
@@ -317,17 +306,18 @@ var OutgoingAsync = Ice.Class(ProxyOutgoingAsyncBase, {
         // exception.
         //
         this.__invokeImpl(true); // userThread = true
-    },
-    __completed: function(istr)
+    }
+
+    __completed(istr)
     {
         Debug.assert(this._proxy.ice_isTwoway()); // Can only be called for twoways.
 
-        var replyStatus;
+        let replyStatus;
         try
         {
             if(this._is === null) // _is can already be initialized if the invocation is retried
             {
-                this._is = new BasicStream(this._instance, Protocol.currentProtocolEncoding);
+                this._is = new InputStream(this._instance, Protocol.currentProtocolEncoding);
             }
             this._is.swap(istr);
             replyStatus = this._is.readByte();
@@ -344,14 +334,14 @@ var OutgoingAsync = Ice.Class(ProxyOutgoingAsyncBase, {
                 case Protocol.replyFacetNotExist:
                 case Protocol.replyOperationNotExist:
                 {
-                    var id = new Identity();
+                    const id = new Identity();
                     id.__read(this._is);
 
                     //
                     // For compatibility with the old FacetPath.
                     //
-                    var facetPath = Ice.StringSeqHelper.read(this._is);
-                    var facet;
+                    const facetPath = Ice.StringSeqHelper.read(this._is);
+                    let facet;
                     if(facetPath.length > 0)
                     {
                         if(facetPath.length > 1)
@@ -365,9 +355,9 @@ var OutgoingAsync = Ice.Class(ProxyOutgoingAsyncBase, {
                         facet = "";
                     }
 
-                    var operation = this._is.readString();
+                    const operation = this._is.readString();
 
-                    var rfe = null;
+                    let rfe = null;
                     switch(replyStatus)
                     {
                     case Protocol.replyObjectNotExist:
@@ -405,9 +395,9 @@ var OutgoingAsync = Ice.Class(ProxyOutgoingAsyncBase, {
                 case Protocol.replyUnknownLocalException:
                 case Protocol.replyUnknownUserException:
                 {
-                    var unknown = this._is.readString();
+                    const unknown = this._is.readString();
 
-                    var ue = null;
+                    let ue = null;
                     switch(replyStatus)
                     {
                     case Protocol.replyUnknownException:
@@ -451,82 +441,95 @@ var OutgoingAsync = Ice.Class(ProxyOutgoingAsyncBase, {
         {
             this.__completedEx(ex);
         }
-    },
-    __startWriteParams: function(format)
+    }
+
+    __startWriteParams(format)
     {
-        this._os.startWriteEncaps(this._encoding, format);
+        this._os.startEncapsulation(this._encoding, format);
         return this._os;
-    },
-    __endWriteParams: function()
+    }
+
+    __endWriteParams()
     {
-        this._os.endWriteEncaps();
-    },
-    __writeEmptyParams: function()
+        this._os.endEncapsulation();
+    }
+
+    __writeEmptyParams()
     {
-        this._os.writeEmptyEncaps(this._encoding);
-    },
-    __writeParamEncaps: function(encaps)
+        this._os.writeEmptyEncapsulation(this._encoding);
+    }
+
+    __writeParamEncaps(encaps)
     {
         if(encaps === null || encaps.length === 0)
         {
-            this._os.writeEmptyEncaps(this._encoding);
+            this._os.writeEmptyEncapsulation(this._encoding);
         }
         else
         {
-            this._os.writeEncaps(encaps);
+            this._os.writeEncapsulation(encaps);
         }
-    },
-    __is: function()
+    }
+
+    __is()
     {
         return this._is;
-    },
-    __startReadParams: function()
+    }
+
+    __startReadParams()
     {
-        this._is.startReadEncaps();
+        this._is.startEncapsulation();
         return this._is;
-    },
-    __endReadParams: function()
+    }
+
+    __endReadParams()
     {
-        this._is.endReadEncaps();
-    },
-    __readEmptyParams: function()
+        this._is.endEncapsulation();
+    }
+
+    __readEmptyParams()
     {
-        this._is.skipEmptyEncaps(null);
-    },
-    __readParamEncaps: function()
+        this._is.skipEmptyEncapsulation();
+    }
+
+    __readParamEncaps()
     {
-        return this._is.readEncaps(null);
-    },
-    __throwUserException: function()
+        return this._is.readEncapsulation(null);
+    }
+
+    __throwUserException()
     {
         Debug.assert((this._state & AsyncResult.Done) !== 0);
         if((this._state & AsyncResult.OK) === 0)
         {
             try
             {
-                this._is.startReadEncaps();
+                this._is.startEncapsulation();
                 this._is.throwException();
             }
             catch(ex)
             {
                 if(ex instanceof Ice.UserException)
                 {
-                    this._is.endReadEncaps();
+                    this._is.endEncapsulation();
                 }
                 throw ex;
             }
         }
-    },
-});
-OutgoingAsync._emptyContext = new HashMap();
+    }
+}
 
-var ProxyFlushBatch = Ice.Class(ProxyOutgoingAsyncBase, {
-    __init__ : function(prx, operation)
+OutgoingAsync._emptyContext = new Map(); // Map<string, string>
+
+class ProxyFlushBatch extends ProxyOutgoingAsyncBase
+{
+    constructor(prx, operation)
     {
-        ProxyOutgoingAsyncBase.call(this, prx, operation);
+        super(prx, operation);
         this._batchRequestNum = prx.__getBatchRequestQueue().swap(this._os);
-    },
-    __invokeRemote: function(connection, compress, response)
+    }
+
+    __invokeRemote(connection, compress, response)
     {
         if(this._batchRequestNum === 0)
         {
@@ -534,45 +537,47 @@ var ProxyFlushBatch = Ice.Class(ProxyOutgoingAsyncBase, {
             return AsyncStatus.Sent;
         }
         return connection.sendAsyncRequest(this, compress, response, this._batchRequestNum);
-    },
-    __invoke: function()
+    }
+
+    __invoke()
     {
         Protocol.checkSupportedProtocol(Protocol.getCompatibleProtocol(this._proxy.__reference().getProtocol()));
         this.__invokeImpl(true); // userThread = true
-    },
-});
+    }
+}
 
-var ProxyGetConnection = Ice.Class(ProxyOutgoingAsyncBase, {
-    __init__ : function(prx, operation)
+class ProxyGetConnection extends ProxyOutgoingAsyncBase
+{
+    constructor(prx, operation)
     {
-        ProxyOutgoingAsyncBase.call(this, prx, operation);
-    },
-    __invokeRemote: function(connection, compress, response)
+        super(prx, operation);
+    }
+
+    __invokeRemote(connection, compress, response)
     {
-        this.__markFinished(true,
-                            function(r)
-                            {
-                                r.succeed(connection);
-                            });
+        this.__markFinished(true, r => r.resolve(connection));
         return AsyncStatus.Sent;
-    },
-    __invoke: function()
+    }
+    
+    __invoke()
     {
         this.__invokeImpl(true); // userThread = true
     }
-});
+}
 
-var ConnectionFlushBatch = Ice.Class(OutgoingAsyncBase, {
-    __init__: function(con, communicator, operation)
+class ConnectionFlushBatch extends OutgoingAsyncBase
+{
+    constructor(con, communicator, operation)
     {
-        OutgoingAsyncBase.call(this, communicator, operation, con, null, null);
-    },
-    __invoke: function()
+        super(communicator, operation, con, null, null);
+    }
+
+    __invoke()
     {
         try
         {
-            var batchRequestNum = this._connection.getBatchRequestQueue().swap(this._os);
-            var status;
+            const batchRequestNum = this._connection.getBatchRequestQueue().swap(this._os);
+            let status;
             if(batchRequestNum === 0)
             {
                 this.__sent();
@@ -593,7 +598,7 @@ var ConnectionFlushBatch = Ice.Class(OutgoingAsyncBase, {
             this.__completedEx(ex);
         }
     }
-});
+}
 
 Ice.OutgoingAsync = OutgoingAsync;
 Ice.ProxyFlushBatch = ProxyFlushBatch;

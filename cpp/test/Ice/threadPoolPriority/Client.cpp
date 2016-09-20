@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -16,8 +16,8 @@ using namespace std;
 int
 run(int, char**, const Ice::CommunicatorPtr& communicator)
 {
-    Test::PriorityPrx allTests(const Ice::CommunicatorPtr&);
-    Test::PriorityPrx priority = allTests(communicator);
+    Test::PriorityPrxPtr allTests(const Ice::CommunicatorPtr&);
+    Test::PriorityPrxPtr priority = allTests(communicator);
 
     priority->shutdown();
 

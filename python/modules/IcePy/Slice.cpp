@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -161,6 +161,10 @@ IcePy_loadSlice(PyObject* /*self*/, PyObject* args)
         ostringstream codeStream;
         IceUtilInternal::Output out(codeStream);
         out.setUseTab(false);
+        //
+        // Python magic comment to set the file encoding, it must be first or second line
+        //
+        out << "# -*- coding: utf-8 -*-\n";
         generate(u, all, checksum, includePaths, out);
         u->destroy();
 
@@ -223,7 +227,7 @@ IcePy_compile(PyObject* /*self*/, PyObject* args)
     char** argv = new char*[argSeq.size()];
     for(size_t i = 0; i < argSeq.size(); ++i)
     {
-	argv[i] = const_cast<char*>(argSeq[i].c_str());
+        argv[i] = const_cast<char*>(argSeq[i].c_str());
     }
 
     int rc;
@@ -234,22 +238,22 @@ IcePy_compile(PyObject* /*self*/, PyObject* args)
     catch(const std::exception& ex)
     {
         getErrorStream() << argv[0] << ": error:" << ex.what() << endl;
-	rc = EXIT_FAILURE;
+        rc = EXIT_FAILURE;
     }
     catch(const std::string& msg)
     {
         getErrorStream() << argv[0] << ": error:" << msg << endl;
-	rc = EXIT_FAILURE;
+        rc = EXIT_FAILURE;
     }
     catch(const char* msg)
     {
         getErrorStream() << argv[0] << ": error:" << msg << endl;
-	rc = EXIT_FAILURE;
+        rc = EXIT_FAILURE;
     }
     catch(...)
     {
         getErrorStream() << argv[0] << ": error:" << "unknown exception" << endl;
-	rc = EXIT_FAILURE;
+        rc = EXIT_FAILURE;
     }
 
     delete[] argv;

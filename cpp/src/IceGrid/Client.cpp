@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -12,7 +12,7 @@
 #include <IceUtil/CtrlCHandler.h>
 #include <IceUtil/Thread.h>
 #include <IceUtil/StringUtil.h>
-#include <IceUtil/UUID.h>
+#include <Ice/UUID.h>
 #include <IceUtil/Mutex.h>
 #include <IceUtil/MutexPtrLock.h>
 #include <Ice/Ice.h>
@@ -20,7 +20,6 @@
 #include <IceGrid/Parser.h>
 #include <IceGrid/FileParserI.h>
 #include <IceGrid/Registry.h>
-#include <IceGrid/Locator.h>
 #include <IceGrid/IceLocatorDiscovery.h>
 #include <Glacier2/Router.h>
 #include <fstream>
@@ -450,7 +449,7 @@ Client::run(StringSeq& originalArgs)
         ObjectAdapterPtr adapter =
             communicator()->createObjectAdapterWithEndpoints("FileParser", "tcp -h localhost");
         adapter->activate();
-        ObjectPrx proxy = adapter->add(new FileParserI, communicator()->stringToIdentity("FileParser"));
+        ObjectPrx proxy = adapter->add(new FileParserI, stringToIdentity("FileParser"));
         cout << proxy << endl;
 
         communicator()->waitForShutdown();

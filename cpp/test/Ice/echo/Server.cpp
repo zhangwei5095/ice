@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -48,11 +48,11 @@ private:
 int
 run(int argc, char* argv[], const Ice::CommunicatorPtr& communicator)
 {
-    communicator->getProperties()->setProperty("TestAdapter.Endpoints", "default -p 12010");
+    communicator->getProperties()->setProperty("TestAdapter.Endpoints", getTestEndpoint(communicator, 0));
     Ice::ObjectAdapterPtr adapter = communicator->createObjectAdapter("TestAdapter");
-    BlobjectIPtr blob = new BlobjectI;
+    BlobjectIPtr blob = ICE_MAKE_SHARED(BlobjectI);
     adapter->addDefaultServant(blob, "");
-    adapter->add(new EchoI(blob), communicator->stringToIdentity("__echo"));
+    adapter->add(ICE_MAKE_SHARED(EchoI, blob), Ice::stringToIdentity("__echo"));
     adapter->activate();
 
     TEST_READY

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -17,10 +17,15 @@
 #include <Ice/CommunicatorF.h>
 #include <Ice/Plugin.h>
 
-namespace IceInternal
+namespace Ice
 {
 
-class BasicStream;
+class InputStream;
+
+}
+
+namespace IceInternal
+{
 
 class ICE_API EndpointFactory : public ::IceUtil::Shared
 {
@@ -31,10 +36,10 @@ public:
     virtual ::Ice::Short type() const = 0;
     virtual ::std::string protocol() const = 0;
     virtual EndpointIPtr create(std::vector<std::string>&, bool) const = 0;
-    virtual EndpointIPtr read(BasicStream*) const = 0;
+    virtual EndpointIPtr read(Ice::InputStream*) const = 0;
     virtual void destroy() = 0;
 
-    virtual EndpointFactoryPtr clone(const ProtocolInstancePtr&) const = 0;
+    virtual EndpointFactoryPtr clone(const ProtocolInstancePtr&, const EndpointFactoryPtr&) const = 0;
 
 protected:
 

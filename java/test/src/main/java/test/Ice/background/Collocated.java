@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -23,8 +23,7 @@ public class Collocated extends test.Util.Application
     }
 
     @Override
-    public int
-    run(String[] args)
+    public int run(String[] args)
     {
         final Client client = new Client();
         client.setClassLoader(getClassLoader());
@@ -60,7 +59,9 @@ public class Collocated extends test.Util.Application
                             {
                                 String[] args =
                                 {
-                                    "--Ice.NullHandleAbort=1", "--Ice.Warn.Connections=1", "--Ice.Default.Host=127.0.0.1"
+                                    "--Ice.NullHandleAbort=1",
+                                    "--Ice.Warn.Connections=1",
+                                    "--Ice.Default.Host=127.0.0.1"
                                 };
                                 client.main("Client", args);
                             }

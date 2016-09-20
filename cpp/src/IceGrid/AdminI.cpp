@@ -1,13 +1,13 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
 
-#include <IceUtil/UUID.h>
+#include <Ice/UUID.h>
 
 #include <Ice/Ice.h>
 #include <Ice/LoggerUtil.h>
@@ -176,7 +176,7 @@ AdminI::addApplication(const ApplicationDescriptor& descriptor, const Current&)
     info.createUser = info.updateUser = _session->getId();
     info.descriptor = descriptor;
     info.revision = 1;
-    info.uuid = IceUtil::generateUUID();
+    info.uuid = Ice::generateUUID();
 
     _database->addApplication(info, _session.get());
 }
@@ -254,7 +254,7 @@ AdminI::patchApplication_async(const AMD_Admin_patchApplicationPtr& amdCB,
 
     Ice::Identity id;
     id.category = current.id.category;
-    id.name = IceUtil::generateUUID();
+    id.name = Ice::generateUUID();
 
     PatcherFeedbackAggregatorPtr feedback =
         newPatcherFeedback(amdCB, id, _traceLevels, "application", name, static_cast<int>(nodes.size()));
@@ -415,7 +415,7 @@ AdminI::getServerAdmin(const string& id, const Current& current) const
 namespace
 {
 
-class StartCB : virtual public IceUtil::Shared
+class StartCB : public virtual IceUtil::Shared
 {
 public:
 
@@ -469,7 +469,7 @@ AdminI::startServer_async(const AMD_Admin_startServerPtr& amdCB, const string& i
 namespace
 {
 
-class StopCB : virtual public IceUtil::Shared
+class StopCB : public virtual IceUtil::Shared
 {
 public:
 
@@ -544,7 +544,7 @@ AdminI::patchServer_async(const AMD_Admin_patchServerPtr& amdCB, const string& i
 
     Ice::Identity identity;
     identity.category = current.id.category;
-    identity.name = IceUtil::generateUUID();
+    identity.name = Ice::generateUUID();
 
     PatcherFeedbackAggregatorPtr feedback =
         newPatcherFeedback(amdCB, identity, _traceLevels, "server", id, static_cast<int>(nodes.size()));
@@ -688,7 +688,7 @@ AdminI::updateObject(const Ice::ObjectPrx& proxy, const ::Ice::Current&)
     if(id.category == _database->getInstanceName())
     {
         DeploymentException ex;
-        ex.reason = "updating object `" + _database->getCommunicator()->identityToString(id) + "' is not allowed:\n";
+        ex.reason = "updating object `" + identityToString(id) + "' is not allowed:\n";
         ex.reason += "objects with identity category `" + id.category + "' are managed by IceGrid";
         throw ex;
     }
@@ -709,7 +709,7 @@ AdminI::addObjectWithType(const Ice::ObjectPrx& proxy, const string& type, const
     if(id.category == _database->getInstanceName())
     {
         DeploymentException ex;
-        ex.reason = "adding object `" + _database->getCommunicator()->identityToString(id) + "' is not allowed:\n";
+        ex.reason = "adding object `" + identityToString(id) + "' is not allowed:\n";
         ex.reason += "objects with identity category `" + id.category + "' are managed by IceGrid";
         throw ex;
     }
@@ -727,7 +727,7 @@ AdminI::removeObject(const Ice::Identity& id, const Ice::Current&)
     if(id.category == _database->getInstanceName())
     {
         DeploymentException ex;
-        ex.reason = "removing object `" + _database->getCommunicator()->identityToString(id) + "' is not allowed:\n";
+        ex.reason = "removing object `" + identityToString(id) + "' is not allowed:\n";
         ex.reason += "objects with identity category `" + id.category + "' are managed by IceGrid";
         throw ex;
     }

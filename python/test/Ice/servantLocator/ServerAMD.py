@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -22,8 +22,8 @@ class TestServer(Ice.Application):
         adapter = self.communicator().createObjectAdapter("TestAdapter")
         adapter.addServantLocator(TestAMDI.ServantLocatorI("category"), "category")
         adapter.addServantLocator(TestAMDI.ServantLocatorI(""), "")
-        adapter.add(TestAMDI.TestI(), self.communicator().stringToIdentity("asm"))
-        adapter.add(TestActivationAMDI.TestActivationAMDI(), self.communicator().stringToIdentity("test/activation"))
+        adapter.add(TestAMDI.TestI(), Ice.stringToIdentity("asm"))
+        adapter.add(TestActivationAMDI.TestActivationAMDI(), Ice.stringToIdentity("test/activation"))
 
         adapter.activate()
         adapter.waitForDeactivate()

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,6 +9,9 @@
 
 #include <Ice/Ice.h>
 #include <TestI.h>
+#include <TestCommon.h>
+
+DEFINE_TEST("server")
 
 using namespace std;
 
@@ -17,10 +20,10 @@ run(int, char**, const Ice::CommunicatorPtr& communicator)
 {
     communicator->getProperties()->setProperty("TestAdapter.Endpoints", "tcp -p 12010");
     Ice::ObjectAdapterPtr adapter = communicator->createObjectAdapter("TestAdapter");
-    Ice::Identity id = communicator->stringToIdentity("factory");
-    adapter->add(new ServerFactoryI, id);
+    Ice::Identity id = Ice::stringToIdentity("factory");
+    adapter->add(ICE_MAKE_SHARED(ServerFactoryI), id);
     adapter->activate();
-
+    TEST_READY
     communicator->waitForShutdown();
     return EXIT_SUCCESS;
 }

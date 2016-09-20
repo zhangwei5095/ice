@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -20,7 +20,7 @@
 #include <Ice/LocatorInfo.h>
 #include <Ice/Locator.h>
 #include <Ice/LoggerUtil.h>
-#include <Ice/BasicStream.h>
+#include <Ice/InputStream.h>
 #include <Ice/Properties.h>
 #include <Ice/DefaultsAndOverrides.h>
 #include <Ice/PropertyNames.h>
@@ -155,7 +155,7 @@ IceInternal::ReferenceFactory::create(const string& str, const string& propertyP
     //
     // Parsing the identity may raise IdentityParseException.
     //
-    Identity ident = _instance->stringToIdentity(idstr);
+    Identity ident = Ice::stringToIdentity(idstr);
     if(ident.name.empty())
     {
         //
@@ -586,7 +586,7 @@ IceInternal::ReferenceFactory::create(const string& str, const string& propertyP
 }
 
 ReferencePtr
-IceInternal::ReferenceFactory::create(const Identity& ident, BasicStream* s)
+IceInternal::ReferenceFactory::create(const Identity& ident, InputStream* s)
 {
     //
     // Don't read the identity here. Operations calling this
@@ -626,7 +626,7 @@ IceInternal::ReferenceFactory::create(const Identity& ident, BasicStream* s)
 
     Ice::ProtocolVersion protocol;
     Ice::EncodingVersion encoding;
-    if(s->getReadEncoding() != Ice::Encoding_1_0)
+    if(s->getEncoding() != Ice::Encoding_1_0)
     {
         s->read(protocol);
         s->read(encoding);
@@ -660,7 +660,7 @@ IceInternal::ReferenceFactory::create(const Identity& ident, BasicStream* s)
 }
 
 ReferenceFactoryPtr
-IceInternal::ReferenceFactory::setDefaultRouter(const RouterPrx& defaultRouter)
+IceInternal::ReferenceFactory::setDefaultRouter(const RouterPrxPtr& defaultRouter)
 {
     if(defaultRouter == _defaultRouter)
     {
@@ -673,14 +673,14 @@ IceInternal::ReferenceFactory::setDefaultRouter(const RouterPrx& defaultRouter)
     return factory;
 }
 
-RouterPrx
+RouterPrxPtr
 IceInternal::ReferenceFactory::getDefaultRouter() const
 {
     return _defaultRouter;
 }
 
 ReferenceFactoryPtr
-IceInternal::ReferenceFactory::setDefaultLocator(const LocatorPrx& defaultLocator)
+IceInternal::ReferenceFactory::setDefaultLocator(const LocatorPrxPtr& defaultLocator)
 {
     if(defaultLocator == _defaultLocator)
     {
@@ -693,7 +693,7 @@ IceInternal::ReferenceFactory::setDefaultLocator(const LocatorPrx& defaultLocato
     return factory;
 }
 
-LocatorPrx
+LocatorPrxPtr
 IceInternal::ReferenceFactory::getDefaultLocator() const
 {
     return _defaultLocator;
@@ -815,7 +815,7 @@ IceInternal::ReferenceFactory::create(const Identity& ident,
         string property;
 
         property = propertyPrefix + ".Locator";
-        LocatorPrx locator = LocatorPrx::uncheckedCast(_communicator->propertyToProxy(property));
+        LocatorPrxPtr locator = ICE_UNCHECKED_CAST(LocatorPrx, _communicator->propertyToProxy(property));
         if(locator)
         {
             if(locator->ice_getEncodingVersion() != encoding)
@@ -829,7 +829,7 @@ IceInternal::ReferenceFactory::create(const Identity& ident,
         }
 
         property = propertyPrefix + ".Router";
-        RouterPrx router = RouterPrx::uncheckedCast(_communicator->propertyToProxy(property));
+        RouterPrxPtr router = ICE_UNCHECKED_CAST(RouterPrx, _communicator->propertyToProxy(property));
         if(router)
         {
             if(propertyPrefix.size() > 7 && propertyPrefix.substr(propertyPrefix.size() - 7, 7) == ".Router")

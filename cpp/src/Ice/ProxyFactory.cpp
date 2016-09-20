@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -15,7 +15,8 @@
 #include <Ice/ReferenceFactory.h>
 #include <Ice/LocatorInfo.h>
 #include <Ice/RouterInfo.h>
-#include <Ice/BasicStream.h>
+#include <Ice/OutputStream.h>
+#include <Ice/InputStream.h>
 #include <Ice/Properties.h>
 #include <Ice/LoggerUtil.h>
 #include <Ice/TraceLevels.h>
@@ -28,7 +29,7 @@ using namespace IceInternal;
 
 IceUtil::Shared* IceInternal::upCast(ProxyFactory* p) { return p; }
 
-ObjectPrx
+ObjectPrxPtr
 IceInternal::ProxyFactory::stringToProxy(const string& str) const
 {
     ReferencePtr ref = _instance->referenceFactory()->create(str, "");
@@ -36,7 +37,7 @@ IceInternal::ProxyFactory::stringToProxy(const string& str) const
 }
 
 string
-IceInternal::ProxyFactory::proxyToString(const ObjectPrx& proxy) const
+IceInternal::ProxyFactory::proxyToString(const ObjectPrxPtr& proxy) const
 {
     if(proxy)
     {
@@ -48,7 +49,7 @@ IceInternal::ProxyFactory::proxyToString(const ObjectPrx& proxy) const
     }
 }
 
-ObjectPrx
+ObjectPrxPtr
 IceInternal::ProxyFactory::propertyToProxy(const string& prefix) const
 {
     string proxy = _instance->initializationData().properties->getProperty(prefix);
@@ -57,7 +58,7 @@ IceInternal::ProxyFactory::propertyToProxy(const string& prefix) const
 }
 
 PropertyDict
-IceInternal::ProxyFactory::proxyToProperty(const ObjectPrx& proxy, const string& prefix) const
+IceInternal::ProxyFactory::proxyToProperty(const ObjectPrxPtr& proxy, const string& prefix) const
 {
     if(proxy)
     {
@@ -69,8 +70,8 @@ IceInternal::ProxyFactory::proxyToProperty(const ObjectPrx& proxy, const string&
     }
 }
 
-ObjectPrx
-IceInternal::ProxyFactory::streamToProxy(BasicStream* s) const
+ObjectPrxPtr
+IceInternal::ProxyFactory::streamToProxy(InputStream* s) const
 {
     Identity ident;
     s->read(ident);
@@ -79,33 +80,22 @@ IceInternal::ProxyFactory::streamToProxy(BasicStream* s) const
     return referenceToProxy(ref);
 }
 
-void
-IceInternal::ProxyFactory::proxyToStream(const ObjectPrx& proxy, BasicStream* s) const
-{
-    if(proxy)
-    {
-        s->write(proxy->__reference()->getIdentity());
-        proxy->__reference()->streamWrite(s);
-    }
-    else
-    {
-        Identity ident;
-        s->write(ident);
-    }
-}
-
-ObjectPrx
+ObjectPrxPtr
 IceInternal::ProxyFactory::referenceToProxy(const ReferencePtr& ref) const
 {
     if(ref)
     {
-        ObjectPrx proxy = new ::IceProxy::Ice::Object;
+#ifdef ICE_CPP11_MAPPING
+        auto proxy = createProxy<ObjectPrx>();
+#else
+        ObjectPrx proxy = new ::IceProxy::Ice::Object();
+#endif
         proxy->setup(ref);
         return proxy;
     }
     else
     {
-        return 0;
+        return ICE_NULLPTR;
     }
 }
 

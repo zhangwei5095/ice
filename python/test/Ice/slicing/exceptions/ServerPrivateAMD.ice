@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -32,6 +32,21 @@ exception UnknownMostDerived1 extends KnownIntermediate
 exception UnknownMostDerived2 extends UnknownIntermediate
 {
    string umd2;
+};
+
+class SPreservedClass extends BaseClass
+{
+    string spc;
+};
+
+exception SPreserved1 extends KnownPreservedDerived
+{
+    BaseClass p1;
+};
+
+exception SPreserved2 extends SPreserved1
+{
+    BaseClass p2;
 };
 
 };

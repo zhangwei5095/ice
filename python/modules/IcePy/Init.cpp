@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -26,6 +26,7 @@
 #include <Proxy.h>
 #include <Slice.h>
 #include <Types.h>
+#include <ValueFactoryManager.h>
 #include <Ice/Initialize.h>
 
 using namespace std;
@@ -57,6 +58,10 @@ static PyMethodDef methods[] =
         PyDoc_STR(STRCAST("generateUUID() -> string")) },
     { STRCAST("createProperties"), reinterpret_cast<PyCFunction>(IcePy_createProperties), METH_VARARGS,
         PyDoc_STR(STRCAST("createProperties([args]) -> Ice.Properties")) },
+    { STRCAST("stringToIdentity"), reinterpret_cast<PyCFunction>(IcePy_stringToIdentity), METH_O,
+        PyDoc_STR(STRCAST("stringToIdentity(string) -> Ice.Identity")) },
+    { STRCAST("identityToString"), reinterpret_cast<PyCFunction>(IcePy_identityToString), METH_O,
+        PyDoc_STR(STRCAST("identityToString(Ice.Identity) -> string")) },
     { STRCAST("getProcessLogger"), reinterpret_cast<PyCFunction>(IcePy_getProcessLogger), METH_NOARGS,
         PyDoc_STR(STRCAST("getProcessLogger() -> Ice.Logger")) },
     { STRCAST("setProcessLogger"), reinterpret_cast<PyCFunction>(IcePy_setProcessLogger), METH_VARARGS,
@@ -227,6 +232,10 @@ initIcePy(void)
         INIT_RETURN;
     }
     if(!initEndpointInfo(module))
+    {
+        INIT_RETURN;
+    }
+    if(!initValueFactoryManager(module))
     {
         INIT_RETURN;
     }

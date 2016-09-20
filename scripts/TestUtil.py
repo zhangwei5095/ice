@@ -1,6 +1,6 @@
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -10,7 +10,7 @@
 import sys, os, re, getopt, time, string, threading, atexit, platform, traceback, subprocess
 
 # Global flags and their default values.
-protocol = ""                   # If unset, default to TCP. Valid values are "tcp", "ssl", "ws" or "wss".
+protocol = ""                   # If unset, default to TCP. Valid values are "tcp", "ssl", "ws", "wss", "bt" or "bts".
 compress = False                # Set to True to enable bzip2 compression.
 serialize = False               # Set to True to have tests use connection serialization
 host = None                     # Will default to loopback.
@@ -26,6 +26,11 @@ x86 = False                     # Binary distribution is 32-bit
 global armv7l
 armv7l = False                  # Binary distribution is armv7l
 cpp11 = False                   # Binary distribution is c++11
+es5 = False                     # Use JavaScript ES5 (Babel compiled code)
+static = False                  # Static build
+global buildMode
+buildMode = None
+
 extraArgs = []
 clientTraceFilters = []
 serverTraceFilters = []
@@ -34,6 +39,7 @@ serverTraceFilters = []
 
 javaHome = os.environ.get("JAVA_HOME", "")
 javaCmd = '"%s"' % os.path.join(javaHome, "bin", "java") if javaHome else "java"
+javaLibraryPath = None          # Used for Freeze
 
 valgrind = False                # Set to True to use valgrind for C++ executables.
 appverifier = False             # Set to True to use appverifier for C++ executables, This is windows only feature
@@ -49,6 +55,21 @@ winrt = False
 global serverOnly
 serverOnly = False
 mx = False
+controller = None
+configName = None
+
+queuedTests = []
+
+global additionalBinDirectories
+additionalBinDirectories = []
+
+def addAdditionalBinDirectories(directories):
+    global additionalBinDirectories
+    additionalBinDirectories += directories
+
+def resetAdditionalBinDirectories():
+    global additionalBinDirectories
+    additionalBinDirectories = []
 
 #
 # Linux distribution
@@ -108,14 +129,24 @@ def isSparc():
     else:
         return False
 
+def dpkgHostMultiArch():
+    p = subprocess.Popen("dpkg-architecture -qDEB_HOST_MULTIARCH", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+    if not p or not p.stdout:
+        print("unable to get system information!")
+        sys.exit(1)
+    return p.stdout.readline().decode("utf-8").strip()
+
+def isI686():
+    return x86 or any(platform.machine() == p for p in ["i386", "i686"])
+
 def isAIX():
-    return sys.platform in ['aix4', 'aix5']
+    return sys.platform.startswith("aix")
 
 def isDarwin():
     return sys.platform == "darwin"
 
 def isLinux():
-    return sys.platform.startswith("linux")
+    return sys.platform.startswith("linux") or sys.platform.startswith("gnukfreebsd")
 
 def isUbuntu():
     return isLinux() and linuxDistribution and linuxDistribution == "Ubuntu"
@@ -132,6 +163,9 @@ def isDebian():
 def isSles():
     return isLinux() and linuxDistribution and linuxDistribution == "SUSE LINUX"
 
+def iceUseOpenSSL():
+    return any(sys.platform.startswith(p) for p in ["linux", "freebsd"])
+
 def getCppCompiler():
     compiler = ""
     if os.environ.get("CPP_COMPILER", "") != "":
@@ -139,31 +173,25 @@ def getCppCompiler():
     elif isMINGW():
         compiler = "MINGW"
     else:
-        config = open(os.path.join(toplevel, "cpp", "config", "Make.rules.mak"), "r")
-        compiler = re.search("CPP_COMPILER[\t\s]*= ([A-Z0-9]*)", config.read()).group(1)
-        if compiler != "VC100" and compiler != "VC110" and compiler != "VC120" and compiler != "VC140":
-            compiler = ""
-
-        if compiler == "":
-            p = subprocess.Popen("cl", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
-            if not p or not p.stdout:
-                print("Cannot detect C++ compiler")
-                compiler = VC120
+        p = subprocess.Popen("cl", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+        if not p or not p.stdout:
+            print("Cannot detect C++ compiler")
+            compiler = VC120
+        else:
+            l = p.stdout.readline().decode("utf-8").strip()
+            if l.find("Version 16.") != -1:
+                compiler = "VC100"
+            elif l.find("Version 17.") != -1:
+                compiler = "VC110"
+            elif l.find("Version 18.") != -1:
+                compiler = "VC120"
+            elif l.find("Version 19.") != -1:
+                compiler = "VC140"
             else:
-                l = p.stdout.readline().decode("utf-8").strip()
-                if l.find("Version 16.") != -1:
-                    compiler = "VC100"
-                elif l.find("Version 17.") != -1:
-                    compiler = "VC110"
-                elif l.find("Version 18.") != -1:
-                    compiler = "VC120"
-                elif l.find("Version 19.") != -1:
-                    compiler = "VC140"
-                else:
-                    #
-                    # Cannot detect C++ compiler use default
-                    #
-                    compiler = "VC120"
+                #
+                # Cannot detect C++ compiler use default
+                #
+                compiler = "VC140"
     return compiler
 
 def isMINGW():
@@ -199,13 +227,24 @@ def getIceSoVersion():
     majorVersion = int(intVersion / 10000)
     minorVersion = int(intVersion / 100) - 100 * majorVersion
     patchVersion = intVersion % 100
-    if patchVersion > 50:
-        if patchVersion >= 52:
-            return '%db%d' % (majorVersion * 10 + minorVersion, patchVersion - 50)
-        else:
-            return '%db' % (majorVersion * 10 + minorVersion)
-    else:
+    if patchVersion < 50:
         return '%d' % (majorVersion * 10 + minorVersion)
+    elif patchVersion < 60:
+        return '%da%d' % (majorVersion * 10 + minorVersion, patchVersion - 50)
+    else:
+        return '%db%d' % (majorVersion * 10 + minorVersion, patchVersion - 60)
+
+def getIceJsonVersion():
+    r = re.search(r"([0-9]+)\.([0-9]+)(\.[0-9]+|[ab][0-9]+)", iceVersion)
+    major = int(r.group(1))
+    minor = int(r.group(2))
+    v = ("%d.%d" % (major, minor)).strip()
+    if r.group(3).startswith("a"):
+        return v + ".0-" + r.group(3).replace("a", "alpha").strip()
+    elif r.group(3).startswith("b"):
+        return v + ".0-" + r.group(3).replace("b", "beta").strip()
+    else:
+        return ("%s%s" % (v, r.group(3))).strip()
 
 def getJdkVersion():
     process = subprocess.Popen("java -version", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
@@ -251,7 +290,7 @@ def dumpenv(env, lang):
         vars.extend(["CLASSPATH", "MONO_PATH", "DEVPATH", "PYTHONPATH", "RUBYLIB"])
     elif lang == "cpp":
         pass
-    elif lang == "java":
+    elif lang == "java" or lang == "java-compat":
         vars.append("CLASSPATH")
     elif lang == "csharp":
         vars.extend(["MONO_PATH", "DEVPATH"])
@@ -298,6 +337,7 @@ def addPathToEnv(variable, path, env = None):
 defaultMapping = None
 testErrors = []
 toplevel = None
+testToplevel = None
 
 path = [ ".", "..", "../..", "../../..", "../../../..", "../../../../..", "../../../../../..",
          "../../../../../../..", "../../../../../../../..", "../../../../../../../../.." ]
@@ -310,6 +350,7 @@ path = [os.path.abspath(p) for p in path if os.path.exists(os.path.join(p, "scri
 if len(path) == 0:
     raise RuntimeError("can't find toplevel directory!")
 toplevel = path[0]
+testToplevel = toplevel
 
 #
 # Set the default arch to x64 on x64 machines, this could be overriden
@@ -317,6 +358,9 @@ toplevel = path[0]
 #
 if isWin32():
     if os.environ.get("PLATFORM", "").upper() == "X64":
+        x64 = True
+elif isAIX():
+    if os.environ.get("OBJECT_MODE", "") == "64":
         x64 = True
 else:
     p = subprocess.Popen("uname -m", shell = True, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
@@ -367,17 +411,18 @@ else:
 iceVersion = None
 try:
     if isWin32():
-        config = open(os.path.join(toplevel, "config", "Make.common.rules.mak"), "r")
+        config = open(os.path.join(toplevel, "config", "icebuilder.props"), "r")
+        iceVersion = re.search("<IceVersion>[\t\s]*([0-9]+\.[0-9]+(\.[0-9]+|[ab][0-9]*))</IceVersion>", config.read()).group(1)
     else:
-        config = open(os.path.join(toplevel, "config", "Make.common.rules"), "r")
-    iceVersion = re.search("VERSION[\t\s]*= ([0-9]+\.[0-9]+(\.[0-9]+|b[0-9]*))", config.read()).group(1)
+        config = open(os.path.join(toplevel, "config", "Make.rules"), "r")
+        iceVersion = re.search("version[\t\s]*= ([0-9]+\.[0-9]+(\.[0-9]+|[ab][0-9]*))", config.read()).group(1)
     config.close()
 except:
     print("error: couldn't figure Ice version")
     sys.exit(1)
 
 #
-# Figure out Ice installation directoty
+# Figure out Ice installation directory
 #
 iceHome = None  # Binary distribution to use (or None to use binaries from source distribution)
 if os.environ.get("USE_BIN_DIST", "no") == "yes":
@@ -393,7 +438,7 @@ if os.environ.get("USE_BIN_DIST", "no") == "yes":
         if path and len(path) > 0 and os.path.exists(path[0]):
             iceHome = path[0]
 
-# List of supported cross languages test.
+# List of supported cross-language tests.
 crossTests = [ #"Ice/adapterDeactivation",
                #"Ice/background",
                #"Ice/binding",
@@ -422,37 +467,41 @@ crossTests = [ #"Ice/adapterDeactivation",
 def run(tests, root = False):
     def usage():
         print("usage: " + sys.argv[0] + """
-          --all                       Run all sensible permutations of the tests.
-          --all-cross                 Run all sensible permutations of cross language tests.
-          --start=index               Start running the tests at the given index.
-          --loop                      Run the tests in a loop.
-          --filter=<regex>            Run all the tests that match the given regex.
-          --rfilter=<regex>           Run all the tests that do not match the given regex.
-          --debug                     Display debugging information on each test.
-          --protocol=tcp|ssl|ws|wss   Run with the given protocol.
-          --compress                  Run the tests with protocol compression.
-          --host=host                 Set --Ice.Default.Host=<host>.
-          --valgrind                  Run the test with valgrind.
-          --appverifier               Run the test with appverifier under Windows.
-          --serialize                 Run with connection serialization.
-          --continue                  Keep running when a test fails
-          --ipv6                      Use IPv6 addresses.
-          --socks                     Use SOCKS proxy running on localhost.
-          --no-ipv6                   Don't use IPv6 addresses.
-          --ice-home=<path>           Use the binary distribution from the given path.
-          --x86                       Binary distribution is 32-bit.
-          --x64                       Binary distribution is 64-bit.
-          --c++11                     Binary distribution is c++11.
-          --cross=lang                Run cross language test.
-          --client-home=<dir>         Run cross test clients from the given Ice source distribution.
-          --script                    Generate a script to run the tests.
-          --env                       Print important environment variables.
-          --service-dir=<dir>         Where to locate services for builds without service support.
-          --compact                   Ice for .NET uses the Compact Framework.
-          --winrt                     Run server with configuration suited for WinRT client.
-          --server                    Run only the server.
-          --mx                        Enable IceMX when running the tests.
-          --arg=<property>            Append the given argument.
+          --all                Run all sensible permutations of the tests.
+          --all-cross          Run all sensible permutations of cross language tests.
+          --start=index        Start running the tests at the given index.
+          --loop               Run the tests in a loop.
+          --filter=<regex>     Run all the tests that match the given regex.
+          --rfilter=<regex>    Run all the tests that do not match the given regex.
+          --debug              Display debugging information on each test.
+          --protocol=<prot>    Run with the given protocol (tcp|ssl|ws|wss|bt).
+          --compress           Run the tests with protocol compression.
+          --host=host          Set --Ice.Default.Host=<host>.
+          --valgrind           Run the test with valgrind.
+          --appverifier        Run the test with appverifier under Windows.
+          --serialize          Run with connection serialization.
+          --continue           Keep running when a test fails.
+          --ipv6               Use IPv6 addresses.
+          --socks              Use SOCKS proxy running on localhost.
+          --no-ipv6            Don't use IPv6 addresses.
+          --ice-home=<path>    Use the binary distribution from the given path.
+          --mode=debug|release Run the tests with debug or release mode builds (win32 only)."
+          --x86                Binary distribution is 32-bit.
+          --x64                Binary distribution is 64-bit.
+          --c++11              Binary distribution is c++11.
+          --es5                Use JavaScript ES5 (Babel compiled code)
+          --static             Binary distribution is static.
+          --cross=lang         Run cross language test.
+          --client-home=<dir>  Run cross test clients from the given Ice source distribution.
+          --script             Generate a script to run the tests.
+          --env                Print important environment variables.
+          --service-dir=<dir>  Where to locate services for builds without service support.
+          --compact            Ice for .NET uses the Compact Framework.
+          --winrt              Run server with configuration suited for WinRT client.
+          --server             Run only the server.
+          --mx                 Enable IceMX when running the tests.
+          --controller=<host>  Use the test controller on the specified host.
+          --arg=<property>     Append the given argument.
         """)
         sys.exit(2)
 
@@ -460,9 +509,9 @@ def run(tests, root = False):
         opts, args = getopt.getopt(sys.argv[1:], "lr:R:",
                                    ["start=", "start-after=", "filter=", "rfilter=", "all", "all-cross", "loop",
                                     "debug", "protocol=", "compress", "valgrind", "host=", "serialize", "continue",
-                                    "ipv6", "no-ipv6", "socks", "ice-home=", "cross=", "client-home=", "x64", "x86",
+                                    "ipv6", "no-ipv6", "socks", "ice-home=", "mode=", "cross=", "client-home=", "x64", "x86",
                                     "script", "env", "arg=", "service-dir=", "appverifier", "compact",
-                                    "winrt", "server", "mx", "c++11"])
+                                    "winrt", "server", "mx", "c++11", "es5", "static", "controller=", "configName="])
     except getopt.GetoptError:
         usage()
 
@@ -480,6 +529,8 @@ def run(tests, root = False):
     winrt = "--winrt" in opts
     serverOnly = "--server" in opts
     mx = "--mx" in opts
+    controller = "--controller" in opts
+    configName = "--configName" in opts
 
     filters = []
     for o, a in opts:
@@ -489,15 +540,16 @@ def run(tests, root = False):
         elif o in ("-l", "--loop"):
             loop = True
         elif o in ("-r", "-R", "--filter", '--rfilter'):
-            testFilter = re.compile(a)
+            testFilter = re.compile(re.escape(os.path.normpath(a)))
             if o in ("--rfilter", "-R"):
                 filters.append((testFilter, True))
             else:
                 filters.append((testFilter, False))
         elif o == "--cross":
             global cross
-            if a not in ["cpp", "csharp", "java", "js", "python", "ruby", "objective-c" ]:
-                print("cross must be one of cpp, csharp, java, js, python, ruby or objective-c")
+            crossLang = ["cpp", "csharp", "java", "java-compat", "js", "php", "python", "ruby", "objective-c"]
+            if a not in crossLang:
+                print("cross must be one of %s" % ', '.join(crossLang))
                 sys.exit(1)
             cross.append(a)
         elif o == "--all" :
@@ -516,7 +568,7 @@ def run(tests, root = False):
             arg += a
             arg += '"'
         elif o == "--protocol":
-            if a not in ( "ws", "wss", "ssl", "tcp"):
+            if a not in ("bt", "bts", "ws", "wss", "ssl", "tcp"):
                 usage()
             if not root and getDefaultMapping() == "csharp" and (a == "ssl" or a == "wss"):
                 if mono:
@@ -525,9 +577,18 @@ def run(tests, root = False):
                 if compact:
                     print("SSL is not supported with the Compact Framework")
                     sys.exit(1)
+            if a in ["bt", "bts"] and not isLinux():
+                print("Bluetooth is only supported on Linux")
+                sys.exit(1)
         elif o == "--c++11":
             global cpp11
             cpp11 = True
+        elif o == "--es5":
+            global es5
+            es5 = True
+        elif o == "--static":
+            global static
+            static = True
         elif o == "--x86":
             global x86
             x86 = True
@@ -535,17 +596,17 @@ def run(tests, root = False):
             global x64
             x64 = True
         if o in ( "--cross", "--protocol", "--host", "--debug", "--compress", "--valgrind", "--serialize", "--ipv6", \
-                  "--socks", "--ice-home", "--x86", "--x64", "--c++11", "--env", \
+                  "--socks", "--ice-home", "--mode", "--x86", "--x64", "--c++11", "--es5", "--static", "--env", \
                   "--service-dir", "--appverifier", "--compact", "--winrt", \
-                  "--server", "--mx", "--client-home"):
+                  "--server", "--mx", "--client-home", "--controller", "--configName"):
             arg += " " + o
             if len(a) > 0:
                 arg += " " + a
 
     if not root:
-        tests = [ (os.path.join(getDefaultMapping(), "test", x), y) for x, y in tests ]
+        tests = [ (os.path.join(getDefaultMapping(), "test", os.path.normpath(x)), y) for x, y in tests ]
 
-    # Expand all the tests and argument combinations.
+    # Expand all the test and argument combinations.
     expanded = []
     if all:
         expanded.append([(test, arg, config) for test,config in tests if "once" in config ])
@@ -575,13 +636,21 @@ def run(tests, root = False):
 
     if allCross:
         if len(cross) == 0:
-            cross = ["cpp", "java", "js"]
+            cross = ["cpp", "java", "java-compat", "js", "php", "python", "ruby"]
             if isWin32():
                 cross.append("csharp")
+
+                # PHP/Python only build with VC140
+                if getCppCompiler() != "VC140":
+                    cross.remove('php')
+                    cross.remove('python')
+
+                # TODO: We're currently not building Ruby on Windows
+                cross.remove('ruby')
             if isDarwin():
                 cross.append("objective-c")
         if root:
-            allLang = ["cpp", "java", "js"]
+            allLang = ["cpp", "java", "java-compat", "js", "python"]
             if isWin32():
                 allLang.append("csharp")
             if isDarwin():
@@ -592,21 +661,31 @@ def run(tests, root = False):
             # js test user server for other language so we can ignore this
             if lang == "js":
                 continue
+
+            # Run each crossLang through the remove filters. Does not support filter.
+            # We do this so that we can filter out cross language tests if necessary.
+            def langFiltered(lang):
+                for testFilter, removeFilter in filters:
+                    if removeFilter and testFilter.search(lang):
+                        return True
+                return False
+
             # This is all other languages than the current mapping.
-            crossLang = [ l for l in cross if lang != l ]
+            crossLang = [ l for l in cross if lang != l and langFiltered(l) == False]
+
             # This is all eligible cross tests for the current mapping.
             # Now expand out the tests. We run only tcp for most cross tests.
             for c in crossLang:
                 a = "--cross=%s --protocol=tcp %s" % (c, arg)
                 for test in crossTests:
-                    name = "%s/test/%s" % (lang, test)
+                    name = os.path.join(lang, "test", test)
                     expanded.append([(name, a, testConfig(name, tests))])
 
                 # Add ssl & compress for the operations test.
                 if ((compact or mono) and c == "csharp") or (c == "js"): # Don't add the ssl tests.
                     continue
                 a = "--cross=%s --protocol=ssl --compress %s" % (c, arg)
-                expanded.append([("%s/test/Ice/operations" % lang, a, [])])
+                expanded.append([(os.path.join(lang, "test", "Ice", "operations"), a, [])])
 
     # Apply filters after expanding.
     if len(filters) > 0:
@@ -681,39 +760,47 @@ def getSliceDir():
         return os.path.join(toplevel, "slice")
 
 def phpCleanup():
-    if os.path.exists("tmp.ini"):
-        os.remove("tmp.ini")
     if os.path.exists("ice.profiles"):
         os.remove("ice.profiles")
 
-def phpSetup(clientConfig = False, iceOptions = None, iceProfile = None):
+def phpProfileSetup(clientConfig = False, iceOptions = None, iceProfile = None):
+    interpreterOptions = []
+
+    if iceProfile != None:
+        atexit.register(phpCleanup)
+        interpreterOptions.append("-d ice.profiles='ice.profiles'")
+        tmpProfiles = open("ice.profiles", "w")
+        tmpProfiles.write("[%s]\n" % iceProfile)
+        if clientConfig:
+            tmpProfiles.write("ice.config=\"config.client\"\n")
+        if iceOptions != None:
+            tmpProfiles.write("ice.options=\"%s\"\n" % iceOptions)
+        tmpProfiles.close()
+    else:
+        if clientConfig:
+            interpreterOptions.append("-d ice.config='config.client'")
+        if iceOptions != None:
+            interpreterOptions.append("-d ice.options='%s'" % iceOptions)
+
+    return ' '.join(interpreterOptions)
+
+def phpFlags():
+    flags = []
     extDir = None
     ext = None
     incDir = None
 
-    #
-    # TODO
-    #
-    # When we no longer support PHP 5.1.x, we can use the following PHP
-    # command-line options:
-    #
-    # -d extension_dir=...
-    # -d extension=[php_ice.dll|IcePHP.so]
-    #
     if isWin32():
         ext = "php_ice.dll"
         if not iceHome:
-            extDir = os.path.abspath(os.path.join(getIceDir("php"), "lib"))
-            incDir = extDir
+            extDir = os.path.abspath(os.path.join(getIceDir("php"), "lib", "x64" if x64 else "Win32",
+                "Debug" if buildMode == "debug" else "Release"))
+            incDir = os.path.abspath(os.path.join(getIceDir("php"), "lib"))
         else:
             extDir = os.path.join(iceHome, "php")
             incDir = extDir
     else:
-        ext = "IcePHP"
-        if isDarwin():
-            ext += ".dy"
-        else:
-            ext += ".so"
+        ext = "IcePHP.so"
         if not iceHome:
             extDir = os.path.abspath(os.path.join(toplevel, "php", "lib"))
             incDir = extDir
@@ -752,29 +839,13 @@ def phpSetup(clientConfig = False, iceOptions = None, iceProfile = None):
                     print("unable to find IcePHP extension!")
                     sys.exit(1)
 
-    atexit.register(phpCleanup)
-    tmpini = open("tmp.ini", "w")
-    tmpini.write("; Automatically generated by Ice test driver.\n")
     if extDir:
-        tmpini.write("extension_dir=\"%s\"\n" % extDir)
-    tmpini.write("extension=%s\n" % ext)
+        flags.append("-d extension_dir='%s'" % extDir)
+    flags.append("-d extension='%s'" % ext)
     if incDir:
-        tmpini.write("include_path=\"%s\"\n" % incDir)
-    if iceProfile != None:
-        tmpini.write("ice.profiles=\"ice.profiles\"\n")
-        tmpProfiles = open("ice.profiles", "w")
-        tmpProfiles.write("[%s]\n" % iceProfile)
-        if clientConfig:
-            tmpProfiles.write("ice.config=\"config.client\"\n")
-        if iceOptions != None:
-            tmpProfiles.write("ice.options=\"%s\"\n" % iceOptions)
-        tmpProfiles.close()
-    else:
-        if clientConfig:
-            tmpini.write("ice.config=\"config.client\"\n")
-        if iceOptions != None:
-            tmpini.write("ice.options=\"%s\"\n" % iceOptions)
-    tmpini.close()
+        flags.append("-d include_path='%s'" % incDir)
+
+    return ' '.join(flags)
 
 def getIceBox():
     global cpp11
@@ -786,16 +857,20 @@ def getIceBox():
     if lang == "cpp":
         iceBox = "icebox"
         if isWin32():
-            if isDebug():
-                iceBox += "d"
+            if cpp11:
+                iceBox += "++11"
             iceBox += ".exe"
         elif isLinux():
-            if not x64 and not armv7l:
+            if isI686():
                 iceBox += "32"
             if cpp11:
                 iceBox += "++11"
+        elif isDarwin and cpp11:
+            iceBox += "++11"
         iceBox = os.path.join(getCppBinDir(lang), iceBox)
     elif lang == "java":
+        iceBox = "com.zeroc.IceBox.Server"
+    elif lang == "java-compat":
         iceBox = "IceBox.Server"
     elif lang == "csharp":
         iceBox = os.path.join(getIceDir("csharp"), "bin", "iceboxnet")
@@ -803,17 +878,12 @@ def getIceBox():
     return iceBox
 
 def getIceBoxAdmin():
-    #
-    # Get and return the path of the IceBoxAdmin executable
-    #
-    lang = getDefaultMapping()
-    if lang == "java":
-        iceBoxAdmin = "IceBox.Admin"
+    if getDefaultMapping() == "java":
+        return "com.zeroc.IceBox.Admin"
+    elif getDefaultMapping() == "java-compat":
+        return "IceBox.Admin"
     else:
         return getIceExe("iceboxadmin")
-        iceBoxAdmin = "iceboxadmin"
-
-    return iceBoxAdmin
 
 def getIceGridAdmin():
     return getIceExe("icegridadmin")
@@ -822,16 +892,10 @@ def getIceStormAdmin():
     return getIceExe("icestormadmin")
 
 def getIceGridNode():
-    exe = "icegridnode"
-    if isWin32() and isDebug():
-        exe += "d"
-    return getIceExe(exe)
+    return getIceExe("icegridnode")
 
 def getIceGridRegistry():
-    exe = "icegridregistry"
-    if isWin32() and isDebug():
-        exe += "d"
-    return getIceExe(exe)
+    return getIceExe("icegridregistry")
 
 def getGlacier2Router():
     return getIceExe("glacier2router")
@@ -888,6 +952,13 @@ sslConfigTree = {
             "colloc" : " --IceSSL.CertFile=client.p12"
             },
         "java" : {
+            "plugin" : " --Ice.Plugin.IceSSL=com.zeroc.IceSSL.PluginFactory " +
+            "--IceSSL.DefaultDir=%(certsdir)s --IceSSL.Password=password --IceSSL.VerifyPeer=%(verifyPeer)s",
+            "client" : " --IceSSL.Keystore=client.jks",
+            "server" : " --IceSSL.Keystore=server.jks",
+            "colloc" : " --IceSSL.Keystore=client.jks"
+            },
+        "java-compat" : {
             "plugin" : " --Ice.Plugin.IceSSL=IceSSL.PluginFactory " +
             "--IceSSL.DefaultDir=%(certsdir)s --IceSSL.Password=password --IceSSL.VerifyPeer=%(verifyPeer)s",
             "client" : " --IceSSL.Keystore=client.jks",
@@ -904,34 +975,30 @@ sslConfigTree = {
         }
 
 if isDarwin():
-    #
-    # Use TLS 1.1 for OS X to workaround a bug in Secure Transport TLS
-    # 1.2 implementation, reported to Apple as bug #18029769.
-    #
-    sslConfigTree["cpp"]["client"] += " --IceSSL.Keychain=client.keychain --IceSSL.KeychainPassword=password" + \
-                                      " --IceSSL.ProtocolVersionMax=tls1_1"
-    sslConfigTree["cpp"]["server"] += " --IceSSL.Keychain=server.keychain --IceSSL.KeychainPassword=password" + \
-                                      " --IceSSL.ProtocolVersionMax=tls1_1"
+    sslConfigTree["cpp"]["client"] += " --IceSSL.Keychain=client.keychain --IceSSL.KeychainPassword=password"
+    sslConfigTree["cpp"]["server"] += " --IceSSL.Keychain=server.keychain --IceSSL.KeychainPassword=password"
     sslConfigTree["cpp"]["colloc"] += " --IceSSL.Keychain=colloc.keychain --IceSSL.KeychainPassword=password"
 
 if isWin32():
     #
     # This cipher suites doesn't work well between Java and SChannel TLS1.2 implementations.
     #
-    sslConfigTree["java"]["client"] += " --IceSSL.Ciphers=!TLS_DHE_RSA_WITH_AES_128_GCM_SHA256"
-    sslConfigTree["java"]["server"] += " --IceSSL.Ciphers=!TLS_DHE_RSA_WITH_AES_128_GCM_SHA256"
+    for lang in ["java", "java-compat"]:
+        sslConfigTree[lang]["client"] += " --IceSSL.Ciphers=!TLS_DHE_RSA_WITH_AES_128_GCM_SHA256"
+        sslConfigTree[lang]["server"] += " --IceSSL.Ciphers=!TLS_DHE_RSA_WITH_AES_128_GCM_SHA256"
 
 sslConfigTree["python"] = sslConfigTree["cpp"]
 sslConfigTree["ruby"] = sslConfigTree["cpp"]
-sslConfigTree["php"] = sslConfigTree["cpp"]
+sslConfigTree["php"] = sslConfigTree["cpp"].copy()
 sslConfigTree["objective-c"] = sslConfigTree["cpp"]
 
 def getDefaultMapping():
-    """Try and guess the language mapping out of the current path"""
-    here = os.getcwd().split(os.sep)
-    here.reverse()
+    """Try to guess the language mapping from the current path"""
+    # here = os.getcwd().split(os.sep)
+    # here.reverse()
+    here = os.path.relpath(os.getcwd(), start=toplevel).split(os.sep)
     for i in range(0, len(here)):
-        if here[i] in ["cpp", "csharp", "java", "js", "php", "python", "ruby", "objective-c", "icetouch", "tmp"]:
+        if here[i] in ["cpp", "csharp", "java", "java-compat", "js", "php", "python", "ruby", "objective-c", "tmp"]:
             return here[i]
     raise RuntimeError("cannot determine mapping")
 
@@ -959,8 +1026,11 @@ class DriverConfig:
     x64 = False
     x86 = False
     cpp11 = False
+    es5 = False
+    static = False
     serviceDir = None
     mx = False
+    controller = None
     extraArgs = []
 
     def __init__(self, type = None):
@@ -976,9 +1046,12 @@ class DriverConfig:
         global x64
         global x86
         global cpp11
+        global es5
+        global static
         global serviceDir
         global compact
         global mx
+        global controller
         global extraArgs
         self.lang = getDefaultMapping()
         self.protocol = protocol
@@ -994,9 +1067,12 @@ class DriverConfig:
         self.x64 = x64
         self.x86 = x86
         self.cpp11 = cpp11
+        self.es5 = es5
+        self.static = static
         self.serviceDir = serviceDir
         self.compact = compact
         self.mx = mx
+        self.controller = controller
         self.extraArgs = extraArgs
 
 def argsToDict(argumentString, results):
@@ -1018,7 +1094,7 @@ def argsToDict(argumentString, results):
             results[current] = None
     return results
 
-def getCommandLineProperties(exe, config):
+def getCommandLineProperties(exe, config, cfgName):
 
     #
     # Command lines are built up from the items in the components
@@ -1034,12 +1110,12 @@ def getCommandLineProperties(exe, config):
     # Turn on network tracing.
     #
     #components.append("--Ice.Trace.Network=3")
+    #components.append("--Ice.Trace.Protocol=1")
 
     #
-    # Now we add additional components dependent on the desired
-    # configuration.
+    # Now we add additional components depending on the desired configuration.
     #
-    if config.protocol == "ssl" or config.protocol == "wss":
+    if config.protocol in ["ssl", "wss", "bts"]:
         sslenv = {}
         sslenv["icesslcs"] = quoteArgument("\\\"" + os.path.join(getIceDir("csharp"), "Assemblies", "IceSSL.dll") + "\\\"")
         sslenv["certsdir"] = quoteArgument(os.path.abspath(os.path.join(toplevel, "certs")))
@@ -1050,6 +1126,9 @@ def getCommandLineProperties(exe, config):
         components.append(sslConfigTree[config.lang]["plugin"] % sslenv)
         components.append(sslConfigTree[config.lang][config.type] % sslenv)
 
+    if config.protocol in ["bt", "bts"]:
+        components.append("--Ice.Plugin.IceBT=IceBT:createIceBT")
+
     components.append("--Ice.Default.Protocol=" + config.protocol)
 
     if config.compress:
@@ -1058,7 +1137,15 @@ def getCommandLineProperties(exe, config):
     if config.serialize:
         components.append("--Ice.ThreadPool.Server.Serialize=1")
 
-    if config.type == "server" or config.type == "colloc" and config.lang == "python":
+    #
+    # TODO
+    # config.lang == "cpp" required with C++11 mapping, we should be able to ged rid
+    # of this once AsyncResult is optimized to not required a thread pool thread with
+    # collocated calls and C++11 mapping. We must also check if it still required for
+    # python.
+    #
+    if (config.type == "server" or config.type == "colloc" and
+        (config.lang == "python" or config.lang == "cpp")):
         components.append("--Ice.ThreadPool.Server.Size=1")
         components.append("--Ice.ThreadPool.Server.SizeMax=3")
         components.append("--Ice.ThreadPool.Server.SizeWarn=0")
@@ -1078,6 +1165,12 @@ def getCommandLineProperties(exe, config):
         components.append("--IceMX.Metrics.Parent.GroupBy=parent")
         components.append("--IceMX.Metrics.All.GroupBy=none")
 
+    if config.controller:
+        components.append("--ControllerHost=" + config.controller)
+
+    if cfgName:
+        components.append("--ConfigName=" + cfgName)
+
     if config.socksProxy:
         components.append("--Ice.SOCKSProxyHost=127.0.0.1")
 
@@ -1086,8 +1179,9 @@ def getCommandLineProperties(exe, config):
         if config.host == None:
             components.append("--Ice.Default.Host=0:0:0:0:0:0:0:1")
     else:
-        components.append("--Ice.IPv4=1 --Ice.IPv6=0")
-        if config.host == None:
+        if not config.protocol in ["bt", "bts"]:
+            components.append("--Ice.IPv4=1 --Ice.IPv6=0")
+        if config.host == None and not config.protocol in ["bt", "bts"]:
             components.append("--Ice.Default.Host=127.0.0.1")
 
     if config.host != None and len(config.host) != 0:
@@ -1120,7 +1214,7 @@ def getCommandLineProperties(exe, config):
     output.close()
     return properties
 
-def getCommandLine(exe, config, options = "", interpreterOptions = ""):
+def getCommandLine(exe, config, options = "", interpreterOptions = "", cfgName = None):
     output = getStringIO()
 
     if config.mono and config.lang == "csharp":
@@ -1137,12 +1231,14 @@ def getCommandLine(exe, config, options = "", interpreterOptions = ""):
         if interpreterOptions:
             output.write(" " + interpreterOptions)
         output.write(' "%s" ' % exe)
-    elif config.lang == "java":
+    elif config.lang == "java" or config.lang == "java-compat":
         output.write("%s -ea " % javaCmd)
         if isSolaris() and config.x64:
             output.write("-d64 ")
         if not config.ipv6:
             output.write("-Djava.net.preferIPv4Stack=true ")
+        if javaLibraryPath:
+            output.write("-Djava.library.path=" + javaLibraryPath)
         if interpreterOptions:
             output.write(" " + interpreterOptions)
         output.write(" " + exe + " ")
@@ -1152,12 +1248,13 @@ def getCommandLine(exe, config, options = "", interpreterOptions = ""):
             output.write(" " + interpreterOptions)
         output.write(' "%s" ' % exe)
     elif config.lang == "php" and config.type == "client":
-        output.write(phpCmd + " -n -c tmp.ini")
+        output.write(phpCmd + " -n %s" % phpFlags())
         if interpreterOptions:
             output.write(" " + interpreterOptions)
         output.write(" -f \""+ exe +"\" -- ")
     elif config.lang == "js":
         output.write(nodeCmd)
+        output.write(" --harmony")
         if interpreterOptions:
             output.write(" " + interpreterOptions)
         output.write(' "%s" ' % exe)
@@ -1175,7 +1272,7 @@ def getCommandLine(exe, config, options = "", interpreterOptions = ""):
     if exe.find("IceUtil\\") != -1 or exe.find("IceUtil/") != -1:
         output.write(' ' + options)
     else:
-        output.write(getCommandLineProperties(exe, config) + ' ' + options)
+        output.write(getCommandLineProperties(exe, config, cfgName) + ' ' + options)
 
     commandline = output.getvalue()
     output.close()
@@ -1186,8 +1283,14 @@ def directoryToPackage():
     """Determine the package name from the directory."""
     base = os.getcwd()
     after = []
-    before = base
     lang = getDefaultMapping()
+
+    if "java" in lang:
+        # Remove Java's extra directory structure from the path while we search it
+        base = base.replace(os.path.join("src", "main", "java", "test"), '')
+
+    before = base
+
     while len(before) > 0:
         current = os.path.basename(before)
         before = os.path.dirname(before)
@@ -1198,31 +1301,35 @@ def directoryToPackage():
         raise RuntimeError("cannot find language dir")
     return ".".join(after)
 
-def getDefaultServerFile():
+def getDefaultServerFile(baseDir = os.getcwd()):
     lang = getDefaultMapping()
-    if lang in ["js", "ruby", "php", "cpp", "csharp", "objective-c"]:
+    if lang in ["cpp", "objective-c", "js", "ruby", "php"]:
+        return getTestExecutable("server", baseDir)
+    if lang in ["csharp"]:
         return "server"
     if lang == "python":
         return "Server.py"
-    if lang == "java":
+    if lang == "java" or lang == "java-compat":
         pkg = directoryToPackage()
         if len(pkg) > 0:
             pkg = pkg + "."
         return pkg + "Server"
     raise RuntimeError("unknown language")
 
-def getDefaultClientFile(lang = None):
+def getDefaultClientFile(lang = None, baseDir = ""):
     if lang is None:
         lang = getDefaultMapping()
+    if lang in ["cpp", "objective-c"]:
+        return getTestExecutable("client", baseDir)
     if lang == "ruby":
         return "Client.rb"
     if lang == "php":
         return "Client.php"
-    if lang in ["cpp", "csharp", "objective-c"]:
+    if lang in ["csharp"]:
         return "client"
     if lang == "python":
         return "Client.py"
-    if lang == "java":
+    if lang == "java" or lang == "java-compat":
         pkg = directoryToPackage()
         if len(pkg) > 0:
             pkg = pkg + "."
@@ -1233,31 +1340,18 @@ def getDefaultClientFile(lang = None):
 
 def getDefaultCollocatedFile():
     lang = getDefaultMapping()
+    if lang in ["cpp", "objective-c"]:
+        return getTestExecutable("collocated")
     if lang == "ruby":
         return "Collocated.rb"
     if lang == "php":
         return "Collocated.php"
-    if lang in ["cpp", "csharp", "objective-c"]:
+    if lang in ["csharp"]:
         return "collocated"
     if lang == "python":
         return "Collocated.py"
-    if lang == "java":
+    if lang == "java" or lang == "java-compat":
         return directoryToPackage() + ".Collocated"
-
-def isDebug():
-    #
-    # Read the build.txt file from the test directory to figure out
-    # how the IceBox service was built ("debug" vs. "release") and
-    # decide which icebox executable to use.
-    #
-    if os.path.isfile(os.path.join(os.getcwd(), "build.txt")):
-        return open(os.path.join(os.getcwd(), "build.txt"), "r").read().strip() == "debug"
-    #
-    # Try to guess, if icebox release executable exists in the C++ bin dir
-    # we assume is a release build or bin dist, tests that depends on debug
-    # or release (C++) need to create the build.txt file.
-    #
-    return not os.path.isfile(os.path.join(getCppBinDir("cpp"), "icebox%s" % (".exe" if isWin32() else "")))
 
 import Expect
 
@@ -1380,25 +1474,26 @@ def getMirrorDir(base, mapping):
     """Get the mirror directory for the current test in the given mapping."""
     lang = getDefaultMapping()
     after = []
+
+    if lang == "js":
+        base = base.replace("/es5", "")
+    elif "java" in lang:
+        # Remove Java's extra directory structure from the path while we search it
+        base = base.replace(os.path.join("src", "main", "java", "test"), '')
+
     before = base
     while len(before) > 0:
         current = os.path.basename(before)
         before = os.path.dirname(before)
         if current == lang:
-            # Deal with Java's different directory structure
-            if lang == "java":
-                while len(before) > 0:
-                    current = os.path.basename(before)
-                    before = os.path.dirname(before)
-                    if current == lang:
-                        break
             break
         after.insert(0, current)
     else:
         raise RuntimeError("cannot find language dir")
+
     dir = os.path.join(before, mapping)
     # Deal with Java's different directory structure
-    if mapping == "java":
+    if "java" in mapping:
         dir = os.path.join(dir, "test", "src", "main", "java")
     return os.path.join(dir, *after)
 
@@ -1437,16 +1532,9 @@ def getClientCrossTestDir(base):
     return os.path.join(clientHome, lang, *after)
 
 
-def clientServerTest(additionalServerOptions = "", additionalClientOptions = "",
+def clientServerTest(cfgName = None, additionalServerOptions = "", additionalClientOptions = "",
                      server = None, client = None, serverenv = None, clientenv = None,
                      interpreterOptions = ""):
-    if server is None:
-        server = getDefaultServerFile()
-    if client is None:
-        client = getDefaultClientFile()
-    serverDesc = server
-    clientDesc = client
-
     lang = getDefaultMapping()
     testdir = os.getcwd()
 
@@ -1455,7 +1543,19 @@ def clientServerTest(additionalServerOptions = "", additionalClientOptions = "",
         serverdir = getMirrorDir(testdir, "cpp")
     else:
         serverdir = testdir
-    if lang != "java":
+
+    if server is None:
+        server = getDefaultServerFile(serverdir)
+    elif lang in ["ruby", "php", "js"]:
+        server = getTestExecutable(server, serverdir)
+
+    if client is None:
+        client = getDefaultClientFile()
+
+    serverDesc = os.path.basename(server)
+    clientDesc = os.path.basename(client)
+
+    if lang != "java" and lang != "java-compat":
         server = os.path.join(serverdir, server)
 
     if serverenv is None:
@@ -1472,20 +1572,24 @@ def clientServerTest(additionalServerOptions = "", additionalClientOptions = "",
     elif len(cross) == 0:
         cross.append(lang)
 
+    global controller
     global clientHome
     for clientLang in cross:
         clientCfg = DriverConfig("client")
         if clientLang != lang:
-            if clientDesc != getDefaultClientFile():
+            if clientDesc != os.path.basename(getDefaultClientFile()):
                 print("** skipping cross test")
                 return
 
-            clientCfg.lang = clientLang
-            client = getDefaultClientFile(clientLang)
             if clientHome:
                 clientdir = getMirrorDir(getClientCrossTestDir(testdir), clientLang)
             else:
                 clientdir = getMirrorDir(testdir, clientLang)
+
+            client = getDefaultClientFile(clientLang, clientdir)
+            clientDesc = os.path.basename(client)
+            clientCfg.lang = clientLang
+
             if not os.path.exists(clientdir):
                 print("** no matching test for %s" % clientLang)
                 return
@@ -1498,30 +1602,28 @@ def clientServerTest(additionalServerOptions = "", additionalClientOptions = "",
                 print("** no matching test for %s" % clientLang)
                 return
 
-        if clientLang != "java":
+        if clientLang != "java" and clientLang != "java-compat":
             client = os.path.join(clientdir, client)
 
         if clientenv is None:
             clientenv = getTestEnv(clientLang, clientdir)
-
-        if lang == "php":
-            phpSetup()
 
         clientExe = client
         serverExe = server
 
         if appverifier:
           setAppVerifierSettings([clientExe, serverExe])
+        if not controller:
+            sys.stdout.write("starting " + serverDesc + "... ")
+            sys.stdout.flush()
+            serverCfg = DriverConfig("server")
+            if lang in ["ruby", "php", "js"]:
+                serverCfg.lang = "cpp"
 
-        sys.stdout.write("starting " + serverDesc + "... ")
-        sys.stdout.flush()
-        serverCfg = DriverConfig("server")
-        if lang in ["ruby", "php", "js"]:
-            serverCfg.lang = "cpp"
-        server = getCommandLine(server, serverCfg, additionalServerOptions, interpreterOptions)
-        serverProc = spawnServer(server, env = serverenv, lang=serverCfg.lang, mx=serverCfg.mx)
-        print("ok")
-        sys.stdout.flush()
+            server = getCommandLine(server, serverCfg, additionalServerOptions, interpreterOptions)
+            serverProc = spawnServer(server, env = serverenv, lang=serverCfg.lang, mx=serverCfg.mx)
+            print("ok")
+            sys.stdout.flush()
 
         if not serverOnly:
             if clientLang == lang:
@@ -1529,7 +1631,13 @@ def clientServerTest(additionalServerOptions = "", additionalClientOptions = "",
             else:
                 sys.stdout.write("starting %s %s ... " % (clientLang, clientDesc))
             sys.stdout.flush()
-            client = getCommandLine(client, clientCfg, additionalClientOptions, interpreterOptions)
+            if not controller:
+                cfgName = None
+            if clientLang == "js" and es5 and client.find("/es5/") == -1:
+                client = client.replace("test/Ice/", "test/Ice/es5/")
+                client = client.replace("test/Glacier2/", "test/Glacier2/es5/")
+
+            client = getCommandLine(client, clientCfg, additionalClientOptions, interpreterOptions, cfgName)
             clientProc = spawnClient(client, env = clientenv, cwd = clientdir, startReader = False, lang=clientCfg.lang)
             print("ok")
 
@@ -1537,13 +1645,14 @@ def clientServerTest(additionalServerOptions = "", additionalClientOptions = "",
             clientProc.startReader(watchDog)
             clientProc.waitTestSuccess()
 
-        serverProc.waitTestSuccess()
+        if not controller:
+            serverProc.waitTestSuccess()
 
         if appverifier:
             appVerifierAfterTestEnd([clientExe, serverExe])
 
 def collocatedTest(additionalOptions = ""):
-    if serverOnly:
+    if controller or serverOnly:
         print("** skipping collocated test")
         return
     lang = getDefaultMapping()
@@ -1553,7 +1662,7 @@ def collocatedTest(additionalOptions = ""):
     testdir = os.getcwd()
 
     collocated = getDefaultCollocatedFile()
-    if lang != "java":
+    if lang != "java" and lang != "java-compat":
         collocated = os.path.join(testdir, collocated)
 
     exe = collocated
@@ -1576,22 +1685,26 @@ def collocatedTest(additionalOptions = ""):
 
 def clientEchoTest(additionalServerOptions = "", additionalClientOptions = "",
                    server = None, client = None, serverenv = None, clientenv = None):
-    if server is None:
-        server = getDefaultServerFile()
-    if client is None:
-        client = getDefaultClientFile()
-    serverDesc = server
-    clientDesc = client
 
     lang = getDefaultMapping()
     testdir = os.getcwd()
 
     # Setup the server.
     if lang in ["ruby", "php", "js"]:
-        serverdir = getMappingDir(testdir, "cpp", ["test", "Ice", "echo"])
+       serverdir = getMappingDir(testdir, "cpp", ["test", "Ice", "echo"])
     else:
-        serverdir = testdir
-    if lang != "java":
+       serverdir = testdir
+
+    print("serverdir: " + serverdir)
+
+    if server is None:
+        server = getDefaultServerFile(serverdir)
+    if client is None:
+        client = getDefaultClientFile()
+    serverDesc = server
+    clientDesc = client
+
+    if lang != "java" and lang != "java-compat":
         server = os.path.join(serverdir, server)
 
     if serverenv is None:
@@ -1630,14 +1743,11 @@ def clientEchoTest(additionalServerOptions = "", additionalClientOptions = "",
                 print("** no matching test for %s" % clientLang)
                 return
 
-        if clientLang != "java":
+        if clientLang != "java" and clientLang != "java-compat":
             client = os.path.join(clientdir, client)
 
         if clientenv is None:
             clientenv = getTestEnv(clientLang, clientdir)
-
-        if lang == "php":
-            phpSetup()
 
         clientExe = client
         serverExe = server
@@ -1661,6 +1771,10 @@ def clientEchoTest(additionalServerOptions = "", additionalClientOptions = "",
             else:
                 sys.stdout.write("starting %s %s ... " % (clientLang, clientDesc))
             sys.stdout.flush()
+
+            if clientLang == "js" and es5 and client.find("/es5/") == -1:
+                client = client.replace("test/Ice/", "test/Ice/es5/")
+
             client = getCommandLine(client, clientCfg, additionalClientOptions)
             clientProc = spawnClient(client, env = clientenv, startReader = False, lang=clientCfg.lang)
             print("ok")
@@ -1689,9 +1803,12 @@ def startClient(exe, args = "", config=None, env=None, echo = True, startReader 
         config = DriverConfig("client")
     if env is None:
         env = getTestEnv(getDefaultMapping(), os.getcwd())
-    cmd = getCommandLine(exe, config, args)
+    interpreterOptions = ""
     if config.lang == "php":
-        phpSetup(clientConfig, iceOptions, iceProfile)
+        interpreterOptions = phpProfileSetup(clientConfig, iceOptions, iceProfile)
+
+    cmd = getCommandLine(exe, config, args, interpreterOptions)
+
     return spawnClient(cmd, env = env, echo = echo, startReader = startReader, lang=config.lang)
 
 def startServer(exe, args = "", config = None, env = None, adapter = None, count = 1, echo = True, timeout = 60,
@@ -1701,7 +1818,8 @@ def startServer(exe, args = "", config = None, env = None, adapter = None, count
     if env is None:
         env = getTestEnv(getDefaultMapping(), os.getcwd())
     cmd = getCommandLine(exe, config, args, interpreterOptions)
-    return spawnServer(cmd, env = env, adapter = adapter, count = count, echo = echo, lang = config.lang, mx = config.mx, timeout = timeout)
+    return spawnServer(cmd, env = env, adapter = adapter, count = count, echo = echo, lang = config.lang,
+                       mx = config.mx, timeout = timeout)
 
 def startColloc(exe, args, config=None, env=None, interpreterOptions = ""):
     exe = quoteArgument(exe)
@@ -1745,6 +1863,10 @@ def createConfig(path, lines, enc=None):
 
 def getCppBinDir(lang = None):
     binDir = os.path.join(getIceDir("cpp"), "bin")
+
+    if isWin32():
+        binDir = os.path.join(binDir, "x64" if x64 else "Win32", "Debug" if buildMode == "debug" else "Release")
+
     if isMINGW() and x64:
         binDir = os.path.join(binDir, "x64")
     if iceHome:
@@ -1777,12 +1899,7 @@ def getCppLibDir(lang = None):
     else:
         libDir = os.path.join(getIceDir("cpp"), "lib")
         if isUbuntu() or isDebian():
-            if armv7l:
-                libDir = os.path.join(libDir, "arm-linux-gnueabihf")
-            elif x64:
-                libDir = os.path.join(libDir, "x86_64-linux-gnu")
-            else:
-                libDir = os.path.join(libDir, "i386-linux-gnu")
+            libDir = os.path.join(libDir, dpkgHostMultiArch())
         elif x64:
             if isSolaris():
                 if isSparc():
@@ -1803,43 +1920,6 @@ def getServiceDir():
             serviceDir = "C:\\Program Files\ZeroC\Ice-" + iceVersion + "\\bin"
     return serviceDir
 
-def getBuildMode(d):
-  if os.path.isfile(os.path.join(d, "build.txt")):
-    return open(os.path.join(d, "build.txt"), "r").read().strip()
-  import glob
-  executables = glob.glob(os.path.join(d, "*.exe"))
-  if not executables:
-    return "release"
-  p = subprocess.Popen("dumpbin /DEPENDENTS %s" % executables[0], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
-  if not p or not p.stdout:
-    print("unable to get executable information!")
-    sys.exit(1)
-
-  debug = "MSVCP%sD.dll"
-  release = "MSVCP%s.dll"
-
-  if isVC100():
-    debug = debug % "100"
-    release = release % "100"
-  elif isVC110():
-    debug = debug % "110"
-    release = release % "110"
-  elif isVC120():
-    debug = debug % "120"
-    release = release % "120"
-  elif isVC140():
-    debug = debug % "140"
-    release = release % "140"
-
-  l = p.stdout.readline()
-  while l:
-    l = l.decode("utf-8").strip()
-    if l.find(debug) != -1:
-      return "debug"
-    elif l.find(release) != -1:
-      return "release"
-    l = p.stdout.readline()
-
 def getTestEnv(lang, testdir):
     global compact
     env = os.environ.copy()
@@ -1849,10 +1929,20 @@ def getTestEnv(lang, testdir):
     #
     iceJARs = ["ice", "glacier2", "freeze", "icebox", "icestorm", "icegrid", "icepatch2", "icediscovery",
                "icelocatordiscovery"]
-    jarSuffix = "-" + iceVersion + ".jar"
+    jarSuffix = "-" + ("compat-") if lang == "java-compat" else "" + getIceJsonVersion() + ".jar"
 
     # First sanitize the environment.
     env["CLASSPATH"] = sanitize(os.getenv("CLASSPATH", ""))
+
+    for d in additionalBinDirectories:
+        addLdPath(d, env)
+
+    #
+    # Add cpp/test/Common output directory to the env
+    #
+    if lang == "cpp":
+        baseDir = os.path.join(toplevel, "cpp", "test", "Common")
+        addLdPath(os.path.join(baseDir, getTestDirectory("testcommon", baseDir)), env)
 
     # Make sure bzip2 can be found by x86 C# builds on x64 platforms
     if lang == "csharp" and not x64:
@@ -1861,14 +1951,29 @@ def getTestEnv(lang, testdir):
     # Add test directory to env
     if lang == "cpp":
         addLdPath(os.path.join(testdir), env)
-    elif lang == "java":
-        addClasspath(os.path.join(toplevel, "java", "lib", "test.jar"), env)
+    elif lang == "java" or lang == "java-compat":
+        addClasspath(os.path.join(testToplevel, lang, "lib", "test.jar"), env)
     elif lang == "js":
+        if es5 and testdir.find("/es5/") == -1:
+            testdir = testdir.replace("test/Ice/", "test/Ice/es5/")
+            testdir = testdir.replace("test/Glacier2/", "test/Glacier2/es5/")
         addPathToEnv("NODE_PATH", os.path.join(testdir), env)
 
         # NodeJS is always installed locally even when testing against a binary installation
         if os.environ.get("USE_BIN_DIST", "no") != "yes":
-            addPathToEnv("NODE_PATH", os.path.join(getIceDir("js", testdir), "src"), env)
+                addPathToEnv("NODE_PATH", os.path.join(getIceDir("js", testdir), "src"), env)
+
+    if isWin32():
+        if lang == "java" and javaLibraryPath:
+            addPathToEnv("PATH", javaLibraryPath, env)
+
+        if lang == "csharp" and not iceHome:
+            pkgdir = os.path.join(getIceDir("cpp"), "msbuild", "packages")
+            pkgsubdir = os.path.join("build", "native", "bin", "x64", "Release")
+            if isVC120():
+                addPathToEnv("PATH", os.path.join(pkgdir, "bzip2.v120.1.0.6.4", pkgsubdir), env)
+            else:
+                addPathToEnv("PATH", os.path.join(pkgdir, "bzip2.v140.1.0.6.4", pkgsubdir), env)
 
     #
     # If Ice is installed on the system, set the CLASSPATH for Java and
@@ -1890,7 +1995,10 @@ def getTestEnv(lang, testdir):
         if lang == "java":
             addLdPath(os.path.join(getIceDir("cpp"), "bin", "x64" if x64 else ""), env) # Add bin for db53_vc100.dll
         addLdPath(getCppLibDir(lang), env)
+    elif isAIX():
+        addLdPath(getCppLibDir(lang), env)
     elif lang in ["python", "ruby", "php", "js", "objective-c"]:
+        # C++ binaries use rpath $ORIGIN or similar to find the Ice libraries
         addLdPath(getCppLibDir(lang), env)
 
     if lang == "java":
@@ -1917,8 +2025,9 @@ def getTestEnv(lang, testdir):
         #
         if lang == "python":
             pythonDir = os.path.join(getIceDir("python", testdir), "python")
-            if isWin32() and x64 and os.path.exists(os.path.join(pythonDir, "x64")):
-                pythonDir = os.path.join(pythonDir, "x64")
+            if isWin32():
+                addPathToEnv("PYTHONPATH", pythonDir, env)
+                pythonDir = os.path.join(pythonDir, "Win32" if x86 else "x64", "Debug" if buildMode == "debug" else "Release")
             addPathToEnv("PYTHONPATH", pythonDir, env)
 
         #
@@ -1931,7 +2040,13 @@ def getTestEnv(lang, testdir):
 
 def getTestName():
     lang = getDefaultMapping()
-    here = os.getcwd().split(os.sep)
+    base = os.getcwd()
+
+    if "java" in lang:
+        # Remove Java's extra directory structure from the path while we search it
+        base = base.replace(os.path.join("src", "main", "java", "test"), '')
+
+    here = base.split(os.sep)
     here.reverse()
     for i in range(0, len(here)):
         if here[i] == lang:
@@ -2003,38 +2118,42 @@ class WatchDog(threading.Thread):
 def processCmdLine():
     def usage():
         print("usage: " + sys.argv[0] + """
-          --debug                     Display debugging information on each test.
-          --trace=<file>              Display tracing.
-          --protocol=tcp|ssl|ws|wss   Run with the given protocol.
-          --compress                  Run the tests with protocol compression.
-          --valgrind                  Run the tests with valgrind.
-          --appverifier               Run the tests with appverifier.
-          --host=host                 Set --Ice.Default.Host=<host>.
-          --serialize                 Run with connection serialization.
-          --ipv6                      Use IPv6 addresses.
-          --socks                     Use SOCKS proxy running on localhost.
-          --ice-home=<path>           Use the binary distribution from the given path.
-          --x86                       Binary distribution is 32-bit.
-          --x64                       Binary distribution is 64-bit.
-          --c++11                     Binary distribution is c++11.
-          --env                       Print important environment variables.
-          --cross=lang                Run cross language test.
-          --client-home=<dir>         Run cross test clients from the given Ice source distribution.
-          --service-dir=<dir>         Where to locate services for builds without service support.
-          --compact                   Ice for .NET uses the Compact Framework.
-          --winrt                     Run server with configuration suited for WinRT client.
-          --server                    Run only the server.
-          --mx                        Enable IceMX when running the tests.
-          --arg=<property>            Append the given argument.
+          --debug              Display debugging information on each test.
+          --trace=<file>       Display tracing.
+          --protocol=<prot>    Run with the given protocol (tcp|ssl|ws|wss|bt).
+          --compress           Run the tests with protocol compression.
+          --valgrind           Run the tests with valgrind.
+          --appverifier        Run the tests with appverifier.
+          --host=host          Set --Ice.Default.Host=<host>.
+          --serialize          Run with connection serialization.
+          --ipv6               Use IPv6 addresses.
+          --socks              Use SOCKS proxy running on localhost.
+          --ice-home=<path>    Use the binary distribution from the given path.
+          --mode=debug|release Run the tests with debug or release mode builds (win32 only)."
+          --x86                Binary distribution is 32-bit.
+          --x64                Binary distribution is 64-bit.
+          --c++11              Binary distribution is c++11.
+          --es5                Use JavaScript ES5 (Babel compiled code)
+          --static             Binary distribution is static.
+          --env                Print important environment variables.
+          --cross=lang         Run cross language test.
+          --client-home=<dir>  Run cross test clients from the given Ice source distribution.
+          --service-dir=<dir>  Where to locate services for builds without service support.
+          --compact            Ice for .NET uses the Compact Framework.
+          --winrt              Run server with configuration suited for WinRT client.
+          --server             Run only the server.
+          --mx                 Enable IceMX when running the tests.
+          --controller=<host>  Use the test controller on the specified host.
+          --arg=<property>     Append the given argument.
         """)
         sys.exit(2)
 
     try:
         opts, args = getopt.getopt(
             sys.argv[1:], "", ["debug", "trace=", "protocol=", "compress", "valgrind", "host=", "serialize", "ipv6", \
-                               "socks", "ice-home=", "x86", "x64", "cross=", "client-home=", "env", \
+                               "socks", "ice-home=", "mode=", "x86", "x64", "cross=", "client-home=", "env", \
                                "service-dir=", "appverifier", "arg=", \
-                               "compact", "winrt", "server", "mx", "c++11"])
+                               "compact", "winrt", "server", "mx", "c++11", "es5", "static", "controller=", "configName="])
     except getopt.GetoptError:
         usage()
 
@@ -2043,15 +2162,21 @@ def processCmdLine():
 
     global serverOnly
     global winrt
+    global buildMode
     for o, a in opts:
         if o == "--ice-home":
             global iceHome
             iceHome = a
+        elif o == "--mode":
+            if a not in ( "debug", "release"):
+                usage()
+            buildMode = a
         elif o == "--cross":
             global cross
             cross.append(a)
-            if not a in ["cpp", "csharp", "java", "js", "python", "ruby", "objective-c" ]:
-                print("cross must be one of cpp, csharp, java, js, python, ruby or objective-c")
+            crossLang = ["cpp", "csharp", "java", "java-compat", "js", "php", "python", "ruby", "objective-c"]
+            if not a in crossLang:
+                print("cross must be one of %s" % ', '.join(crossLang))
                 sys.exit(1)
             if getTestName() not in crossTests:
                 print("*** This test does not support cross language testing")
@@ -2069,6 +2194,12 @@ def processCmdLine():
         elif o == "--c++11":
             global cpp11
             cpp11 = True
+        elif o == "--es5":
+            global es5
+            es5 = True
+        elif o == "--static":
+            global static
+            static = True
         elif o == "--compress":
             global compress
             compress = True
@@ -2106,11 +2237,14 @@ def processCmdLine():
             global printenv
             printenv = True
         elif o == "--protocol":
-            if a not in ( "ws", "wss", "ssl", "tcp"):
+            if a not in ("bt", "bts", "ws", "wss", "ssl", "tcp"):
                 usage()
             # ssl protocol isn't directly supported with mono.
             if mono and getDefaultMapping() == "csharp" and (a == "ssl" or a == "wss"):
                 print("SSL is not supported with mono")
+                sys.exit(1)
+            if a in ["bt", "bts"] and not isLinux():
+                print("Bluetooth is only supported on Linux")
                 sys.exit(1)
             global protocol
             protocol = a
@@ -2130,12 +2264,22 @@ def processCmdLine():
         elif o == "--mx":
             global mx
             mx = True
+        elif o == "--controller":
+            global controller
+            controller = a
+        elif o == "--configName":
+            global configName
+            configName = a
         if protocol in ["ssl", "wss"] and not serverOnly and getDefaultMapping() == "js":
             print("SSL is not supported with Node.js")
             sys.exit(1)
 
     if len(args) > 0:
         usage()
+
+    if isWin32() and not buildMode:
+        print("Error: please define --mode=debug or --mode=release")
+        sys.exit(1)
 
     if not os.environ.get("TESTCONTROLLER"):
         if iceHome:
@@ -2168,9 +2312,14 @@ def runTests(start, expanded, num = 0, script = False):
 
             # Deal with Java's different directory structure
             if i.find(os.path.join("java","test")) != -1:
-                dir = os.path.join(toplevel, "java", "test", "src", "main", i)
+                dir = os.path.join(testToplevel, "java", "test", "src", "main", i)
+            elif i.find(os.path.join("java-compat","test")) != -1:
+                dir = os.path.join(testToplevel, "java-compat", "test", "src", "main", i.replace('-compat',''))
+            elif  es5 and i.find(os.path.join("js","test")) != -1:
+                dir = os.path.join(testToplevel, i.replace("test/Ice/", "test/Ice/es5/")
+                                                  .replace("test/Glacier2/", "test/Glacier2/es5/"))
             else:
-                dir = os.path.join(toplevel, i)
+                dir = os.path.join(testToplevel, i)
             dir = os.path.normpath(dir)
 
             sys.stdout.write("\n")
@@ -2253,6 +2402,10 @@ def runTests(start, expanded, num = 0, script = False):
                 print("%s*** test not supported with C++11%s" % (prefix, suffix))
                 continue
 
+            if static and "nostatic" in config:
+                print("%s*** test not supported with static%s" % (prefix, suffix))
+                continue
+
             if x86 and iceHome and "nomultiarch" in config:
                 print("%s*** test not supported with x86 in multiarch%s" % (prefix, suffix))
                 continue
@@ -2281,11 +2434,15 @@ def runTests(start, expanded, num = 0, script = False):
                                                         args.find("ws") != -1)) or
                                    args.find("compress") != -1 or
                                    args.find("mx") != -1)):
-                print("%s*** test not supported with node%s" % (prefix, suffix))
+                print("%s*** test not supported with Node.js%s" % (prefix, suffix))
                 continue
 
             if (args.find("ssl") != -1 or args.find("wss") != -1) and ("nossl" in config):
                 print("%s*** test not supported with IceSSL%s" % (prefix, suffix))
+                continue
+
+            if (args.find("bt") != -1 or args.find("bts") != -1) and ("bt" not in config):
+                print("%s*** test not supported with Bluetooth%s" % (prefix, suffix))
                 continue
 
             if (args.find("ws") != -1 or args.find("wss") != -1) and ("nows" in config):
@@ -2309,6 +2466,11 @@ def runTests(start, expanded, num = 0, script = False):
                 print("%s*** test not supported with appverifier%s" % (prefix, suffix))
                 continue
 
+            # Skip tests that no not exist for this language mapping
+            if not os.path.exists(dir):
+                print("%s*** test does not exist for this language mapping%s" % (prefix, suffix))
+                continue
+
             if script:
                 print("echo \"*** test started: `date`\"")
                 print("cd %s" % dir)
@@ -2325,6 +2487,8 @@ def runTests(start, expanded, num = 0, script = False):
                     print("  exit 1")
                 print("fi")
             else:
+                if dir.find(os.path.join("js","test")) != -1 and es5 and dir.find("/es5/") == -1:
+                    dir = dir.replace("test/Ice/", "test/Ice/es5/").replace("test/Glacier2/", "test/Glacier2/es5/")
                 status = os.system(sys.executable + " " +  quoteArgument(os.path.join(dir, "run.py")) + " " + args)
                 if status:
                     status = status if isWin32() else (status >> 8)
@@ -2338,6 +2502,99 @@ def runTests(start, expanded, num = 0, script = False):
                         print(" ** Error logged and will be displayed again when suite is completed **")
                         global testErrors
                         testErrors.append(message)
+
+class ClientServerTest:
+    def __init__(self, cfgName, message, additionalServerOptions, additionalClientOptions,
+                 server, client, serverenv, clientenv, interpreterOptions, localOnly):
+        if cfgName is None:
+            cfgName = "default"
+        self.cfgName = cfgName
+        self.message = message
+        self.additionalServerOptions = additionalServerOptions
+        self.additionalClientOptions = additionalClientOptions
+        self.server = server
+        self.client = client
+        self.serverenv = serverenv
+        self.clientenv = clientenv
+        self.interpreterOptions = interpreterOptions
+        self.localOnly = localOnly
+
+    def getConfigName(self):
+        return self.cfgName
+
+    def getMessage(self):
+        return self.message
+
+    def isLocalOnly(self):
+        return self.localOnly
+
+    def getDefaultMessage(self):
+        return "Running test with regular server."
+
+    def run(self):
+        clientServerTest(self.cfgName, self.additionalServerOptions, self.additionalClientOptions, self.server,
+                         self.client, self.serverenv, self.clientenv, self.interpreterOptions)
+
+def queueClientServerTest(configName = None, message = None, additionalServerOptions = "",
+                          additionalClientOptions = "", server = None, client = None, serverenv = None,
+                          clientenv = None, interpreterOptions = "", localOnly = False):
+    global queuedTests
+    queuedTests.append(ClientServerTest(configName, message, additionalServerOptions, additionalClientOptions, server,
+                                        client, serverenv, clientenv, interpreterOptions, localOnly))
+
+class CollocatedTest:
+    def __init__(self, message = None, additionalOptions = ""):
+        self.message = message
+        self.additionalOptions = additionalOptions
+
+    def getMessage(self):
+        return self.message
+
+    def isLocalOnly(self):
+        return True
+
+    def getDefaultMessage(self):
+        return "Running test with collocated server."
+
+    def run(self):
+        collocatedTest(self.additionalOptions)
+
+def queueCollocatedTest(message = None, additionalOptions = ""):
+    global queuedTests
+    queuedTests.append(CollocatedTest(message, additionalOptions))
+
+def runQueuedTests():
+    global queuedTests
+    global serverOnly
+    global controller
+    global configName
+
+    if serverOnly:
+        name = configName
+        if not name:
+            name = "default"
+
+        for t in queuedTests:
+            if isinstance(t, ClientServerTest) and t.getConfigName() == name:
+                t.run()
+                return
+
+        print("no queued test found matching configuration name `" + name + "'")
+        sys.exit(1)
+
+    tests = []
+    for t in queuedTests:
+        if controller and t.isLocalOnly():
+            continue
+        tests.append(t)
+
+    for t in tests:
+        msg = t.getMessage()
+        if msg:
+            print(msg)
+        elif len(tests) > 1:
+            print(t.getDefaultMessage())
+        t.run()
 
 if "ICE_CONFIG" in os.environ:
     os.unsetenv("ICE_CONFIG")
@@ -2358,3 +2615,45 @@ if os.path.split(frame.f_code.co_filename)[1] == "run.py":
     if os.path.normpath(d) != os.getcwd():
         os.chdir(d)
     processCmdLine()
+
+def getTestDirectory(name, baseDir = os.getcwd()):
+    if isWin32():
+        buildDir = "msbuild"
+        platform = "x64" if x64 else "Win32"
+        if cpp11:
+            configuration = "Cpp11-Debug" if buildMode == "debug" else "Cpp11-Release"
+        else:
+            configuration = "Debug" if buildMode == "debug" else "Release"
+    else:
+        buildDir = "build"
+        if isDarwin():
+            platform = "macosx"
+        elif isUbuntu() or isDebian():
+            platform = "x86_64-linux-gnu" if x64 else "i386-linux-gnu"
+        elif isAIX():
+            platform = "ppc64" if x64 else "ppc"
+        else:
+            platform = "x64" if x64 else "x86"
+        configuration = ("cpp11-" if cpp11 else "") + ("static" if static else "shared")
+
+    if os.path.isdir(os.path.join(baseDir, buildDir, name)):
+        return os.path.join(buildDir, name, platform, configuration)
+    else:
+        return os.path.join(buildDir, platform, configuration)
+
+def getTestExecutable(name, baseDir = os.getcwd()):
+    return os.path.join(getTestDirectory(name, baseDir), name)
+
+#
+# Used for tests which have Ice as a submodule
+#
+def setTestToplevel(path):
+    global testToplevel
+    testToplevel = path
+
+#
+# Used for Freeze
+#
+def setJavaLibraryPath(path):
+    global javaLibraryPath
+    javaLibraryPath = path

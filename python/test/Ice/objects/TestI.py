@@ -1,6 +1,6 @@
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -12,44 +12,35 @@ import Ice, Test
 class BI(Test.B):
     def __init__(self):
         self.preMarshalInvoked = False
-        self._postUnmarshalInvoked = False
-
-    def postUnmarshalInvoked(self, current=None):
-        return self._postUnmarshalInvoked
+        self.postUnmarshalInvoked = False
 
     def ice_preMarshal(self):
         self.preMarshalInvoked = True
 
     def ice_postUnmarshal(self):
-        self._postUnmarshalInvoked = True
+        self.postUnmarshalInvoked = True
 
 class CI(Test.C):
     def __init__(self):
         self.preMarshalInvoked = False
-        self._postUnmarshalInvoked = False
-
-    def postUnmarshalInvoked(self, current=None):
-        return self._postUnmarshalInvoked
+        self.postUnmarshalInvoked = False
 
     def ice_preMarshal(self):
         self.preMarshalInvoked = True
 
     def ice_postUnmarshal(self):
-        self._postUnmarshalInvoked = True
+        self.postUnmarshalInvoked = True
 
 class DI(Test.D):
     def __init__(self):
         self.preMarshalInvoked = False
-        self._postUnmarshalInvoked = False
-
-    def postUnmarshalInvoked(self, current=None):
-        return self._postUnmarshalInvoked
+        self.postUnmarshalInvoked = False
 
     def ice_preMarshal(self):
         self.preMarshalInvoked = True
 
     def ice_postUnmarshal(self):
-        self._postUnmarshalInvoked = True
+        self.postUnmarshalInvoked = True
 
 class EI(Test.E):
     def __init__(self):
@@ -132,6 +123,12 @@ class InitialI(Test.Initial):
     def getF(self, current=None):
         return self._f
 
+    def getMB(self, current):
+        return self._b1;
+
+    def getAMDMB_async(self, cb, current):
+        cb.ice_response(self._b1);
+
     def getAll(self, current=None):
         self._b1.preMarshalInvoked = False
         self._b2.preMarshalInvoked = False
@@ -148,6 +145,12 @@ class InitialI(Test.Initial):
     def getH(self, current=None):
         return HI()
 
+    def getD1(self, d1, current=None):
+        return d1
+
+    def throwEDerived(self, current=None):
+        raise Test.EDerived(Test.A1("a1"), Test.A1("a2"), Test.A1("a3"), Test.A1("a4"))
+
     def setI(self, i, current=None):
         pass
 
@@ -156,6 +159,18 @@ class InitialI(Test.Initial):
 
     def getCompact(self, current=None):
         return Test.CompactExt()
+
+    def getInnerA(self, current=None):
+        return Test.Inner.A(self._b1)
+
+    def getInnerSubA(self, current=None):
+        return Test.Inner.Sub.A(Test.Inner.A(self._b1))
+
+    def throwInnerEx(self, current=None):
+        raise Test.Inner.Ex("Inner::Ex")
+
+    def throwInnerSubEx(self, current=None):
+        raise Test.Inner.Sub.Ex("Inner::Sub::Ex")
 
 class UnexpectedObjectExceptionTestI(Test.UnexpectedObjectExceptionTest):
     def op(self, current=None):

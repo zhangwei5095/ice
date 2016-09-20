@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,7 +8,6 @@
 // **********************************************************************
 
 using System;
-using System.Diagnostics;
 using System.Reflection;
 
 [assembly: CLSCompliant(true)]
@@ -26,9 +25,9 @@ public class Server
         int num = 0;
         try
         {
-            num =  System.Int32.Parse(args[0]);
+            num =  Int32.Parse(args[0]);
         }
-        catch(System.FormatException)
+        catch(FormatException)
         {
         }
 
@@ -37,7 +36,7 @@ public class Server
         properties.setProperty("ControlAdapter.ThreadPool.Size", "1");
 
         Ice.ObjectAdapter adapter = communicator.createObjectAdapter("ControlAdapter");
-        adapter.add(new ControllerI(), communicator.stringToIdentity("controller" + num));
+        adapter.add(new ControllerI(), Ice.Util.stringToIdentity("controller" + num));
         adapter.activate();
 
         communicator.waitForShutdown();
@@ -54,9 +53,9 @@ public class Server
             communicator = Ice.Util.initialize(ref args);
             status = run(args, communicator);
         }
-        catch(System.Exception ex)
+        catch(Exception ex)
         {
-            System.Console.Error.WriteLine(ex);
+            Console.Error.WriteLine(ex);
             status = 1;
         }
 
@@ -68,7 +67,7 @@ public class Server
             }
             catch(Ice.LocalException ex)
             {
-                System.Console.Error.WriteLine(ex);
+                Console.Error.WriteLine(ex);
                 status = 1;
             }
         }

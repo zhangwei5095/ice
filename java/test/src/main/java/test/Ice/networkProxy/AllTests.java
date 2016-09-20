@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -12,12 +12,10 @@ package test.Ice.networkProxy;
 import java.io.PrintWriter;
 
 import test.Ice.networkProxy.Test.TestIntfPrx;
-import test.Ice.networkProxy.Test.TestIntfPrxHelper;
 
 public class AllTests
 {
-    private static void
-    test(boolean b)
+    private static void test(boolean b)
     {
         if(!b)
         {
@@ -25,17 +23,16 @@ public class AllTests
         }
     }
 
-    public static void
-    allTests(test.Util.Application app)
+    public static void allTests(test.Util.Application app)
     {
-        Ice.Communicator communicator = app.communicator();
+        com.zeroc.Ice.Communicator communicator = app.communicator();
         PrintWriter out = app.getWriter();
 
         String sref = "test:default -p 12010";
-        Ice.ObjectPrx obj = communicator.stringToProxy(sref);
+        com.zeroc.Ice.ObjectPrx obj = communicator.stringToProxy(sref);
         test(obj != null);
 
-        TestIntfPrx test = TestIntfPrxHelper.checkedCast(obj);
+        TestIntfPrx test = TestIntfPrx.checkedCast(obj);
         test(test != null);
 
         out.print("testing connection... ");
@@ -48,7 +45,14 @@ public class AllTests
         out.print("testing connection information... ");
         out.flush();
         {
-            Ice.IPConnectionInfo info = (Ice.IPConnectionInfo)test.ice_getConnection().getInfo();
+            com.zeroc.Ice.IPConnectionInfo info = null;
+            for(com.zeroc.Ice.ConnectionInfo p = test.ice_getConnection().getInfo(); p != null; p = p.underlying)
+            {
+                if(p instanceof com.zeroc.Ice.IPConnectionInfo)
+                {
+                    info = (com.zeroc.Ice.IPConnectionInfo)p;
+                }
+            }
             test(info.remotePort == 12030 || info.remotePort == 12031); // make sure we are connected to the proxy port.
         }
         out.println("ok");
@@ -68,7 +72,7 @@ public class AllTests
                 test.ice_ping();
                 test(false);
             }
-            catch(Ice.LocalException ex)
+            catch(com.zeroc.Ice.LocalException ex)
             {
             }
         }

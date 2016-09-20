@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -13,10 +13,10 @@ import test.Ice.objects.Test.InitialPrx;
 
 public class Client extends test.Util.Application
 {
-    private static class MyObjectFactory implements Ice.ObjectFactory
+    private static class MyValueFactory implements com.zeroc.Ice.ValueFactory
     {
         @Override
-        public Ice.Object create(String type)
+        public com.zeroc.Ice.Value create(String type)
         {
             if(type.equals("::Test::B"))
             {
@@ -54,27 +54,40 @@ public class Client extends test.Util.Application
             assert (false); // Should never be reached
             return null;
         }
+    }
+
+    @SuppressWarnings("deprecation")
+    private static class MyObjectFactory implements com.zeroc.Ice.ObjectFactory
+    {
+        @Override
+        public com.zeroc.Ice.Value create(String type)
+        {
+            return null;
+        }
 
         @Override
         public void destroy()
         {
-            // Nothing to do
+            //
         }
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public int run(String[] args)
     {
-        Ice.Communicator communicator = communicator();
-        Ice.ObjectFactory factory = new MyObjectFactory();
-        communicator.addObjectFactory(factory, "::Test::B");
-        communicator.addObjectFactory(factory, "::Test::C");
-        communicator.addObjectFactory(factory, "::Test::D");
-        communicator.addObjectFactory(factory, "::Test::E");
-        communicator.addObjectFactory(factory, "::Test::F");
-        communicator.addObjectFactory(factory, "::Test::I");
-        communicator.addObjectFactory(factory, "::Test::J");
-        communicator.addObjectFactory(factory, "::Test::H");
+        com.zeroc.Ice.Communicator communicator = communicator();
+        com.zeroc.Ice.ValueFactory factory = new MyValueFactory();
+        communicator.getValueFactoryManager().add(factory, "::Test::B");
+        communicator.getValueFactoryManager().add(factory, "::Test::C");
+        communicator.getValueFactoryManager().add(factory, "::Test::D");
+        communicator.getValueFactoryManager().add(factory, "::Test::E");
+        communicator.getValueFactoryManager().add(factory, "::Test::F");
+        communicator.getValueFactoryManager().add(factory, "::Test::I");
+        communicator.getValueFactoryManager().add(factory, "::Test::J");
+        communicator.getValueFactoryManager().add(factory, "::Test::H");
+
+        communicator.addObjectFactory(new MyObjectFactory(), "TestOF");
 
         InitialPrx initial = AllTests.allTests(communicator, getWriter());
         initial.shutdown();
@@ -82,12 +95,11 @@ public class Client extends test.Util.Application
     }
 
     @Override
-    protected Ice.InitializationData getInitData(Ice.StringSeqHolder argsH)
+    protected GetInitDataResult getInitData(String[] args)
     {
-        Ice.InitializationData initData = createInitializationData() ;
-        initData.properties = Ice.Util.createProperties(argsH);
-        initData.properties.setProperty("Ice.Package.Test", "test.Ice.objects");
-        return initData;
+        GetInitDataResult r = super.getInitData(args);
+        r.initData.properties.setProperty("Ice.Package.Test", "test.Ice.objects");
+        return r;
     }
 
     public static void main(String[] args)

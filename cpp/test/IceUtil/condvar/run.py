@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -20,11 +20,11 @@ if len(path) == 0:
 sys.path.append(os.path.join(path[0], "scripts"))
 import TestUtil
 
-workqueue = os.path.join(os.getcwd(), "workqueue")
+workqueue = os.path.join(os.getcwd(), TestUtil.getTestExecutable("workqueue"))
 
 TestUtil.simpleTest(workqueue)
 
-match = os.path.join(os.getcwd(), "match")
+match = os.path.join(os.getcwd(), TestUtil.getTestExecutable("match"))
 
 TestUtil.simpleTest(match)
 

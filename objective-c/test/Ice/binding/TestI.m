@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -54,8 +54,8 @@
     }
     adapter_ = ICE_RETAIN(adapter);
     testIntf_ = ICE_RETAIN([TestBindingTestIntfPrx uncheckedCast:[
-                		adapter_ add:[TestBindingI testIntf]
-                    		    identity:[[adapter_ getCommunicator] stringToIdentity:@"test"]]]);
+                        adapter_ add:[TestBindingI testIntf]
+                                identity:[ICEUtil stringToIdentity:@"test"]]]);
     [adapter_ activate];
     return self;
 }

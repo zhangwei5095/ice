@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -24,9 +24,9 @@ def run(args, communicator):
     adapter2 = communicator.createObjectAdapter("TestAdapter2")
     adapter3 = communicator.createObjectAdapter("TestAdapter3")
     object = TestI.ThrowerI()
-    adapter.add(object, communicator.stringToIdentity("thrower"))
-    adapter2.add(object, communicator.stringToIdentity("thrower"))
-    adapter3.add(object, communicator.stringToIdentity("thrower"))
+    adapter.add(object, Ice.stringToIdentity("thrower"))
+    adapter2.add(object, Ice.stringToIdentity("thrower"))
+    adapter3.add(object, Ice.stringToIdentity("thrower"))
     adapter.activate()
     adapter2.activate()
     adapter3.activate()

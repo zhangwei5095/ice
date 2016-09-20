@@ -1,13 +1,13 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
 
-#include <IceUtil/UUID.h>
+#include <Ice/UUID.h>
 #include <IceUtil/FileUtil.h>
 #include <Ice/Ice.h>
 #include <Ice/Network.h>
@@ -118,6 +118,19 @@ private:
     ProcessPtr _origProcess;
 };
 
+Ice::IPConnectionInfoPtr
+getIPConnectionInfo(const Ice::ConnectionInfoPtr& info)
+{
+    for(Ice::ConnectionInfoPtr p = info; p; p = p->underlying)
+    {
+        Ice::IPConnectionInfoPtr ipInfo = Ice::IPConnectionInfoPtr::dynamicCast(p);
+        if(ipInfo)
+        {
+            return ipInfo;
+        }
+    }
+    return ICE_NULLPTR;
+}
 
 ProcessI::ProcessI(const RegistryIPtr& registry, const ProcessPtr& origProcess) :
     _registry(registry),
@@ -576,7 +589,7 @@ RegistryI::startImpl()
     //
     // Add the locator finder object to the client adapter.
     //
-    _clientAdapter->add(new FinderI(_wellKnownObjects), _communicator->stringToIdentity("Ice/LocatorFinder"));
+    _clientAdapter->add(new FinderI(_wellKnownObjects), stringToIdentity("Ice/LocatorFinder"));
 
     //
     // Setup the discovery object adapter and also add it the lookup
@@ -611,7 +624,7 @@ RegistryI::startImpl()
 
         try
         {
-            Ice::Identity lookupId = _communicator->stringToIdentity("IceLocatorDiscovery/Lookup");
+            Ice::Identity lookupId = stringToIdentity("IceLocatorDiscovery/Lookup");
             discoveryAdapter = _communicator->createObjectAdapter("IceGrid.Registry.Discovery");
             discoveryAdapter->add(new LookupI(_instanceName, _wellKnownObjects), lookupId);
         }
@@ -1338,10 +1351,11 @@ RegistryI::getSSLInfo(const ConnectionPtr& connection, string& userDN)
             throw exc;
         }
 
-        sslinfo.remotePort = info->remotePort;
-        sslinfo.remoteHost = info->remoteAddress;
-        sslinfo.localPort = info->localPort;
-        sslinfo.localHost = info->localAddress;
+        Ice::IPConnectionInfoPtr ipInfo = getIPConnectionInfo(info);
+        sslinfo.remotePort = ipInfo->remotePort;
+        sslinfo.remoteHost = ipInfo->remoteAddress;
+        sslinfo.localPort = ipInfo->localPort;
+        sslinfo.localHost = ipInfo->localAddress;
         sslinfo.cipher = info->cipher;
         sslinfo.certs = info->certs;
         if(info->certs.size() > 0)

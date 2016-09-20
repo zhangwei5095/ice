@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -25,7 +25,7 @@ namespace IceUtil
 
 class Time;
 
-class ICE_UTIL_API ThreadControl
+class ICE_API ThreadControl
 {
 public:
 
@@ -112,7 +112,7 @@ private:
 #endif
 };
 
-class ICE_UTIL_API Thread : virtual public IceUtil::Shared
+class ICE_API Thread : public virtual IceUtil::Shared
 {
 public:
 
@@ -128,7 +128,6 @@ public:
     ThreadControl getThreadControl() const;
 
     bool operator==(const Thread&) const;
-    bool operator!=(const Thread&) const;
     bool operator<(const Thread&) const;
 
     //

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -27,10 +27,10 @@ run(id<ICECommunicator> communicator)
 
     ICEObject* object = [TestDispatcherTestIntfI testIntf];
 
-    [adapter add:object identity:[communicator stringToIdentity:@"test"]];
+    [adapter add:object identity:[ICEUtil stringToIdentity:@"test"]];
     [adapter activate];
 
-    [adapter2 add:testController identity:[communicator stringToIdentity:@"testController"]];
+    [adapter2 add:testController identity:[ICEUtil stringToIdentity:@"testController"]];
     [adapter2 activate];
 
     serverReady(communicator);
@@ -46,6 +46,13 @@ run(id<ICECommunicator> communicator)
 int
 main(int argc, char* argv[])
 {
+#ifdef ICE_STATIC_LIBS
+    ICEregisterIceSSL(YES);
+#if TARGET_OS_IPHONE
+    ICEregisterIceIAP(YES);
+#endif
+#endif
+
     int status;
     @autoreleasepool
     {

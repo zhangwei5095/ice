@@ -1,7 +1,6 @@
-
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -16,6 +15,10 @@
 #include <Ice/Identity.ice>
 #include <Ice/Endpoint.ice>
 
+#ifndef __SLICE2JAVA_COMPAT__
+[["java:package:com.zeroc"]]
+#endif
+
 ["objc:prefix:ICE"]
 module Ice
 {
@@ -26,6 +29,14 @@ module Ice
  **/
 local class ConnectionInfo
 {
+    /**
+     *
+     * The information of the underyling transport or null if there's
+     * no underlying transport.
+     *
+     **/
+    ConnectionInfo underlying;
+
     /**
      *
      * Whether or not the connection is an incoming or outgoing
@@ -47,20 +58,6 @@ local class ConnectionInfo
      *
      **/
     string connectionId;
-
-    /**
-     *
-     * The connection buffer receive size.
-     *
-     **/
-    int rcvSize;
-
-    /**
-     *
-     * The connection buffer send size.
-     *
-     **/
-    int sndSize;
 };
 
 local interface Connection;
@@ -68,30 +65,46 @@ local interface Connection;
 /**
  *
  * An application can implement this interface to receive notifications when
- * a connection closes or receives a heartbeat message.
+ * a connection closes.
  *
- * @see Connection#setCallback
+ * @see Connection#setCloseCallback
  *
  **/
-local interface ConnectionCallback
+["delegate"]
+local interface CloseCallback
+{
+    /**
+     *
+     * This method is called by the the connection when the connection
+     * is closed.
+     *
+     * @param con The connection that closed.
+     **/
+    void closed(Connection con);
+};
+
+/**
+ *
+ * An application can implement this interface to receive notifications when
+ * a connection receives a heartbeat message.
+ *
+ * @see Connection#setHeartbeatCallback
+ *
+ **/
+["delegate"]
+local interface HeartbeatCallback
 {
     /**
      *
      * This method is called by the the connection when a heartbeat is
      * received from the peer.
      *
+     * @param con The connection on which a heartbeat was received.
      **/
     void heartbeat(Connection con);
-
-    /**
-     *
-     * This method is called by the the connection when the connection
-     * is closed.
-     *
-     **/
-    void closed(Connection con);
 };
 
+["cpp:unscoped"]
 local enum ACMClose
 {
     CloseOff,
@@ -101,6 +114,7 @@ local enum ACMClose
     CloseOnIdleForceful
 };
 
+["cpp:unscoped"]
 local enum ACMHeartbeat
 {
     HeartbeatOff,
@@ -205,7 +219,7 @@ local interface Connection
      * associated with the connection.
      *
      **/
-    ["async"] void flushBatchRequests();
+    ["async-oneway"] void flushBatchRequests();
 
     /**
      *
@@ -213,10 +227,21 @@ local interface Connection
      * connection when it's closed. The callback is called from the
      * Ice thread pool associated with the connection.
      *
-     * @param callback The connection callback object.
+     * @param callback The closed callback object.
      *
      **/
-    void setCallback(ConnectionCallback callback);
+    void setCloseCallback(CloseCallback callback);
+
+    /**
+     *
+     * Set callback on the connection. The callback is called by the
+     * connection when a heartbeat is received. The callback is called
+     * from the Ice thread pool associated with the connection.
+     *
+     * @param callback The heartbeat callback object.
+     *
+     **/
+    void setHeartbeatCallback(HeartbeatCallback callback);
 
     /**
      *
@@ -285,8 +310,8 @@ local interface Connection
      *
      * Set the connection buffer receive/send size.
      *
-     * @rcvSize The connection receive buffer size.
-     * @sndSize The connection send buffer size.
+     * @param rcvSize The connection receive buffer size.
+     * @param sndSize The connection send buffer size.
      *
      **/
     void setBufferSize(int rcvSize, int sndSize);
@@ -319,6 +344,19 @@ local class IPConnectionInfo extends ConnectionInfo
  **/
 local class TCPConnectionInfo extends IPConnectionInfo
 {
+    /**
+     *
+     * The connection buffer receive size.
+     *
+     **/
+    int rcvSize = 0;
+
+    /**
+     *
+     * The connection buffer send size.
+     *
+     **/
+    int sndSize = 0;
 };
 
 /**
@@ -328,11 +366,33 @@ local class TCPConnectionInfo extends IPConnectionInfo
  **/
 local class UDPConnectionInfo extends IPConnectionInfo
 {
-    /** The multicast address. */
+    /**
+     *
+     * The multicast address.
+     *
+     **/
     string mcastAddress;
 
-    /** The multicast port. */
+    /**
+     *
+     * The multicast port.
+     *
+     **/
     int mcastPort = -1;
+
+    /**
+     *
+     * The connection buffer receive size.
+     *
+     **/
+    int rcvSize = 0;
+
+    /**
+     *
+     * The connection buffer send size.
+     *
+     **/
+    int sndSize = 0;
 };
 
 dictionary<string, string> HeaderDict;
@@ -342,7 +402,7 @@ dictionary<string, string> HeaderDict;
  * Provides access to the connection details of a WebSocket connection
  *
  **/
-local class WSConnectionInfo extends TCPConnectionInfo
+local class WSConnectionInfo extends ConnectionInfo
 {
     /** The headers from the HTTP upgrade request. */
     HeaderDict headers;

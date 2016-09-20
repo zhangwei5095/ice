@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -34,19 +34,19 @@ EndpointFactory::protocol() const
 IceInternal::EndpointIPtr
 EndpointFactory::create(vector<string>& args, bool oaEndpoint) const
 {
-    return new EndpointI(_factory->create(args, oaEndpoint));
+    return ICE_MAKE_SHARED(EndpointI, _factory->create(args, oaEndpoint));
 }
 
 IceInternal::EndpointIPtr
-EndpointFactory::read(IceInternal::BasicStream* s) const
+EndpointFactory::read(Ice::InputStream* s) const
 {
     short type;
     s->read(type);
     assert(type == _factory->type());
 
-    s->startReadEncaps();
-    IceInternal::EndpointIPtr endpoint = new EndpointI(_factory->read(s));
-    s->endReadEncaps();
+    s->startEncapsulation();
+    IceInternal::EndpointIPtr endpoint = ICE_MAKE_SHARED(EndpointI, _factory->read(s));
+    s->endEncapsulation();
     return endpoint;
 }
 
@@ -56,7 +56,7 @@ EndpointFactory::destroy()
 }
 
 IceInternal::EndpointFactoryPtr
-EndpointFactory::clone(const IceInternal::ProtocolInstancePtr&) const
+EndpointFactory::clone(const IceInternal::ProtocolInstancePtr&, const IceInternal::EndpointFactoryPtr&) const
 {
     return const_cast<EndpointFactory*>(this);
 }

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -12,6 +12,10 @@
 [["cpp:header-ext:h", "objc:header-dir:objc"]]
 
 #include <Ice/PropertiesAdmin.ice>
+
+#ifndef __SLICE2JAVA_COMPAT__
+[["java:package:com.zeroc"]]
+#endif
 
 ["objc:prefix:ICE"]
 module Ice
@@ -56,7 +60,7 @@ local interface Properties
      * @see #setProperty
      *
      **/
-    string getPropertyWithDefault(string key, string value);
+    string getPropertyWithDefault(string key, string \value);
 
     /**
      *
@@ -88,7 +92,7 @@ local interface Properties
      * @see #setProperty
      *
      **/
-    int getPropertyAsIntWithDefault(string key, int value);
+    int getPropertyAsIntWithDefault(string key, int \value);
 
 
      /**
@@ -132,7 +136,7 @@ local interface Properties
      * @see #setProperty
      *
      **/
-    StringSeq getPropertyAsListWithDefault(string key, StringSeq value);
+    StringSeq getPropertyAsListWithDefault(string key, StringSeq \value);
 
     /**
      *
@@ -158,7 +162,7 @@ local interface Properties
      * @see #getProperty
      *
      **/
-    void setProperty(string key, string value);
+    void setProperty(string key, string \value);
 
     /**
      *
@@ -226,4 +230,3 @@ local interface Properties
 };
 
 };
-

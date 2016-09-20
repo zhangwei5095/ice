@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -24,10 +24,10 @@ run(id<ICECommunicator> communicator)
     TestAMITestIntfControllerI* testController
         = ICE_AUTORELEASE([[TestAMITestIntfControllerI alloc] initWithAdapter:adapter]);
 
-    [adapter add:[TestAMITestIntfI testIntf] identity:[communicator stringToIdentity:@"test"]];
+    [adapter add:[TestAMITestIntfI testIntf] identity:[ICEUtil stringToIdentity:@"test"]];
     //[adapter activate]; // Collocated test doesn't need to activate the OA
 
-    [adapter2 add:testController identity:[communicator stringToIdentity:@"testController"]];
+    [adapter2 add:testController identity:[ICEUtil stringToIdentity:@"testController"]];
     //[adapter2 activate]; // Collocated test doesn't need to activate the OA
 
     void amiAllTests(id<ICECommunicator>, BOOL);
@@ -43,6 +43,13 @@ run(id<ICECommunicator> communicator)
 int
 main(int argc, char* argv[])
 {
+#ifdef ICE_STATIC_LIBS
+    ICEregisterIceSSL(YES);
+#if TARGET_OS_IPHONE
+    ICEregisterIceIAP(YES);
+#endif
+#endif
+
     int status;
     @autoreleasepool
     {
@@ -75,7 +82,7 @@ main(int argc, char* argv[])
             }
             @catch(ICEException* ex)
             {
-    	    tprintf("%@\n", ex);
+                tprintf("%@\n", ex);
                 status = EXIT_FAILURE;
             }
         }

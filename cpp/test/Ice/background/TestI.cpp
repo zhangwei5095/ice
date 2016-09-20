@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -20,7 +20,7 @@ BackgroundI::op(const Ice::Current& current)
 }
 
 void
-BackgroundI::opWithPayload(const Ice::ByteSeq&, const Ice::Current& current)
+BackgroundI::opWithPayload(ICE_IN(Ice::ByteSeq), const Ice::Current& current)
 {
     _controller->checkCallPause(current);
 }
@@ -37,14 +37,14 @@ BackgroundI::BackgroundI(const BackgroundControllerIPtr& controller) :
 }
 
 void
-BackgroundControllerI::pauseCall(const string& opName, const Ice::Current&)
+BackgroundControllerI::pauseCall(ICE_IN(string) opName, const Ice::Current&)
 {
     Lock sync(*this);
     _pausedCalls.insert(opName);
 }
 
 void
-BackgroundControllerI::resumeCall(const string& opName, const Ice::Current&)
+BackgroundControllerI::resumeCall(ICE_IN(string) opName, const Ice::Current&)
 {
     Lock sync(*this);
     _pausedCalls.erase(opName);

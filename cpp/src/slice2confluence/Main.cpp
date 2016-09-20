@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -24,7 +24,7 @@ using namespace IceUtil;
 namespace
 {
 
-IceUtil::Mutex* mutex = 0;
+IceUtil::Mutex* globalMutex = 0;
 bool interrupted = false;
 
 class Init
@@ -33,13 +33,13 @@ public:
 
     Init()
     {
-        mutex = new IceUtil::Mutex;
+        globalMutex = new IceUtil::Mutex;
     }
 
     ~Init()
     {
-        delete mutex;
-        mutex = 0;
+        delete globalMutex;
+        globalMutex = 0;
     }
 };
 
@@ -72,7 +72,7 @@ splitCommas(string& str)
 void
 interruptedCallback(int signal)
 {
-    IceUtilInternal::MutexPtrLock<IceUtil::Mutex> sync(mutex);
+    IceUtilInternal::MutexPtrLock<IceUtil::Mutex> sync(globalMutex);
 
     interrupted = true;
 }
@@ -85,7 +85,7 @@ usage(const char* n)
         "Options:\n"
         "-h, --help           Show this message.\n"
         "-v, --version        Display the Ice version.\n"
-        "--validate               Validate command line options.\n"
+        "--validate           Validate command line options.\n"
         "-DNAME               Define NAME as 1.\n"
         "-DNAME=DEF           Define NAME as DEF.\n"
         "-UNAME               Remove any definition for NAME.\n"
@@ -310,7 +310,7 @@ compile(int argc, char* argv[])
         }
 
         {
-            IceUtilInternal::MutexPtrLock<IceUtil::Mutex> sync(mutex);
+            IceUtilInternal::MutexPtrLock<IceUtil::Mutex> sync(globalMutex);
 
             if(interrupted)
             {
@@ -352,7 +352,7 @@ compile(int argc, char* argv[])
     p->destroy();
 
     {
-        IceUtilInternal::MutexPtrLock<IceUtil::Mutex> sync(mutex);
+        IceUtilInternal::MutexPtrLock<IceUtil::Mutex> sync(globalMutex);
 
         if(interrupted)
         {

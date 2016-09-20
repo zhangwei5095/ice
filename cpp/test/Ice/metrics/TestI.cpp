@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -46,11 +46,11 @@ MetricsI::opWithUnknownException(const Ice::Current&)
 }
 
 void
-MetricsI::opByteS(const Test::ByteSeq&, const Ice::Current&)
+MetricsI::opByteS(ICE_IN(Test::ByteSeq), const Ice::Current&)
 {
 }
 
-Ice::ObjectPrx
+Ice::ObjectPrxPtr
 MetricsI::getAdmin(const Ice::Current& current)
 {
     return current.adapter->getCommunicator()->getAdmin();

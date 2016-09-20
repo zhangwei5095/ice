@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -25,20 +25,18 @@
                 }
                 catch(err)
                 {
-                    p.fail(err);
+                    p.reject(err);
                     throw err;
                 }
             }
         };
 
-        Ice.Promise.try(
-            function()
+        Ice.Promise.try(() =>
             {
                 prx = prx.ice_oneway();
                 return prx.ice_ping();
             }
-        ).then(
-            function()
+        ).then(() =>
             {
                 try
                 {
@@ -49,6 +47,7 @@
                 {
                     // Expected: twoway proxy required
                 }
+
                 try
                 {
                     prx.ice_id();
@@ -58,6 +57,7 @@
                 {
                     // Expected: twoway proxy required
                 }
+
                 try
                 {
                     prx.ice_ids();
@@ -70,18 +70,9 @@
 
                 return prx.opVoid();
             }
-        ).then(
-            function()
-            {
-                return prx.opIdempotent();
-            }
-        ).then(
-            function()
-            {
-                return prx.opNonmutating();
-            }
-        ).then(
-            function()
+        ).then(() => prx.opIdempotent()
+        ).then(() => prx.opNonmutating()
+        ).then(() =>
             {
                 try
                 {
@@ -93,15 +84,7 @@
                     // Expected: twoway proxy required
                 }
             }
-        ).then(
-            function()
-            {
-                p.succeed();
-            },
-            function(ex)
-            {
-                p.fail(ex);
-            });
+        ).then(p.resolve, p.reject);
         return p;
     };
 

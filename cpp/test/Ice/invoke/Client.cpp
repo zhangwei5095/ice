@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -20,8 +20,8 @@ run(int, char**,
     const Ice::CommunicatorPtr& communicator,
     const Ice::InitializationData&)
 {
-    Test::MyClassPrx allTests(const Ice::CommunicatorPtr&);
-    Test::MyClassPrx myClass = allTests(communicator);
+    Test::MyClassPrxPtr allTests(const Ice::CommunicatorPtr&);
+    Test::MyClassPrxPtr myClass = allTests(communicator);
 
     myClass->shutdown();
 

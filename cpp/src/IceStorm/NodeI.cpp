@@ -1,12 +1,13 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
 
+#include <Ice/Ice.h>
 #include <IceStorm/NodeI.h>
 #include <IceStorm/Observers.h>
 #include <IceStorm/TraceLevels.h>
@@ -440,7 +441,7 @@ NodeI::merge(const set<int>& coordinatorSet)
         }
 
         ostringstream os;
-        os << _id << ":" << IceUtil::generateUUID();
+        os << _id << ":" << Ice::generateUUID();
         _group = os.str();
         gp = _group;
 
@@ -1029,7 +1030,7 @@ NodeI::recovery(Ice::Long generation)
     }
 
     ostringstream os;
-    os << _id << ":" << IceUtil::generateUUID();
+    os << _id << ":" << Ice::generateUUID();
     _group = os.str();
 
     _generation = -1;

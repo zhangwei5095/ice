@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -26,10 +26,8 @@ class WSAcceptor : public Acceptor, public NativeInfo
 public:
 
     virtual NativeInfoPtr getNativeInfo();
-#if defined(ICE_USE_IOCP)
+#if defined(ICE_USE_IOCP) || defined(ICE_OS_WINRT)
     virtual AsyncInfo* getAsyncInfo(SocketOperation);
-#elif defined(ICE_OS_WINRT)
-    virtual void setCompletedHandler(SocketOperationCompletedHandler^);
 #endif
 
     virtual void close();
@@ -42,8 +40,6 @@ public:
     virtual std::string protocol() const;
     virtual std::string toString() const;
     virtual std::string toDetailedString() const;
-
-    virtual AcceptorPtr delegate() const { return _delegate; }
 
 private:
 

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -11,28 +11,16 @@
 
 [["cpp:header-ext:h", "objc:header-dir:objc", "js:ice-build"]]
 
-
 #include <Ice/Identity.ice>
-#include <Ice/ProcessF.ice>
+#include <Ice/Process.ice>
+
+#ifndef __SLICE2JAVA_COMPAT__
+[["java:package:com.zeroc"]]
+#endif
 
 ["objc:prefix:ICE"]
 module Ice
 {
-
-/**
- *
- * This exception is raised if an adapter is invalid.
- *
- **/
-exception InvalidAdapterException
-{
-    /**
-     *
-     * The reason for the failure.
-     *
-     **/
-    string reason;
-};
 
 /**
  *
@@ -99,7 +87,9 @@ interface Locator
 {
     /**
      *
-     * Find an object by identity and return its proxy.
+     * Find an object by identity and return a proxy that contains
+     * the adapter ID or endpoints which can be used to access the
+     * object.
      *
      * @param id The identity.
      *
@@ -114,8 +104,8 @@ interface Locator
 
     /**
      *
-     * Find an adapter by id and return its proxy (a dummy direct
-     * proxy created by the adapter).
+     * Find an adapter by id and return a proxy that contains
+     * its endpoints.
      *
      * @param id The adapter id.
      *
@@ -169,11 +159,9 @@ interface LocatorRegistry
      * @throws AdapterAlreadyActiveException Raised if an adapter with the same
      * id is already active.
      *
-     * @throws InvalidAdapterException Raised if the adapter info is invalid.
-     *
      **/
     ["amd"] idempotent void setAdapterDirectProxy(string id, Object* proxy)
-        throws AdapterNotFoundException, AdapterAlreadyActiveException, InvalidAdapterException;
+        throws AdapterNotFoundException, AdapterAlreadyActiveException;
 
     /**
      *
@@ -195,16 +183,13 @@ interface LocatorRegistry
      * @throws AdapterAlreadyActiveException Raised if an adapter with the same
      * id is already active.
      *
-     * @throws InvalidAdapterException Raised if the adapter info is invalid.
-     *
      * @throws InvalidReplicaGroupIdException Raised if the given
      * replica group doesn't match the one registered with the
      * locator registry for this object adapter.
      *
      **/
     ["amd"] idempotent void setReplicatedAdapterDirectProxy(string adapterId, string replicaGroupId, Object* p)
-        throws AdapterNotFoundException, AdapterAlreadyActiveException, InvalidAdapterException,
-               InvalidReplicaGroupIdException;
+        throws AdapterNotFoundException, AdapterAlreadyActiveException, InvalidReplicaGroupIdException;
 
     /**
      *
@@ -245,5 +230,3 @@ interface LocatorFinder
 };
 
 };
-
-

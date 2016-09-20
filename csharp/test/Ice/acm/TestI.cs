@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -50,7 +50,7 @@ public class RemoteObjectAdapterI : RemoteObjectAdapterDisp_
     {
         _adapter = adapter;
         _testIntf = TestIntfPrxHelper.uncheckedCast(_adapter.add(new TestI(),
-                                                                 _adapter.getCommunicator().stringToIdentity("test")));
+                                                                 Ice.Util.stringToIdentity("test")));
         _adapter.activate();
     }
 
@@ -111,7 +111,7 @@ public class TestI : TestIntfDisp_
         }
     }
 
-    class ConnectionCallbackI : Ice.ConnectionCallback
+    class HeartbeatCallbackI
     {
         public void heartbeat(Ice.Connection c)
         {
@@ -120,10 +120,6 @@ public class TestI : TestIntfDisp_
                 --_count;
                 System.Threading.Monitor.PulseAll(this);
             }
-        }
-
-        public void closed(Ice.Connection c)
-        {
         }
 
         public void waitForCount(int count)
@@ -145,8 +141,8 @@ public class TestI : TestIntfDisp_
     {
 
 
-        ConnectionCallbackI callback = new ConnectionCallbackI();
-        current.con.setCallback(callback);
+        HeartbeatCallbackI callback = new HeartbeatCallbackI();
+        current.con.setHeartbeatCallback(callback.heartbeat);
         callback.waitForCount(count);
     }
 };

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,16 +9,15 @@
 
 package test.IceSSL.configuration;
 
-
 public class Server extends test.Util.Application
 {
     @Override
     public int run(String[] args)
     {
-        Ice.Communicator communicator = communicator();
+        com.zeroc.Ice.Communicator communicator = communicator();
         communicator.getProperties().setProperty("TestAdapter.Endpoints", "tcp -p 12010");
-        Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
-        Ice.Identity id = communicator.stringToIdentity("factory");
+        com.zeroc.Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
+        com.zeroc.Ice.Identity id = com.zeroc.Ice.Util.stringToIdentity("factory");
         adapter.add(new ServerFactoryI(), id);
         adapter.activate();
 
@@ -27,12 +26,11 @@ public class Server extends test.Util.Application
     }
 
     @Override
-    protected Ice.InitializationData getInitData(Ice.StringSeqHolder argsH)
+    protected GetInitDataResult getInitData(String[] args)
     {
-        Ice.InitializationData initData = createInitializationData() ;
-        initData.properties = Ice.Util.createProperties(argsH);
-        initData.properties.setProperty("Ice.Package.Test", "test.IceSSL.configuration");
-        return initData;
+        GetInitDataResult r = super.getInitData(args);
+        r.initData.properties.setProperty("Ice.Package.Test", "test.IceSSL.configuration");
+        return r;
     }
 
     public static void main(String[] args)

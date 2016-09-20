@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -26,14 +26,10 @@ namespace
 {
 
 void
-halt(const Ice::CommunicatorPtr& com, const IceDB::LMDBException& ex)
+logError(const Ice::CommunicatorPtr& com, const IceDB::LMDBException& ex)
 {
-    {
-        Ice::Error error(com->getLogger());
-        error << "fatal exception: " << ex << "\n*** Aborting application ***";
-    }
-
-    abort();
+    Ice::Error error(com->getLogger());
+    error << "LMDB error: " << ex;
 }
 
 //
@@ -403,7 +399,7 @@ TopicImpl::TopicImpl(
             if(traceLevels->topic > 0)
             {
                 Ice::Trace out(traceLevels->logger, traceLevels->topicCat);
-                out << _name << " recreate " << _instance->communicator()->identityToString(id);
+                out << _name << " recreate " << identityToString(id);
                 if(traceLevels->topic > 1)
                 {
                     out << " endpoints: " << IceStormInternal::describeEndpoints(p->obj);
@@ -422,7 +418,7 @@ TopicImpl::TopicImpl(
             catch(const Ice::Exception& ex)
             {
                 Ice::Warning out(traceLevels->logger);
-                out << _name << " recreate " << _instance->communicator()->identityToString(id);
+                out << _name << " recreate " << identityToString(id);
                 if(traceLevels->topic > 1)
                 {
                     out << " endpoints: " << IceStormInternal::describeEndpoints(p->obj);
@@ -495,7 +491,7 @@ trace(Ice::Trace& out, const PersistentInstancePtr& instance, const vector<Subsc
         {
             out << ",";
         }
-        out << instance->communicator()->identityToString((*p)->id());
+        out << identityToString((*p)->id());
     }
     out << "]";
 }
@@ -520,7 +516,7 @@ TopicImpl::subscribeAndGetPublisher(const QoS& qos, const Ice::ObjectPrx& obj)
     if(traceLevels->topic > 0)
     {
         Ice::Trace out(traceLevels->logger, traceLevels->topicCat);
-        out << _name << ": subscribeAndGetPublisher: " << _instance->communicator()->identityToString(id);
+        out << _name << ": subscribeAndGetPublisher: " << identityToString(id);
 
         if(traceLevels->topic > 1)
         {
@@ -572,16 +568,10 @@ TopicImpl::subscribeAndGetPublisher(const QoS& qos, const Ice::ObjectPrx& obj)
 
         txn.commit();
     }
-    catch(const IceDB::KeyTooLongException&)
-    {
-        ostringstream os;
-        os << "subscriber identity is too long: ";
-        os << _instance->communicator()->identityToString(subscriber->id());
-        throw InvalidSubscriber(os.str());
-    }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_instance->communicator(), ex);
+        logError(_instance->communicator(), ex);
+        throw; // will become UnknownException in caller
     }
 
     _subscribers.push_back(subscriber);
@@ -610,7 +600,7 @@ TopicImpl::unsubscribe(const Ice::ObjectPrx& subscriber)
     if(traceLevels->topic > 0)
     {
         Ice::Trace out(traceLevels->logger, traceLevels->topicCat);
-        out << _name << ": unsubscribe: " << _instance->communicator()->identityToString(id);
+        out << _name << ": unsubscribe: " << identityToString(id);
 
         if(traceLevels->topic > 1)
         {
@@ -647,7 +637,7 @@ TopicImpl::link(const TopicPrx& topic, Ice::Int cost)
     if(traceLevels->topic > 0)
     {
         Ice::Trace out(traceLevels->logger, traceLevels->topicCat);
-        out << _name << ": link " << _instance->communicator()->identityToString(topic->ice_getIdentity())
+        out << _name << ": link " << identityToString(topic->ice_getIdentity())
             << " cost " << cost;
     }
 
@@ -692,7 +682,8 @@ TopicImpl::link(const TopicPrx& topic, Ice::Int cost)
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_instance->communicator(), ex);
+        logError(_instance->communicator(), ex);
+        throw; // will become UnknownException in caller
     }
 
     _subscribers.push_back(subscriber);
@@ -731,7 +722,7 @@ TopicImpl::unlink(const TopicPrx& topic)
     if(traceLevels->topic > 0)
     {
         Ice::Trace out(traceLevels->logger, traceLevels->topicCat);
-        out << _name << " unlink " << _instance->communicator()->identityToString(id);
+        out << _name << " unlink " << identityToString(id);
     }
 
     Ice::IdentitySeq ids;
@@ -755,7 +746,7 @@ TopicImpl::reap(const Ice::IdentitySeq& ids)
             {
                 out << ",";
             }
-            out << _instance->communicator()->identityToString(*p);
+            out << identityToString(*p);
         }
     }
 
@@ -1054,7 +1045,7 @@ TopicImpl::observerAddSubscriber(const LogUpdate& llu, const SubscriberRecord& r
     if(traceLevels->topic > 0)
     {
         Ice::Trace out(traceLevels->logger, traceLevels->topicCat);
-        out << _name << ": add replica observer: " << _instance->communicator()->identityToString(record.id);
+        out << _name << ": add replica observer: " << identityToString(record.id);
 
         if(traceLevels->topic > 1)
         {
@@ -1081,7 +1072,7 @@ TopicImpl::observerAddSubscriber(const LogUpdate& llu, const SubscriberRecord& r
         if(traceLevels->topic > 0)
         {
             Ice::Trace out(traceLevels->logger, traceLevels->topicCat);
-            out << _instance->communicator()->identityToString(record.id) << ": already subscribed";
+            out << identityToString(record.id) << ": already subscribed";
         }
         return;
     }
@@ -1104,7 +1095,8 @@ TopicImpl::observerAddSubscriber(const LogUpdate& llu, const SubscriberRecord& r
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_instance->communicator(), ex);
+        logError(_instance->communicator(), ex);
+        throw; // will become UnknownException in caller
     }
 
     _subscribers.push_back(subscriber);
@@ -1124,27 +1116,15 @@ TopicImpl::observerRemoveSubscriber(const LogUpdate& llu, const Ice::IdentitySeq
             {
                 out << ",";
             }
-            out << _instance->communicator()->identityToString(*id);
+            out << identityToString(*id);
         }
         out << " llu: " << llu.generation << "/" << llu.iteration;
     }
 
     IceUtil::Mutex::Lock sync(_subscribersMutex);
 
-    // Remove the subscriber from the subscribers list. If the
-    // subscriber had a local failure and was removed from the
-    // subscriber list it could already be gone. That's not a problem.
-    for(Ice::IdentitySeq::const_iterator id = ids.begin(); id != ids.end(); ++id)
-    {
-        vector<SubscriberPtr>::iterator p = find(_subscribers.begin(), _subscribers.end(), *id);
-        if(p != _subscribers.end())
-        {
-            (*p)->destroy();
-            _subscribers.erase(p);
-        }
-    }
 
-    // Next remove from the database.
+    // First remove from the database.
     try
     {
         IceDB::ReadWriteTxn txn(_instance->dbEnv());
@@ -1164,7 +1144,21 @@ TopicImpl::observerRemoveSubscriber(const LogUpdate& llu, const Ice::IdentitySeq
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_instance->communicator(), ex);
+        logError(_instance->communicator(), ex);
+        throw; // will become UnknownException in caller
+    }
+
+    // Then remove the subscriber from the subscribers list. If the
+    // subscriber had a local failure and was removed from the
+    // subscriber list it could already be gone. That's not a problem.
+    for(Ice::IdentitySeq::const_iterator id = ids.begin(); id != ids.end(); ++id)
+    {
+        vector<SubscriberPtr>::iterator p = find(_subscribers.begin(), _subscribers.end(), *id);
+        if(p != _subscribers.end())
+        {
+            (*p)->destroy();
+            _subscribers.erase(p);
+        }
     }
 }
 
@@ -1218,16 +1212,6 @@ TopicImpl::updateSubscriberObservers()
 LogUpdate
 TopicImpl::destroyInternal(const LogUpdate& origLLU, bool master)
 {
-    _instance->publishAdapter()->remove(_linkPrx->ice_getIdentity());
-    _instance->publishAdapter()->remove(_publisherPrx->ice_getIdentity());
-    _instance->topicReaper()->add(_name);
-
-    // Destroy each of the subscribers.
-    for(vector<SubscriberPtr>::const_iterator p = _subscribers.begin(); p != _subscribers.end(); ++p)
-    {
-        (*p)->destroy();
-    }
-    _subscribers.clear();
 
     // Clear out the database records related to this topic.
     LogUpdate llu;
@@ -1267,8 +1251,20 @@ TopicImpl::destroyInternal(const LogUpdate& origLLU, bool master)
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_instance->communicator(), ex);
+        logError(_instance->communicator(), ex);
+        throw; // will become UnknownException in caller
     }
+
+    _instance->publishAdapter()->remove(_linkPrx->ice_getIdentity());
+    _instance->publishAdapter()->remove(_publisherPrx->ice_getIdentity());
+    _instance->topicReaper()->add(_name);
+
+    // Destroy each of the subscribers.
+    for(vector<SubscriberPtr>::const_iterator p = _subscribers.begin(); p != _subscribers.end(); ++p)
+    {
+        (*p)->destroy();
+    }
+    _subscribers.clear();
 
     _instance->topicAdapter()->remove(_id);
 
@@ -1280,34 +1276,10 @@ TopicImpl::destroyInternal(const LogUpdate& origLLU, bool master)
 void
 TopicImpl::removeSubscribers(const Ice::IdentitySeq& ids)
 {
-    Ice::IdentitySeq removed;
+    // First update the database
 
-    // First remove the subscriber from the subscribers list. Its
-    // possible that some of these subscribers have already been
-    // removed (consider, for example, a concurrent reap call from two
-    // replicas on the same subscriber). To avoid sending unnecessary
-    // observer updates keep track of the observers that are actually
-    // removed.
-    for(Ice::IdentitySeq::const_iterator id = ids.begin(); id != ids.end(); ++id)
-    {
-        vector<SubscriberPtr>::iterator p = find(_subscribers.begin(), _subscribers.end(), *id);
-        if(p != _subscribers.end())
-        {
-            (*p)->destroy();
-            _subscribers.erase(p);
-            removed.push_back(*id);
-        }
-    }
-
-    // If there is no further work to do we are done.
-    if(removed.empty())
-    {
-        return;
-    }
-
-    // Next update the database and send the notification to any
-    // slaves.
     LogUpdate llu;
+    bool found = false;
     try
     {
         IceDB::ReadWriteTxn txn(_instance->dbEnv());
@@ -1318,17 +1290,46 @@ TopicImpl::removeSubscribers(const Ice::IdentitySeq& ids)
             key.topic = _id;
             key.id = *id;
 
-            _subscriberMap.del(txn, key);
+            if(_subscriberMap.del(txn, key))
+            {
+                found = true;
+            }
         }
 
-        llu = getIncrementedLLU(txn, _lluMap);
-
-        txn.commit();
+        if(found)
+        {
+            llu = getIncrementedLLU(txn, _lluMap);
+            txn.commit();
+        }
+        else
+        {
+            txn.rollback();
+        }
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_instance->communicator(), ex);
+        logError(_instance->communicator(), ex);
+        throw; // will become UnknownException in caller
     }
 
-    _instance->observers()->removeSubscriber(llu, _name, ids);
+    if(found)
+    {
+        // Then remove the subscriber from the subscribers list. Its
+        // possible that some of these subscribers have already been
+        // removed (consider, for example, a concurrent reap call from two
+        // replicas on the same subscriber). To avoid sending unnecessary
+        // observer updates keep track of the observers that are actually
+        // removed.
+        for(Ice::IdentitySeq::const_iterator id = ids.begin(); id != ids.end(); ++id)
+        {
+            vector<SubscriberPtr>::iterator p = find(_subscribers.begin(), _subscribers.end(), *id);
+            if(p != _subscribers.end())
+            {
+                (*p)->destroy();
+                _subscribers.erase(p);
+            }
+        }
+
+        _instance->observers()->removeSubscriber(llu, _name, ids);
+    }
 }

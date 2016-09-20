@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -30,12 +30,10 @@ internal class EndpointI : IceInternal.EndpointI
         return _endpoint.getInfo();
     }
 
-    public override void streamWrite(IceInternal.BasicStream s)
+    public override void streamWriteImpl(Ice.OutputStream s)
     {
-        s.startWriteEncaps();
         s.writeShort(_endpoint.type());
         _endpoint.streamWrite(s);
-        s.endWriteEncaps();
     }
 
     public override short type()

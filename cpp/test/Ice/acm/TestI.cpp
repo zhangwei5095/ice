@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -26,7 +26,13 @@ toString(int value)
     return os.str();
 }
 
-class ConnectionCallbackI : public Ice::ConnectionCallback, private IceUtil::Monitor<IceUtil::Mutex>
+class HeartbeatCallbackI :
+#ifdef ICE_CPP11_MAPPING
+                            public enable_shared_from_this<HeartbeatCallbackI>,
+#else
+                            public Ice::HeartbeatCallback,
+#endif
+                            private IceUtil::Monitor<IceUtil::Mutex>
 {
 public:
 
@@ -41,8 +47,6 @@ public:
         }
     }
 
-private:
-
     virtual void
     heartbeat(const Ice::ConnectionPtr&)
     {
@@ -51,26 +55,27 @@ private:
         notifyAll();
     }
 
-    virtual void
-    closed(const Ice::ConnectionPtr&)
-    {
-    }
+private:
 
     int _count;
 };
-typedef IceUtil::Handle<ConnectionCallbackI> ConnectionCallbackIPtr;
+ICE_DEFINE_PTR(HeartbeatCallbackIPtr, HeartbeatCallbackI);
 
 }
 
-RemoteObjectAdapterPrx
+RemoteObjectAdapterPrxPtr
 RemoteCommunicatorI::createObjectAdapter(int timeout, int close, int heartbeat, const Current& current)
 {
     Ice::CommunicatorPtr com = current.adapter->getCommunicator();
     Ice::PropertiesPtr properties = com->getProperties();
     string protocol = properties->getPropertyWithDefault("Ice.Default.Protocol", "tcp");
-    string host = properties->getPropertyWithDefault("Ice.Default.Host", "127.0.0.1");
+    string opts;
+    if(protocol != "bt")
+    {
+        opts = " -h \"" + properties->getPropertyWithDefault("Ice.Default.Host", "127.0.0.1") + "\"";
+    }
 
-    string name = IceUtil::generateUUID();
+    string name = generateUUID();
     if(timeout >= 0)
     {
         properties->setProperty(name + ".ACM.Timeout", toString(timeout));
@@ -84,8 +89,10 @@ RemoteCommunicatorI::createObjectAdapter(int timeout, int close, int heartbeat, 
         properties->setProperty(name + ".ACM.Heartbeat", toString(heartbeat));
     }
     properties->setProperty(name + ".ThreadPool.Size", "2");
-    ObjectAdapterPtr adapter = com->createObjectAdapterWithEndpoints(name, protocol + " -h \"" + host + "\"");
-    return RemoteObjectAdapterPrx::uncheckedCast(current.adapter->addWithUUID(new RemoteObjectAdapterI(adapter)));
+    ObjectAdapterPtr adapter = com->createObjectAdapterWithEndpoints(name, protocol + opts);
+
+    return ICE_UNCHECKED_CAST(RemoteObjectAdapterPrx, current.adapter->addWithUUID(
+                              ICE_MAKE_SHARED(RemoteObjectAdapterI, adapter)));
 }
 
 void
@@ -96,13 +103,13 @@ RemoteCommunicatorI::shutdown(const Ice::Current& current)
 
 RemoteObjectAdapterI::RemoteObjectAdapterI(const Ice::ObjectAdapterPtr& adapter) :
     _adapter(adapter),
-    _testIntf(TestIntfPrx::uncheckedCast(_adapter->add(new TestI(),
-                                         adapter->getCommunicator()->stringToIdentity("test"))))
+    _testIntf(ICE_UNCHECKED_CAST(TestIntfPrx, _adapter->add(ICE_MAKE_SHARED(TestI),
+                                         stringToIdentity("test"))))
 {
     _adapter->activate();
 }
 
-TestIntfPrx
+TestIntfPrxPtr
 RemoteObjectAdapterI::getTestIntf(const Ice::Current&)
 {
     return _testIntf;
@@ -157,7 +164,14 @@ TestI::interruptSleep(const Ice::Current& current)
 void
 TestI::waitForHeartbeat(int count, const Ice::Current& current)
 {
-    ConnectionCallbackIPtr callback = new ConnectionCallbackI();
-    current.con->setCallback(callback);
+    HeartbeatCallbackIPtr callback = ICE_MAKE_SHARED(HeartbeatCallbackI);
+#ifdef ICE_CPP11_MAPPING
+    current.con->setHeartbeatCallback([callback](Ice::ConnectionPtr connection)
+    {
+        callback->heartbeat(move(connection));
+    });
+#else
+    current.con->setHeartbeatCallback(callback);
+#endif
     callback->waitForCount(count);
 }

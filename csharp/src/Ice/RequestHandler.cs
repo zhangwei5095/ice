@@ -1,14 +1,11 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
-
-using System.Collections.Generic;
-using Ice.Instrumentation;
 
 namespace IceInternal
 {
@@ -21,7 +18,7 @@ namespace IceInternal
     {
         RequestHandler update(RequestHandler previousHandler, RequestHandler newHandler);
 
-        bool sendAsyncRequest(ProxyOutgoingAsyncBase @out, out Ice.AsyncCallback cb);
+        int sendAsyncRequest(ProxyOutgoingAsyncBase @out);
 
         Reference getReference();
 

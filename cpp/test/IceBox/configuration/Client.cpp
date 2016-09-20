@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -24,7 +24,7 @@ run(int, char**, const Ice::CommunicatorPtr& comm)
     //
     // Shutdown the IceBox server.
     //
-    Ice::ProcessPrx::uncheckedCast(comm->stringToProxy("DemoIceBox/admin -f Process:default -p 9996"))->shutdown();
+    ICE_UNCHECKED_CAST(Ice::ProcessPrx, comm->stringToProxy("DemoIceBox/admin -f Process:default -p 9996"))->shutdown();
 
     return EXIT_SUCCESS;
 }

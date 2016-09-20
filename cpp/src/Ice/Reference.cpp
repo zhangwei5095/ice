@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -13,7 +13,7 @@
 #include <Ice/Instance.h>
 #include <Ice/EndpointI.h>
 #include <Ice/OpaqueEndpointI.h>
-#include <Ice/BasicStream.h>
+#include <Ice/OutputStream.h>
 #include <Ice/RouterInfo.h>
 #include <Ice/Router.h>
 #include <Ice/LocatorInfo.h>
@@ -27,11 +27,14 @@
 #include <Ice/RequestHandlerFactory.h>
 #include <Ice/ConnectionRequestHandler.h>
 #include <Ice/DefaultsAndOverrides.h>
+#include <Ice/Comparable.h>
+
 #include <IceUtil/StringUtil.h>
 #include <IceUtil/Random.h>
 #include <IceUtil/MutexPtrLock.h>
 
 #include <functional>
+#include <algorithm>
 
 using namespace std;
 using namespace Ice;
@@ -184,7 +187,7 @@ Reference::hash() const
 }
 
 void
-IceInternal::Reference::streamWrite(BasicStream* s) const
+IceInternal::Reference::streamWrite(OutputStream* s) const
 {
     //
     // Don't write the identity here. Operations calling streamWrite
@@ -207,7 +210,7 @@ IceInternal::Reference::streamWrite(BasicStream* s) const
 
     s->write(_secure);
 
-    if(s->getWriteEncoding() != Ice::Encoding_1_0)
+    if(s->getEncoding() != Ice::Encoding_1_0)
     {
         s->write(_protocol);
         s->write(_encoding);
@@ -233,7 +236,7 @@ IceInternal::Reference::toString() const
     // the reference parser uses as separators, then we enclose
     // the identity string in quotes.
     //
-    string id = _instance->identityToString(_identity);
+    string id = Ice::identityToString(_identity);
     if(id.find_first_of(" :@") != string::npos)
     {
         s << '"' << id << '"';
@@ -376,14 +379,7 @@ IceInternal::Reference::operator==(const Reference& r) const
     {
         return false;
     }
-
     return true;
-}
-
-bool
-IceInternal::Reference::operator!=(const Reference& r) const
-{
-    return !operator==(r);
 }
 
 bool
@@ -654,14 +650,14 @@ IceInternal::FixedReference::changeAdapterId(const string& /*newAdapterId*/) con
 }
 
 ReferencePtr
-IceInternal::FixedReference::changeLocator(const LocatorPrx&) const
+IceInternal::FixedReference::changeLocator(const LocatorPrxPtr&) const
 {
     throw FixedProxyException(__FILE__, __LINE__);
     return 0; // Keep the compiler happy.
 }
 
 ReferencePtr
-IceInternal::FixedReference::changeRouter(const RouterPrx&) const
+IceInternal::FixedReference::changeRouter(const RouterPrxPtr&) const
 {
     throw FixedProxyException(__FILE__, __LINE__);
     return 0; // Keep the compiler happy.
@@ -729,7 +725,7 @@ IceInternal::FixedReference::isWellKnown() const
 }
 
 void
-IceInternal::FixedReference::streamWrite(BasicStream*) const
+IceInternal::FixedReference::streamWrite(OutputStream*) const
 {
     throw FixedProxyException(__FILE__, __LINE__);
 }
@@ -753,7 +749,7 @@ IceInternal::FixedReference::toProperty(const string&) const
 }
 
 RequestHandlerPtr
-IceInternal::FixedReference::getRequestHandler(const Ice::ObjectPrx& proxy) const
+IceInternal::FixedReference::getRequestHandler(const Ice::ObjectPrxPtr& proxy) const
 {
     switch(getMode())
     {
@@ -815,7 +811,7 @@ IceInternal::FixedReference::getRequestHandler(const Ice::ObjectPrx& proxy) cons
     }
 
     ReferencePtr ref = const_cast<FixedReference*>(this);
-    return proxy->__setRequestHandler(new ConnectionRequestHandler(ref, _fixedConnection, compress));
+    return proxy->__setRequestHandler(ICE_MAKE_SHARED(ConnectionRequestHandler, ref, _fixedConnection, compress));
 }
 
 BatchRequestQueuePtr
@@ -837,12 +833,6 @@ IceInternal::FixedReference::operator==(const Reference& r) const
         return false;
     }
     return _fixedConnection == rhs->_fixedConnection;
-}
-
-bool
-IceInternal::FixedReference::operator!=(const Reference& r) const
-{
-    return !operator==(r);
 }
 
 bool
@@ -1039,7 +1029,7 @@ IceInternal::RoutableReference::changeAdapterId(const string& newAdapterId) cons
 }
 
 ReferencePtr
-IceInternal::RoutableReference::changeLocator(const LocatorPrx& newLocator) const
+IceInternal::RoutableReference::changeLocator(const LocatorPrxPtr& newLocator) const
 {
     LocatorInfoPtr newLocatorInfo = getInstance()->locatorManager()->get(newLocator);
     if(newLocatorInfo == _locatorInfo)
@@ -1052,7 +1042,7 @@ IceInternal::RoutableReference::changeLocator(const LocatorPrx& newLocator) cons
 }
 
 ReferencePtr
-IceInternal::RoutableReference::changeRouter(const RouterPrx& newRouter) const
+IceInternal::RoutableReference::changeRouter(const RouterPrxPtr& newRouter) const
 {
     RouterInfoPtr newRouterInfo = getInstance()->routerManager()->get(newRouter);
     if(newRouterInfo == _routerInfo)
@@ -1180,7 +1170,7 @@ IceInternal::RoutableReference::isWellKnown() const
 }
 
 void
-IceInternal::RoutableReference::streamWrite(BasicStream* s) const
+IceInternal::RoutableReference::streamWrite(OutputStream* s) const
 {
     Reference::streamWrite(s);
 
@@ -1351,7 +1341,16 @@ IceInternal::RoutableReference::operator==(const Reference& r) const
     {
         return false;
     }
+#ifdef ICE_CPP11_MAPPING
+    //
+    // TODO: With C++14 we could use the version that receives four iterators and we don't need to explicitly
+    // check the sizes are equal.
+    //
+    if(_endpoints.size() != rhs->_endpoints.size() ||
+       !equal(_endpoints.begin(), _endpoints.end(), rhs->_endpoints.begin(), Ice::TargetCompare<shared_ptr<EndpointI>, std::equal_to>()))
+#else
     if(_endpoints != rhs->_endpoints)
+#endif
     {
         return false;
     }
@@ -1364,12 +1363,6 @@ IceInternal::RoutableReference::operator==(const Reference& r) const
         return false;
     }
     return true;
-}
-
-bool
-IceInternal::RoutableReference::operator!=(const Reference& r) const
-{
-    return !operator==(r);
 }
 
 bool
@@ -1479,7 +1472,12 @@ IceInternal::RoutableReference::operator<(const Reference& r) const
     {
         return false;
     }
+#ifdef ICE_CPP11_MAPPING
+    if(lexicographical_compare(_endpoints.begin(), _endpoints.end(), rhs->_endpoints.begin(), rhs->_endpoints.end(),
+                               Ice::TargetCompare<shared_ptr<EndpointI>, std::less>()))
+#else
     if(_endpoints < rhs->_endpoints)
+#endif
     {
         return true;
     }
@@ -1505,7 +1503,7 @@ IceInternal::RoutableReference::clone() const
 }
 
 RequestHandlerPtr
-IceInternal::RoutableReference::getRequestHandler(const Ice::ObjectPrx& proxy) const
+IceInternal::RoutableReference::getRequestHandler(const Ice::ObjectPrxPtr& proxy) const
 {
     return getInstance()->requestHandlerFactory()->getRequestHandler(const_cast<RoutableReference*>(this), proxy);
 }
@@ -1640,7 +1638,7 @@ IceInternal::RoutableReference::getConnectionNoRouterInfo(const GetConnectionCal
 
             vector<EndpointIPtr> endpts = endpoints;
             _reference->applyOverrides(endpts);
-            _reference->createConnection(endpts, new Callback2(_reference, _callback, cached));
+            _reference->createConnection(endpts, ICE_MAKE_SHARED(Callback2, _reference, _callback, cached));
         }
 
         virtual void
@@ -1761,14 +1759,14 @@ IceInternal::RoutableReference::createConnection(const vector<EndpointIPtr>& all
             virtual void
             setException(const Ice::LocalException& ex)
             {
-                if(!_exception.get())
+                if(!_exception)
                 {
-                    _exception.reset(ex.ice_clone());
+                    ICE_SET_EXCEPTION_FROM_CLONE(_exception, ex.ice_clone());
                 }
 
                 if(++_i == _endpoints.size())
                 {
-                    _callback->setException(*_exception.get());
+                    _callback->setException(*_exception);
                     return;
                 }
 

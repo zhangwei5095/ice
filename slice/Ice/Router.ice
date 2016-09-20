@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -13,6 +13,10 @@
 
 #include <Ice/BuiltinSequences.ice>
 
+#ifndef __SLICE2JAVA_COMPAT__
+[["java:package:com.zeroc"]]
+#endif
+
 ["objc:prefix:ICE"]
 module Ice
 {
@@ -20,7 +24,7 @@ module Ice
 /**
  *
  * The Ice router interface. Routers can be set either globally with
- * {@link Communicator.setDefaultRouter}, or with <tt>ice_router</tt> on specific
+ * {@link Communicator#setDefaultRouter}, or with <tt>ice_router</tt> on specific
  * proxies.
  *
  **/
@@ -30,6 +34,9 @@ interface Router
      *
      * Get the router's client proxy, i.e., the proxy to use for
      * forwarding requests from the client to the router.
+     *
+     * If a null proxy is returned, the client will forward requests
+     * to the router's endpoints.
      *
      * @return The router's client proxy.
      *
@@ -81,4 +88,3 @@ interface RouterFinder
 };
 
 };
-

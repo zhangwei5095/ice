@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -31,8 +31,6 @@ main(int argc, char* argv[])
     Ice::registerIceSSL();
 #endif
     int status;
-    Ice::CommunicatorPtr communicator;
-
     try
     {
         Ice::InitializationData initData;
@@ -44,36 +42,22 @@ main(int argc, char* argv[])
         //
         initData.properties->setProperty("Ice.TCP.SndSize", "50000");
 
-#ifdef ICE_CPP11
-        Ice::DispatcherPtr dispatcher = new Dispatcher();
-        initData.dispatcher = Ice::newDispatcher(
-            [=](const Ice::DispatcherCallPtr& call, const Ice::ConnectionPtr& conn)
-                {
-                    dispatcher->dispatch(call, conn);
-                });
+#ifdef ICE_CPP11_MAPPING
+        IceUtil::Handle<Dispatcher> dispatcher = new Dispatcher;
+        initData.dispatcher = [=](function<void()> call, const shared_ptr<Ice::Connection>& conn)
+            {
+                dispatcher->dispatch(make_shared<DispatcherCall>(call), conn);
+            };
 #else
         initData.dispatcher = new Dispatcher();
 #endif
-        communicator = Ice::initialize(argc, argv, initData);
-        status = run(argc, argv, communicator);
+        Ice::CommunicatorHolder ich = Ice::initialize(argc, argv, initData);
+        status = run(argc, argv, ich.communicator());
     }
     catch(const Ice::Exception& ex)
     {
         cerr << ex << endl;
         status = EXIT_FAILURE;
-    }
-
-    if(communicator)
-    {
-        try
-        {
-            communicator->destroy();
-        }
-        catch(const Ice::Exception& ex)
-        {
-            cerr << ex << endl;
-            status = EXIT_FAILURE;
-        }
     }
     Dispatcher::terminate();
     return status;

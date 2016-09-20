@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -16,10 +16,10 @@ DEFINE_TEST("client")
 using namespace std;
 
 int
-run(int, char**, const Ice::CommunicatorPtr& communicator, const Ice::InitializationData&)
+run(int, char**, const Ice::CommunicatorPtr& communicator)
 {
-    Test::MyClassPrx allTests(const Ice::CommunicatorPtr&);
-    Test::MyClassPrx myClass = allTests(communicator);
+    Test::MyClassPrxPtr allTests(const Ice::CommunicatorPtr&);
+    Test::MyClassPrxPtr myClass = allTests(communicator);
 
     myClass->shutdown();
 
@@ -31,36 +31,22 @@ main(int argc, char* argv[])
 {
 #ifdef ICE_STATIC_LIBS
     Ice::registerIceSSL();
+#   if defined(__linux)
+    Ice::registerIceBT();
+#   endif
 #endif
-
-    int status;
-    Ice::CommunicatorPtr communicator;
 
     try
     {
-        Ice::InitializationData initData;
-        initData.properties = Ice::createProperties(argc, argv);
-        communicator = Ice::initialize(argc, argv, initData);
-        status = run(argc, argv, communicator, initData);
+        Ice::CommunicatorHolder ich = Ice::initialize(argc, argv);
+        RemoteConfig rc("Ice/proxy", argc, argv, ich.communicator());
+        int status = run(argc, argv, ich.communicator());
+        rc.finished(status);
+        return status;
     }
     catch(const Ice::Exception& ex)
     {
         cerr << ex << endl;
-        status = EXIT_FAILURE;
+        return EXIT_FAILURE;
     }
-
-    if(communicator)
-    {
-        try
-        {
-            communicator->destroy();
-        }
-        catch(const Ice::Exception& ex)
-        {
-            cerr << ex << endl;
-            status = EXIT_FAILURE;
-        }
-    }
-
-    return status;
 }

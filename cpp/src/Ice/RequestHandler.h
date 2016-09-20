@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -29,11 +29,6 @@ class LocalException;
 namespace IceInternal
 {
 
-class BasicStream;
-
-class OutgoingBase;
-class ProxyOutgoingBase;
-
 //
 // An exception wrapper, which is used to notify that the request
 // handler should be cleared and the invocation retried.
@@ -52,11 +47,14 @@ private:
     IceUtil::UniquePtr<Ice::LocalException> _ex;
 };
 
-class CancellationHandler : virtual public IceUtil::Shared
+
+class CancellationHandler
+#ifndef ICE_CPP11_MAPPING
+    : public virtual IceUtil::Shared
+#endif
 {
 public:
 
-    virtual void requestCanceled(OutgoingBase*, const Ice::LocalException&) = 0;
     virtual void asyncRequestCanceled(const OutgoingAsyncBasePtr&, const Ice::LocalException&) = 0;
 };
 
@@ -64,9 +62,10 @@ class RequestHandler : public CancellationHandler
 {
 public:
 
+    RequestHandler(const ReferencePtr&);
+
     virtual RequestHandlerPtr update(const RequestHandlerPtr&, const RequestHandlerPtr&) = 0;
 
-    virtual bool sendRequest(ProxyOutgoingBase*) = 0;
     virtual AsyncStatus sendAsyncRequest(const ProxyOutgoingAsyncBasePtr&) = 0;
 
     const ReferencePtr& getReference() const { return _reference; } // Inlined for performances.
@@ -76,7 +75,6 @@ public:
 
 protected:
 
-    RequestHandler(const ReferencePtr&);
     const ReferencePtr _reference;
     const bool _response;
 };

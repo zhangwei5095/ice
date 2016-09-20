@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -11,7 +11,7 @@
 #define GLACIER2_H
 
 #include <IceUtil/PushDisableWarnings.h>
-#include <IceUtil/Config.h>
+#include <Ice/Config.h>
 #include <Glacier2/Router.h>
 #include <Glacier2/Session.h>
 #include <Glacier2/PermissionsVerifier.h>

@@ -1,34 +1,32 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
+
 package test.Ice.background;
 
-import test.Ice.background.Test._BackgroundDisp;
+import test.Ice.background.Test.Background;
 
-class BackgroundI extends _BackgroundDisp
+class BackgroundI implements Background
 {
     @Override
-    public void
-    op(Ice.Current current)
+    public void op(com.zeroc.Ice.Current current)
     {
         _controller.checkCallPause(current);
     }
 
     @Override
-    public void
-    opWithPayload(byte[] seq, Ice.Current current)
+    public void opWithPayload(byte[] seq, com.zeroc.Ice.Current current)
     {
         _controller.checkCallPause(current);
     }
 
     @Override
-    public void
-    shutdown(Ice.Current current)
+    public void shutdown(com.zeroc.Ice.Current current)
     {
         current.adapter.getCommunicator().shutdown();
     }

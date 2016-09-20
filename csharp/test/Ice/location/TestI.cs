@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -17,7 +17,7 @@ public class TestI : TestIntfDisp_
         _adapter2 = adapter2;
         _registry = registry;
         
-        _registry.addObject(_adapter1.add(new HelloI(), adapter1.getCommunicator().stringToIdentity("hello")));
+        _registry.addObject(_adapter1.add(new HelloI(), Ice.Util.stringToIdentity("hello")));
     }
     
     public override void shutdown(Ice.Current current)
@@ -28,18 +28,18 @@ public class TestI : TestIntfDisp_
     public override HelloPrx getHello(Ice.Current current)
     {
         return HelloPrxHelper.uncheckedCast(_adapter1.createIndirectProxy(
-                                                        _adapter1.getCommunicator().stringToIdentity("hello")));
+                                                        Ice.Util.stringToIdentity("hello")));
     }
 
     public override HelloPrx getReplicatedHello(Ice.Current current)
     {
         return HelloPrxHelper.uncheckedCast(_adapter1.createProxy(
-                                                        _adapter1.getCommunicator().stringToIdentity("hello")));
+                                                        Ice.Util.stringToIdentity("hello")));
     }
 
     public override void migrateHello(Ice.Current current)
     {
-        Ice.Identity id = _adapter1.getCommunicator().stringToIdentity("hello");
+        Ice.Identity id = Ice.Util.stringToIdentity("hello");
         try
         {
             _registry.addObject(_adapter2.add(_adapter1.remove(id), id));

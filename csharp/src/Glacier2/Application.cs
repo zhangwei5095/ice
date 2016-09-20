@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,10 +9,6 @@
 
 using System;
 using System.Diagnostics;
-using System.Collections.Generic;
-using System.Threading;
-
-#if !SILVERLIGHT
 
 namespace Glacier2
 {
@@ -32,7 +28,7 @@ public abstract class Application : Ice.Application
     /// <summary>
     /// This exception is raised if the session should be restarted.
     /// </summary>
-    public class RestartSessionException : System.Exception
+    public class RestartSessionException : Exception
     {
     }
 
@@ -205,26 +201,6 @@ public abstract class Application : Ice.Application
         return _adapter;
     }
 
-    private class ConnectionCallbackI : Ice.ConnectionCallback
-    {
-        internal ConnectionCallbackI(Application application)
-        {
-            _application = application;
-        }
-
-        public void heartbeat(Ice.Connection con)
-        {
-
-        }
-
-        public void closed(Ice.Connection con)
-        {
-            _application.sessionDestroyed();
-        }
-
-        private readonly Application _application;
-    }
-
     protected override int
     doMain(string[] originArgs, Ice.InitializationData initData)
     {
@@ -319,7 +295,7 @@ public abstract class Application : Ice.Application
                         Ice.Connection connection = _router.ice_getCachedConnection();
                         Debug.Assert(connection != null);
                         connection.setACM((int)acmTimeout, Ice.Util.None, Ice.ACMHeartbeat.HeartbeatAlways);
-                        connection.setCallback(new ConnectionCallbackI(this));
+                        connection.setCloseCallback(_ => sessionDestroyed());
                     }
                     _category = _router.getCategoryForClient();
                     status = runWithSession(args);
@@ -474,4 +450,3 @@ public abstract class Application : Ice.Application
 }
 
 }
-#endif

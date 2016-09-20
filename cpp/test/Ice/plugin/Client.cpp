@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -63,7 +63,7 @@ private:
     bool _initialized;
     bool _destroyed;
 };
-typedef IceUtil::Handle<MyPlugin> MyPluginPtr;
+ICE_DEFINE_PTR(MyPluginPtr, MyPlugin);
 
 }
 
@@ -84,6 +84,21 @@ main(int argc, char* argv[])
     int status = EXIT_SUCCESS;
     Ice::CommunicatorPtr communicator;
 
+    if(argc < 2)
+    {
+        cerr << "usage: " << argv[0] << " <plugindir>";
+    }
+
+    //
+    // Plugin directory is provided as the last argument
+    //
+#if defined(ICE_OS_WINRT)
+    string pluginDir = "plugins/winrt/";
+#else
+    string pluginDir = argv[argc - 1];
+    pluginDir += "/";
+#endif
+
     Ice::registerPluginFactory("Static1", createMyPlugin, true); // true = Load on communicator initialization
     Ice::registerPluginFactory("Static2", createMyPlugin, false);
 
@@ -91,7 +106,7 @@ main(int argc, char* argv[])
     try
     {
         communicator = Ice::initialize(argc, argv);
-        MyPluginPtr plugin = MyPluginPtr::dynamicCast(communicator->getPluginManager()->getPlugin("Static1"));
+        MyPluginPtr plugin = ICE_DYNAMIC_CAST(MyPlugin, communicator->getPluginManager()->getPlugin("Static1"));
         test(plugin && plugin->isInitialized());
         try
         {
@@ -113,9 +128,9 @@ main(int argc, char* argv[])
         initData.properties = Ice::createProperties(argc, argv);
         initData.properties->setProperty("Ice.Plugin.Static2", "1");
         communicator = Ice::initialize(argc, argv, initData);
-        MyPluginPtr plugin = MyPluginPtr::dynamicCast(communicator->getPluginManager()->getPlugin("Static1"));
+        MyPluginPtr plugin = ICE_DYNAMIC_CAST(MyPlugin, communicator->getPluginManager()->getPlugin("Static1"));
         test(plugin && plugin->isInitialized());
-        plugin = MyPluginPtr::dynamicCast(communicator->getPluginManager()->getPlugin("Static2"));
+        plugin = ICE_DYNAMIC_CAST(MyPlugin, communicator->getPluginManager()->getPlugin("Static2"));
         test(plugin && plugin->isInitialized());
         communicator->destroy();
     }
@@ -125,12 +140,6 @@ main(int argc, char* argv[])
         test(false);
     }
     cout << "ok" << endl;
-
-#ifdef ICE_OS_WINRT
-    string pluginDir = "plugins/winrt/";
-#else
-    string pluginDir = "plugins/";
-#endif
 
     cout << "testing a simple plug-in... " << flush;
     try
@@ -150,17 +159,17 @@ main(int argc, char* argv[])
     {
         int majorVersion = (ICE_INT_VERSION / 10000);
         int minorVersion = (ICE_INT_VERSION / 100) - majorVersion * 100;
+        int patchVersion = ICE_INT_VERSION % 100;
         ostringstream os;
         os << pluginDir << "TestPlugin,";
         os << majorVersion * 10 + minorVersion;
-        int patchVersion = ICE_INT_VERSION % 100;
-        if(patchVersion > 50)
+        if(patchVersion >= 60)
         {
-            os << 'b';
-            if(patchVersion >= 52)
-            {
-                os << (patchVersion - 50);
-            }
+            os << 'b' << (patchVersion - 60);
+        }
+        else if(patchVersion >= 50)
+        {
+            os << 'a' << (patchVersion - 50);
         }
         os << ":createPlugin";
         Ice::InitializationData initData;
@@ -266,7 +275,7 @@ main(int argc, char* argv[])
         test(pm->getPlugin("PluginTwo"));
         test(pm->getPlugin("PluginThree"));
 
-        MyPluginPtr p4 = new MyPlugin;
+        MyPluginPtr p4 = ICE_MAKE_SHARED(MyPlugin);
         pm->addPlugin("PluginFour", p4);
         test(pm->getPlugin("PluginFour"));
 

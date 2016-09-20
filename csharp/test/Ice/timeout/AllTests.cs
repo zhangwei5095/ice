@@ -1,19 +1,14 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
 
-using System;
 using System.Diagnostics;
 using System.Threading;
-
-#if SILVERLIGHT
-using System.Windows.Controls;
-#endif
 
 public class AllTests : TestCommon.TestApp
 {
@@ -30,7 +25,7 @@ public class AllTests : TestCommon.TestApp
             {
                 while(!_called)
                 {
-                    System.Threading.Monitor.Wait(this);
+                    Monitor.Wait(this);
                 }
 
                 _called = false;
@@ -43,42 +38,14 @@ public class AllTests : TestCommon.TestApp
             {
                 Debug.Assert(!_called);
                 _called = true;
-                System.Threading.Monitor.Pulse(this);
+                Monitor.Pulse(this);
             }
         }
 
         private bool _called;
     }
 
-#if SILVERLIGHT
-    public override Ice.InitializationData initData()
-    {
-        Ice.InitializationData initData = new Ice.InitializationData();
-        initData.properties = Ice.Util.createProperties();
-
-        //
-        // We need to send messages large enough to cause the transport
-        // buffers to fill up.
-        //
-        initData.properties.setProperty("Ice.MessageSizeMax", "20000");
-
-        //
-        // For this test, we want to disable retries.
-        //
-        initData.properties.setProperty("Ice.RetryIntervals", "-1");
-
-        //
-        // This test kills connections, so we don't want warnings.
-        //
-        initData.properties.setProperty("Ice.Warn.Connections", "0");
-        return initData;
-    }
-
-    override
-    public void run(Ice.Communicator communicator)
-#else
     public static Test.TimeoutPrx allTests(Ice.Communicator communicator)
-#endif
     {
         string sref = "timeout:default -p 12010";
         Ice.ObjectPrx obj = communicator.stringToProxy(sref);
@@ -313,10 +280,10 @@ public class AllTests : TestCommon.TestApp
             string[] args = new string[0];
             Ice.InitializationData initData = new Ice.InitializationData();
             initData.properties = communicator.getProperties().ice_clone_();
-            initData.properties.setProperty("Ice.Override.Timeout", "100");
+            initData.properties.setProperty("Ice.Override.Timeout", "250");
             Ice.Communicator comm = Ice.Util.initialize(ref args, initData);
             Test.TimeoutPrx to = Test.TimeoutPrxHelper.checkedCast(comm.stringToProxy(sref));
-            timeout.holdAdapter(500);
+            timeout.holdAdapter(700);
             try
             {
                 to.sendData(seq);
@@ -405,10 +372,10 @@ public class AllTests : TestCommon.TestApp
             initData.properties.setProperty("Ice.Override.CloseTimeout", "100");
             Ice.Communicator comm = Ice.Util.initialize(initData);
             comm.stringToProxy(sref).ice_getConnection();
-            timeout.holdAdapter(500);
+            timeout.holdAdapter(800);
             long begin = System.DateTime.Now.Ticks;
             comm.destroy();
-            test(((long)new System.TimeSpan(System.DateTime.Now.Ticks - begin).TotalMilliseconds - begin) < 400);
+            test(((long)new System.TimeSpan(System.DateTime.Now.Ticks - begin).TotalMilliseconds - begin) < 700);
         }
         WriteLine("ok");
 
@@ -424,7 +391,7 @@ public class AllTests : TestCommon.TestApp
             proxy = (Test.TimeoutPrx)proxy.ice_invocationTimeout(100);
             try
             {
-                proxy.sleep(300);
+                proxy.sleep(500);
                 test(false);
             }
             catch(Ice.InvocationTimeoutException)
@@ -433,7 +400,7 @@ public class AllTests : TestCommon.TestApp
 
             try
             {
-                proxy.end_sleep(proxy.begin_sleep(300));
+                proxy.end_sleep(proxy.begin_sleep(500));
                 test(false);
             }
             catch(Ice.InvocationTimeoutException)
@@ -473,11 +440,6 @@ public class AllTests : TestCommon.TestApp
             adapter.destroy();
         }
         WriteLine("ok");
-
-#if SILVERLIGHT
-        timeout.shutdown();
-#else
         return timeout;
-#endif
     }
 }

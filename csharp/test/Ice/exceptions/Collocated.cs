@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,7 +8,6 @@
 // **********************************************************************
 
 using System;
-using System.Diagnostics;
 using System.Reflection;
 
 [assembly: CLSCompliant(true)]
@@ -24,7 +23,7 @@ public class Collocated
         communicator.getProperties().setProperty("TestAdapter.Endpoints", "default -p 12010");
         Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
         Ice.Object obj = new ThrowerI();
-        adapter.add(obj, communicator.stringToIdentity("thrower"));
+        adapter.add(obj, Ice.Util.stringToIdentity("thrower"));
         AllTests.allTests(communicator);
         return 0;
     }
@@ -38,22 +37,14 @@ public class Collocated
         {
             Ice.InitializationData initData = new Ice.InitializationData();
             initData.properties = Ice.Util.createProperties();
-#if COMPACT
-            //
-            // When using Ice for .NET Compact Framework, we need to specify
-            // the assembly so that Ice can locate classes and exceptions.
-            //
-            initData.properties.setProperty("Ice.FactoryAssemblies", "collocated");
-#endif
-
             initData.properties.setProperty("Ice.Warn.Dispatch", "0");
             initData.properties.setProperty("Ice.MessageSizeMax", "10"); // 10KB max
             communicator = Ice.Util.initialize(ref args, initData);
             status = run(args, communicator);
         }
-        catch(System.Exception ex)
+        catch(Exception ex)
         {
-            System.Console.WriteLine(ex);
+            Console.WriteLine(ex);
             status = 1;
         }
 
@@ -65,7 +56,7 @@ public class Collocated
             }
             catch(Ice.LocalException ex)
             {
-                System.Console.WriteLine(ex);
+                Console.WriteLine(ex);
                 status = 1;
             }
         }

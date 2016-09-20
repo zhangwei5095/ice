@@ -1,6 +1,6 @@
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -198,10 +198,10 @@ def allTests(communicator)
     initData.properties.setProperty("Ice.Override.CloseTimeout", "100")
     comm = Ice.initialize(initData)
     connection = comm.stringToProxy(sref).ice_getConnection();
-    timeout.holdAdapter(500);
+    timeout.holdAdapter(800);
     now = Time.now
     comm.destroy();
-    test((Time.now - now) < 0.4);
+    test((Time.now - now) < 0.7);
 
     puts "ok"
 

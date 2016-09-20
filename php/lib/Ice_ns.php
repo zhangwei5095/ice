@@ -1,7 +1,7 @@
 <?php
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -37,7 +37,12 @@ namespace Ice
             parent::__construct($message);
         }
 
-        abstract public function ice_name();
+        abstract public function ice_id();
+        public function ice_name()
+        {
+            trigger_error('ice_name() is deprecated use ice_id() instead.', E_DEPRECATED);
+            return substr($this->ice_id(), 2);
+        }
     }
 
     abstract class UserException extends Exception
@@ -133,6 +138,11 @@ namespace Ice
         public function destroy();
     }
 
+    interface VaueFactory
+    {
+        public function create($id);
+    }
+
     class InitializationData
     {
         public function __construct($properties=null, $logger=null)
@@ -154,7 +164,7 @@ namespace Ice
     {
         public $typeId;
         public $bytes;
-        public $objects;
+        public $instances;
     }
 
     class FormatType
@@ -178,6 +188,7 @@ require_once 'Ice/EndpointTypes.php';
 require_once 'Ice/LocalException.php';
 require_once 'Ice/Locator.php';
 require_once 'Ice/ObjectFactory.php';
+require_once 'Ice/ValueFactory.php';
 require_once 'Ice/Process.php';
 require_once 'Ice/Router.php';
 require_once 'Ice/Version.php';

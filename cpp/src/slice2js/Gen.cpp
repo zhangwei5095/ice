@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -20,6 +20,7 @@
 #include <direct.h>
 #endif
 #include <IceUtil/Iterator.h>
+#include <IceUtil/StringConverter.h>
 #include <IceUtil/UUID.h>
 #include <Slice/Checksum.h>
 #include <Slice/FileTracker.h>
@@ -33,6 +34,29 @@ using namespace IceUtilInternal;
 
 namespace
 {
+
+string
+u16CodePoint(unsigned short value)
+{
+    ostringstream s;
+    s << "\\u";
+    s << hex;
+    s.width(4);
+    s.fill('0');
+    s << value;
+    return s.str();
+}
+
+void
+writeU8Buffer(const vector<unsigned char>& u8buffer, ostringstream& out)
+{
+    vector<unsigned short> u16buffer = toUTF16(u8buffer);
+
+    for(vector<unsigned short>::const_iterator c = u16buffer.begin(); c != u16buffer.end(); ++c)
+    {
+        out << u16CodePoint(*c);
+    }
+}
 
 string
 sliceModeToIceMode(Operation::Mode opMode)
@@ -191,15 +215,6 @@ Slice::JsVisitor::writeUnmarshalDataMembers(const DataMemberList& dataMembers, c
 {
     for(DataMemberList::const_iterator q = dataMembers.begin(); q != dataMembers.end(); ++q)
     {
-        if(isClassType((*q)->type()))
-        {
-            _out << nl << "var self = this;";
-            break;
-        }
-    }
-
-    for(DataMemberList::const_iterator q = dataMembers.begin(); q != dataMembers.end(); ++q)
-    {
         if(!(*q)->optional())
         {
             writeMarshalUnmarshalCode(_out, (*q)->type(), "this." + fixId((*q)->name()), false);
@@ -218,32 +233,7 @@ Slice::JsVisitor::writeInitDataMembers(const DataMemberList& dataMembers, const 
     for(DataMemberList::const_iterator q = dataMembers.begin(); q != dataMembers.end(); ++q)
     {
         const string m = fixId((*q)->name());
-        if((*q)->optional())
-        {
-            if((*q)->defaultValueType())
-            {
-                _out << nl << "this." << m << " = " << m << " !== undefined ? " << m << " : ";
-                writeConstantValue(scope, (*q)->type(), (*q)->defaultValueType(), (*q)->defaultValue());
-                _out << ';';
-            }
-            else
-            {
-                _out << nl << "this." << m << " = " << m << ';';
-            }
-        }
-        else
-        {
-            _out << nl << "this." << m << " = " << m << " !== undefined ? " << m << " : ";
-            if((*q)->defaultValueType())
-            {
-                writeConstantValue(scope, (*q)->type(), (*q)->defaultValueType(), (*q)->defaultValue());
-            }
-            else
-            {
-                _out << getValue(scope, (*q)->type());
-            }
-            _out << ';';
-        }
+        _out << nl << "this." << m << " = " << m << ';';
     }
 }
 
@@ -452,14 +442,15 @@ Slice::JsVisitor::getValue(const string& scope, const TypePtr& type)
     return "null";
 }
 
-void
+string
 Slice::JsVisitor::writeConstantValue(const string& scope, const TypePtr& type, const SyntaxTreeBasePtr& valueType,
                                      const string& value)
 {
+    ostringstream os;
     ConstPtr constant = ConstPtr::dynamicCast(valueType);
     if(constant)
     {
-        _out << getReference(scope, constant->scoped());
+        os << getReference(scope, constant->scoped());
     }
     else
     {
@@ -477,37 +468,115 @@ Slice::JsVisitor::writeConstantValue(const string& scope, const TypePtr& type, c
                                                    "_{}[]#()<>%:;.?*+-/^&|~!=,\\\"' ";
             static const set<char> charSet(basicSourceChars.begin(), basicSourceChars.end());
 
-            _out << "\"";                                    // Opening "
+            os << "\"";                                      // Opening "
 
-            for(string::const_iterator c = value.begin(); c != value.end(); ++c)
+            vector<unsigned char> u8buffer;                  // Buffer to convert multibyte characters
+
+            for(size_t i = 0; i < value.size();)
             {
-                if(charSet.find(*c) == charSet.end())
+                if(charSet.find(value[i]) == charSet.end())
                 {
-                    unsigned char uc = *c;                   // char may be signed, so make it positive
-                    ostringstream s;
-                    s << "\\u";                      // Print as unicode if not in basic source character set
-                    s << hex;
-                    s.width(4);
-                    s.fill('0');
-                    s << static_cast<unsigned>(uc);
-                    _out << s.str();
+                    if(static_cast<unsigned char>(value[i]) < 128) // Single byte character
+                    {
+                        //
+                        // Print as unicode if not in basic source character set
+                        //
+                        os << u16CodePoint(static_cast<unsigned int>(value[i]));
+                    }
+                    else
+                    {
+                        u8buffer.push_back(value[i]);
+                    }
                 }
                 else
                 {
-                   switch(*c)
+                    //
+                    // Write any pedding characters in the utf8 buffer
+                    //
+                    if(!u8buffer.empty())
+                    {
+                        writeU8Buffer(u8buffer, os);
+                        u8buffer.clear();
+                    }
+                    switch(value[i])
                     {
                         case '\\':
+                        {
+                            string s = "\\";
+                            size_t j = i + 1;
+                            for(; j < value.size(); ++j)
+                            {
+                                if(value[j] != '\\')
+                                {
+                                    break;
+                                }
+                                s += "\\";
+                            }
+
+                            //
+                            // An even number of slash \ will escape the backslash and
+                            // the codepoint will be interpreted as its charaters
+                            //
+                            // \\U00000041  - ['\\', 'U', '0', '0', '0', '0', '0', '0', '4', '1']
+                            // \\\U00000041 - ['\\', 'A'] (41 is the codepoint for 'A')
+                            //
+                            if(s.size() % 2 != 0 && value[j] == 'U')
+                            {
+                                os << s.substr(0, s.size() - 1);
+                                i = j + 1;
+
+                                string codepoint = value.substr(j + 1, 8);
+                                assert(codepoint.size() ==  8);
+
+                                IceUtil::Int64 v = IceUtilInternal::strToInt64(codepoint.c_str(), 0, 16);
+
+
+                                //
+                                // Unicode character in the range U+10000 to U+10FFFF is not permitted in a character literal
+                                // and is represented using a Unicode surrogate pair.
+                                //
+                                if(v > 0xFFFF)
+                                {
+                                    unsigned int high = ((static_cast<unsigned int>(v) - 0x10000) / 0x400) + 0xD800;
+                                    unsigned int low = ((static_cast<unsigned int>(v) - 0x10000) % 0x400) + 0xDC00;
+                                    os << u16CodePoint(high);
+                                    os << u16CodePoint(low);
+                                }
+                                else
+                                {
+                                    os << u16CodePoint(static_cast<unsigned int>(v));
+                                }
+
+                                i = j + 1 + 8;
+                            }
+                            else
+                            {
+                                os << s;
+                                i = j;
+                            }
+                            continue;
+                        }
                         case '"':
                         {
-                            _out << "\\";
+                            os << "\\";
                             break;
                         }
                     }
-                    _out << *c;                              // Print normally if in basic source character set
+                    os << value[i];                        // Print normally if in basic source character set
                 }
+                i++;
             }
 
-            _out << "\"";                                    // Closing "
+            //
+            // Write any pedding characters in the utf8 buffer
+            //
+            if(!u8buffer.empty())
+            {
+                writeU8Buffer(u8buffer, os);
+                u8buffer.clear();
+            }
+
+            os << "\"";                                    // Closing "
         }
         else if(bp && bp->kind() == Builtin::KindLong)
         {
@@ -522,9 +591,9 @@ Slice::JsVisitor::writeConstantValue(const string& scope, const TypePtr& type, c
             // output file.
             //
 #ifdef ICE_BIG_ENDIAN
-            _out << "new Ice.Long(" << (l & 0xFFFFFFFF) << ", " << ((l >> 32) & 0xFFFFFFFF)  << ")";
+            os << "new Ice.Long(" << (l & 0xFFFFFFFF) << ", " << ((l >> 32) & 0xFFFFFFFF)  << ")";
 #else
-            _out << "new Ice.Long(" << ((l >> 32) & 0xFFFFFFFF) << ", " << (l & 0xFFFFFFFF)  << ")";
+            os << "new Ice.Long(" << ((l >> 32) & 0xFFFFFFFF) << ", " << (l & 0xFFFFFFFF)  << ")";
 #endif
         }
         else if((ep = EnumPtr::dynamicCast(type)))
@@ -539,13 +608,14 @@ Slice::JsVisitor::writeConstantValue(const string& scope, const TypePtr& type, c
             {
                 enumerator = fixId(value);
             }
-            _out << getReference(scope, ep->scoped()) << '.' << enumerator;
+            os << getReference(scope, ep->scoped()) << '.' << enumerator;
         }
         else
         {
-            _out << value;
+            os << value;
         }
     }
+    return os.str();
 }
 
 StringList
@@ -746,7 +816,7 @@ Slice::Gen::printHeader()
     static const char* header =
 "// **********************************************************************\n"
 "//\n"
-"// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.\n"
+"// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.\n"
 "//\n"
 "// This copy of Ice is licensed to you under the terms described in the\n"
 "// ICE_LICENSE file included in this distribution.\n"
@@ -947,12 +1017,12 @@ Slice::Gen::RequireVisitor::writeRequires(const UnitPtr& p)
 
     if(!_icejs)
     {
-        _out << nl << "var Ice = require(\"ice\").Ice;";
-        _out << nl << "var __M = Ice.__M;";
+        _out << nl << "const Ice = require(\"ice\").Ice;";
+        _out << nl << "const __M = Ice.__M;";
     }
     else
     {
-        _out << nl << "var __M = require(\"../Ice/ModuleRegistry\").Ice.__M;";
+        _out << nl << "const __M = require(\"../Ice/ModuleRegistry\").Ice.__M;";
     }
 
     for(map<string, vector<string> >::const_iterator i = requires.begin(); i != requires.end(); ++i)
@@ -964,7 +1034,7 @@ Slice::Gen::RequireVisitor::writeRequires(const UnitPtr& p)
 
         if(i->second.size() == 1)
         {
-            _out << nl << "var " << i->first << " = require(\"";
+            _out << nl << "const " << i->first << " = require(\"";
             if(_icejs && iceBuiltinModule(i->first))
             {
                 _out << "../";
@@ -973,7 +1043,7 @@ Slice::Gen::RequireVisitor::writeRequires(const UnitPtr& p)
         }
         else
         {
-            _out << nl << "var " << i->first << " = __M.require(module, ";
+            _out << nl << "const " << i->first << " = __M.require(module, ";
             _out << nl << "[";
             _out.inc();
             for(vector<string>::const_iterator j = i->second.begin(); j != i->second.end();)
@@ -996,7 +1066,7 @@ Slice::Gen::RequireVisitor::writeRequires(const UnitPtr& p)
         seenModules.push_back(i->first);
     }
 
-    _out << nl << "var Slice = Ice.Slice;";
+    _out << nl << "const Slice = Ice.Slice;";
 
     if(_icejs)
     {
@@ -1020,7 +1090,7 @@ Slice::Gen::TypesVisitor::visitModuleStart(const ModulePtr& p)
     //
     // For a top-level module we write the following:
     //
-    // var Foo = __M.module("Foo");
+    // let Foo = __M.module("Foo");
     //
     // For a nested module we write
     //
@@ -1043,7 +1113,7 @@ Slice::Gen::TypesVisitor::visitModuleStart(const ModulePtr& p)
         _out << nl;
         if(topLevel)
         {
-            _out << "var ";
+            _out << "let ";
         }
         _out << scoped << " = __M.module(\"" << scoped << "\");";
 
@@ -1072,7 +1142,6 @@ Slice::Gen::TypesVisitor::visitClassDefStart(const ClassDefPtr& p)
     const string prxName = p->name() + "Prx";
     const string objectRef = "Ice.Object";
     const string prxRef = "Ice.ObjectPrx";
-    const string defineObject = p->isLocal() ? "Slice.defineLocalObject" : "Slice.defineObject";
 
     ClassList bases = p->bases();
     ClassDefPtr base;
@@ -1114,44 +1183,133 @@ Slice::Gen::TypesVisitor::visitClassDefStart(const ClassDefPtr& p)
         }
     }
 
+    ClassList allBases = p->allBases();
+    StringList ids;
+    transform(allBases.begin(), allBases.end(), back_inserter(ids), ::IceUtil::constMemFun(&Contained::scoped));
+    StringList other;
+    other.push_back(scoped);
+    other.push_back("::Ice::Object");
+    other.sort();
+    ids.merge(other);
+    ids.unique();
+
+    StringList::const_iterator firstIter = ids.begin();
+    StringList::const_iterator scopedIter = find(ids.begin(), ids.end(), scoped);
+    assert(scopedIter != ids.end());
+    StringList::difference_type scopedPos = IceUtilInternal::distance(firstIter, scopedIter);
+
+    if(!p->isLocal())
+    {
+        _out << sp;
+        _out << nl << "let " << getLocalScope(scoped, "_") << "_ids__ = [";
+        _out.inc();
+
+        for(StringList::const_iterator q = ids.begin(); q != ids.end(); ++q)
+        {
+            if(q != ids.begin())
+            {
+                _out << ',';
+            }
+           _out << nl << '"' << *q << '"';
+        }
+
+        _out.dec();
+        _out << nl << "];";
+    }
+
     _out << sp;
     writeDocComment(p, getDeprecateReason(p, 0, "type"));
-    _out << nl << localScope << '.' << name << " = " << defineObject << "(";
-    _out.inc();
-
+    _out << nl << localScope << '.' << name << " = class";
+    if(!p->isLocal() || hasBaseClass)
+    {
+        _out << " extends " << baseRef;
+    }
+    _out << sb;
     if(!allParamNames.empty())
     {
-        _out << nl << "function" << spar << allParamNames << epar;
-        _out << sb;
+        _out << nl << "constructor" << spar;
+        for(DataMemberList::const_iterator q = baseDataMembers.begin(); q != baseDataMembers.end(); ++q)
+        {
+            _out << fixId((*q)->name());
+        }
+
+        for(DataMemberList::const_iterator q = dataMembers.begin(); q != dataMembers.end(); ++q)
+        {
+            string value;
+            if((*q)->optional())
+            {
+                if((*q)->defaultValueType())
+                {
+                    value = writeConstantValue(scope, (*q)->type(), (*q)->defaultValueType(), (*q)->defaultValue());
+                }
+                else
+                {
+                    value = "undefined";
+                }
+            }
+            else
+            {
+                if((*q)->defaultValueType())
+                {
+                    value = writeConstantValue(scope, (*q)->type(), (*q)->defaultValueType(), (*q)->defaultValue());
+                }
+                else
+                {
+                    value = getValue(scope, (*q)->type());
+                }
+            }
+            _out << (fixId((*q)->name()) + (value.empty() ? value : (" = " + value)));
+        }
+
+        _out << epar << sb;
         if(!p->isLocal() || hasBaseClass)
         {
-            _out << nl << baseRef << ".call" << spar << "this" << baseParamNames << epar << ';';
+            _out << nl << "super" << spar << baseParamNames << epar << ';';
         }
         writeInitDataMembers(dataMembers, scope);
         _out << eb;
     }
-    else
-    {
-        if(hasBaseClass || !p->isLocal())
-        {
-            _out << nl << "undefined";
-        }
-    }
+
+    _out << sp;
+    _out << nl << "static get __parent()";
+    _out << sb;
     if(!p->isLocal() || hasBaseClass)
     {
-        _out << ",";
-        _out << nl << baseRef;
+        _out << nl << "return " << baseRef << ";";
     }
+    else
+    {
+        _out << nl << "return undefined;";
+    }
+    _out << eb;
 
     if(!p->isLocal())
     {
-        ClassList allBases = p->allBases();
-        StringList ids;
+        _out << sp;
+        _out << nl << "static get __ids()";
+        _out << sb;
+        _out << nl << "return " << getLocalScope(scoped, "_") << "_ids__;";
+        _out << eb;
+
+        _out << sp;
+        _out << nl << "static get __id()";
+        _out << sb;
+        _out << nl << "return " << getLocalScope(scoped, "_") << "_ids__[" << scopedPos << "];";
+        _out << eb;
+
+        _out << sp;
+        _out << nl << "__mostDerivedType()";
+        _out << sb;
+        _out << nl << "return " << localScope << "." << name << ";";
+        _out << eb;
+
 
         if(!bases.empty())
         {
-            _out << ",";
-            _out << nl << "[";
+            _out << sp;
+            _out << nl << "static get __implements()";
+            _out << sb;
+            _out << nl << "return [";
             _out.inc();
             for(ClassList::const_iterator q = bases.begin(); q != bases.end();)
             {
@@ -1170,82 +1328,58 @@ Slice::Gen::TypesVisitor::visitClassDefStart(const ClassDefPtr& p)
                 }
             }
             _out.dec();
-            _out << nl << "]";
-        }
-        else
-        {
-            _out << ", undefined";
+            _out << nl << "];";
+            _out << eb;
         }
 
-#if defined(__IBMCPP__) && defined(NDEBUG)
-        //
-        // VisualAge C++ 6.0 does not see that ClassDef is a Contained,
-        // when inlining is on. The code below issues a warning: better
-        // than an error!
-        //
-        transform(allBases.begin(), allBases.end(), back_inserter(ids),
-                  ::IceUtil::constMemFun<string,ClassDef>(&Contained::scoped));
-#else
-        transform(allBases.begin(), allBases.end(), back_inserter(ids), ::IceUtil::constMemFun(&Contained::scoped));
-#endif
-        StringList other;
-        other.push_back(scoped);
-        other.push_back("::Ice::Object");
-        other.sort();
-        ids.merge(other);
-        ids.unique();
-
-        StringList::const_iterator firstIter = ids.begin();
-        StringList::const_iterator scopedIter = find(ids.begin(), ids.end(), scoped);
-        assert(scopedIter != ids.end());
-        StringList::difference_type scopedPos = IceUtilInternal::distance(firstIter, scopedIter);
-
-        _out << ", " << scopedPos << ",";
-        _out << nl << "[";
-        _out.inc();
-        for(StringList::const_iterator q = ids.begin(); q != ids.end(); ++q)
+        if(p->compactId() != -1)
         {
-            if(q != ids.begin())
-            {
-                _out << ',';
-            }
-            _out << nl << '"' << *q << '"';
+            _out << sp;
+            _out << nl << "static get __compactId()";
+            _out << sb;
+            _out << nl << "return " << p->compactId() << ";";
+            _out << eb;
         }
-        _out.dec();
-        _out << nl << "],";
-        _out << nl << p->compactId() << ",";
-        if(dataMembers.empty())
+
+        if(!dataMembers.empty())
         {
-            _out << " undefined, undefined, ";
-        }
-        else
-        {
-            _out << nl << "function(__os)";
+            _out << sp;
+            _out << nl << "__writeMemberImpl(__os)";
             _out << sb;
             writeMarshalDataMembers(dataMembers, optionalMembers);
-            _out << eb << ",";
-            _out << nl << "function(__is)";
+            _out << eb;
+
+            _out << sp;
+            _out << nl << "__readMemberImpl(__is)";
             _out << sb;
             writeUnmarshalDataMembers(dataMembers, optionalMembers);
-            _out << eb << ",";
-            _out << nl;
+            _out << eb;
         }
-        _out << (p->hasMetaData("preserve-slice") && !p->inheritsMetaData("preserve-slice") ? "true" : "false");
     }
-    _out.dec();
-    _out << ");";
+    _out << eb << ";";
+
 
     if(!p->isLocal())
     {
-        const string staticId = localScope + "." + name + ".ice_staticId";
         const string baseProxy =
             !p->isInterface() && base ? (getLocalScope(base->scope()) + "." + base->name() + "Prx") : "Ice.ObjectPrx";
 
         _out << sp;
-        _out << nl << localScope << '.' << prxName << " = " << "Slice.defineProxy(" << baseProxy << ", " << staticId;
+        _out << nl << localScope << '.' << prxName << " = class extends " << baseProxy;
+        _out << sb;
+
+        _out << sp;
+        _out << nl << "static ice_staticId()";
+        _out << sb;
+        _out << nl << "return " << localScope << "." << name << ".__id;";
+        _out << eb;
+
+        _out << sp;
+        _out << nl << "static get __implements()";
+        _out << sb;
+        _out << nl << "return [";
         if(!bases.empty())
         {
-            _out << ", [";
             _out.inc();
             for(ClassList::const_iterator q = bases.begin(); q != bases.end();)
             {
@@ -1264,13 +1398,17 @@ Slice::Gen::TypesVisitor::visitClassDefStart(const ClassDefPtr& p)
                 }
             }
             _out.dec();
-            _out << "]";
         }
-        else
+        _out << "];";
+        _out << eb;
+
+        _out << eb << ";";
+
+        if(p->hasMetaData("preserve-slice") && !p->inheritsMetaData("preserve-slice"))
         {
-            _out << ", undefined";
+            _out << sp;
+            _out << nl << "Slice.PreservedObject(" << localScope << "." << name << ");";
         }
-        _out << ");";
 
         //
         // Register the compact id
@@ -1286,6 +1424,7 @@ Slice::Gen::TypesVisitor::visitClassDefStart(const ClassDefPtr& p)
 
         _out << sp << nl << "Slice.defineOperations(" << localScope << '.' << name << ", " << localScope << '.'
              << prxName;
+
         const OperationList ops = p->operations();
         if(!ops.empty())
         {
@@ -1349,12 +1488,6 @@ Slice::Gen::TypesVisitor::visitClassDefStart(const ClassDefPtr& p)
                 if(op->sendMode() != Operation::Normal)
                 {
                     _out << sliceModeToIceMode(op->sendMode()); // Send mode.
-                }
-                _out << ", ";
-
-                if(p->hasMetaData("amd") || op->hasMetaData("amd"))
-                {
-                    _out << "1"; // AMD.
                 }
                 _out << ", ";
 
@@ -1498,7 +1631,6 @@ Slice::Gen::TypesVisitor::visitClassDefStart(const ClassDefPtr& p)
         }
         _out << ");";
     }
-
     return false;
 }
 
@@ -1516,6 +1648,7 @@ Slice::Gen::TypesVisitor::visitSequence(const SequencePtr& p)
     const string propertyName = name + "Helper";
     const bool fixed = !type->isVariableLength();
 
+    _out << sp;
     _out << nl << "Slice.defineSequence(" << scope << ", \"" << propertyName << "\", "
          << "\"" << getHelper(type) << "\"" << ", " << (fixed ? "true" : "false");
     if(isClassType(type))
@@ -1533,7 +1666,6 @@ Slice::Gen::TypesVisitor::visitExceptionStart(const ExceptionPtr& p)
     const string name = fixId(p->name());
     const ExceptionPtr base = p->base();
     string baseRef;
-    string defineException = p->isLocal() ? "Slice.defineLocalException" : "Slice.defineUserException";
     if(base)
     {
         baseRef = getReference(scope, base->scoped());
@@ -1567,55 +1699,114 @@ Slice::Gen::TypesVisitor::visitExceptionStart(const ExceptionPtr& p)
 
     _out << sp;
     writeDocComment(p, getDeprecateReason(p, 0, "type"));
-    _out << nl << localScope << '.' << name << " = " << defineException << "(";
-    _out.inc();
-
-    _out << nl << "function" << spar << allParamNames << "_cause" << epar;
+    _out << nl << localScope << '.' << name << " = class extends " << baseRef;
     _out << sb;
-    _out << nl << baseRef << ".call" << spar << "this" << baseParamNames << "_cause" << epar << ';';
+
+    _out << nl << "constructor" << spar;
+
+    for(DataMemberList::const_iterator q = baseDataMembers.begin(); q != baseDataMembers.end(); ++q)
+    {
+        _out << fixId((*q)->name());
+    }
+
+    for(DataMemberList::const_iterator q = dataMembers.begin(); q != dataMembers.end(); ++q)
+    {
+        string value;
+        if((*q)->optional())
+        {
+            if((*q)->defaultValueType())
+            {
+                value = writeConstantValue(scope, (*q)->type(), (*q)->defaultValueType(), (*q)->defaultValue());
+            }
+            else
+            {
+                value = "undefined";
+            }
+        }
+        else
+        {
+            if((*q)->defaultValueType())
+            {
+                value = writeConstantValue(scope, (*q)->type(), (*q)->defaultValueType(), (*q)->defaultValue());
+            }
+            else
+            {
+                value = getValue(scope, (*q)->type());
+            }
+        }
+        _out << (fixId((*q)->name()) + (value.empty() ? value : (" = " + value)));
+    }
+
+    _out << "_cause = \"\"" << epar;
+    _out << sb;
+    _out << nl << "super" << spar << baseParamNames << "_cause" << epar << ';';
     writeInitDataMembers(dataMembers, scope);
-    _out << eb << ",";
-    _out << nl << baseRef << ",";
-    _out << nl << "\"" << p->scoped().substr(2) << "\"";
+    _out << eb;
+
+    _out << sp;
+    _out << nl << "static get __parent()";
+    _out << sb;
+    _out << nl << "return " << baseRef << ";";
+    _out << eb;
+
+    _out << sp;
+    _out << nl << "static get __id()";
+    _out << sb;
+    _out << nl << "return \"" << p->scoped() << "\";";
+    _out << eb;
+
+    _out << sp;
+    _out << nl << "ice_name()";
+    _out << sb;
+    _out << nl << "return \"" << p->scoped().substr(2) << "\";";
+    _out << eb;
 
     // TODO: equals?
 
     if(!p->isLocal())
     {
-        _out << ",";
+        _out << sp;
+        _out << nl << "__mostDerivedType()";
+        _out << sb;
+        _out << nl << "return " << localScope << '.' << name << ";";
+        _out << eb;
+
         if(!dataMembers.empty())
         {
-            _out << nl << "function(__os)";
+            _out << sp;
+            _out << nl << "__writeMemberImpl(__os)";
             _out << sb;
             writeMarshalDataMembers(dataMembers, optionalMembers);
-            _out << eb << ",";
-            _out << nl << "function(__is)";
+            _out << eb;
+
+            _out << sp;
+            _out << nl << "__readMemberImpl(__is)";
             _out << sb;
             writeUnmarshalDataMembers(dataMembers, optionalMembers);
             _out << eb;
         }
-        else
-        {
-            _out << nl << "undefined, undefined";
-        }
-        bool basePreserved = p->inheritsMetaData("preserve-slice");
-        bool preserved = p->hasMetaData("preserve-slice");
 
-        _out << ",";
-        if(preserved && !basePreserved)
+        if(p->usesClasses(false) && (!base || (base && !base->usesClasses(false))))
         {
-            _out << nl << "true";
+            _out << sp;
+            _out << nl << "__usesClasses()";
+            _out << sb;
+            _out << nl << "return true;";
+            _out << eb;
         }
-        else
-        {
-            _out << nl << "false";
-        }
-
-        const bool usesClasses = p->usesClasses(false) && (!base || (base && !base->usesClasses(false)));
-        _out << "," << nl << (usesClasses ? "true" : "false");
     }
-    _out << ");";
-    _out.dec();
+
+    _out << eb << ";";
+
+    bool basePreserved = p->inheritsMetaData("preserve-slice");
+    bool preserved = p->hasMetaData("preserve-slice");
+
+    if(!p->isLocal() && preserved && !basePreserved)
+    {
+        _out << sp;
+        _out << nl << "Slice.PreservedUserException(" << localScope << '.' << name << ");";
+    }
+
     return false;
 }
 
@@ -1634,6 +1825,69 @@ Slice::Gen::TypesVisitor::visitStructStart(const StructPtr& p)
         paramNames.push_back(fixId((*q)->name()));
     }
 
+    _out << sp;
+    writeDocComment(p, getDeprecateReason(p, 0, "type"));
+    _out << nl << localScope << '.' << name << " = class";
+    _out << sb;
+
+    _out << nl << "constructor" << spar;
+
+    for(DataMemberList::const_iterator q = dataMembers.begin(); q != dataMembers.end(); ++q)
+    {
+        string value;
+        if((*q)->optional())
+        {
+            if((*q)->defaultValueType())
+            {
+                value = writeConstantValue(scope, (*q)->type(), (*q)->defaultValueType(), (*q)->defaultValue());
+            }
+            else
+            {
+                value = "undefined";
+            }
+        }
+        else
+        {
+            if((*q)->defaultValueType())
+            {
+                value = writeConstantValue(scope, (*q)->type(), (*q)->defaultValueType(), (*q)->defaultValue());
+            }
+            else
+            {
+                value = getValue(scope, (*q)->type());
+            }
+        }
+        _out << (fixId((*q)->name()) + (value.empty() ? value : (" = " + value)));
+    }
+
+    _out << epar;
+    _out << sb;
+    writeInitDataMembers(dataMembers, scope);
+    _out << eb;
+
+    if(!p->isLocal())
+    {
+        _out << sp;
+        _out << nl << "__write(__os)";
+        _out << sb;
+        writeMarshalDataMembers(dataMembers, DataMemberList());
+        _out << eb;
+
+        _out << sp;
+        _out << nl << "__read(__is)";
+        _out << sb;
+        writeUnmarshalDataMembers(dataMembers, DataMemberList());
+        _out << eb;
+
+        _out << sp;
+        _out << nl << "static get minWireSize()";
+        _out << sb;
+        _out << nl << "return  " << p->minWireSize() << ";";
+        _out << eb;
+    }
+
+    _out << eb << ";";
+
     //
     // Only generate hashCode if this structure type is a legal dictionary key type.
     //
@@ -1641,35 +1895,9 @@ Slice::Gen::TypesVisitor::visitStructStart(const StructPtr& p)
     bool legalKeyType = Dictionary::legalKeyType(p, containsSequence);
 
     _out << sp;
-    writeDocComment(p, getDeprecateReason(p, 0, "type"));
-    _out << nl << localScope << '.' << name << " = Slice.defineStruct(";
-    _out.inc();
-    _out << nl << "function" << spar << paramNames << epar;
-    _out << sb;
-    writeInitDataMembers(dataMembers, scope);
-    _out << eb << ",";
-
-    _out << nl << (legalKeyType ? "true" : "false");
-
-    if(!p->isLocal())
-    {
-        _out << ",";
-        _out << nl << "function(__os)";
-        _out << sb;
-        writeMarshalDataMembers(dataMembers, DataMemberList());
-        _out << eb << ",";
-        _out << nl << "function(__is)";
-        _out << sb;
-        writeUnmarshalDataMembers(dataMembers, DataMemberList());
-        _out << eb << "," << nl << p->minWireSize() << ", " << nl << (p->isVariableLength() ? "false" : "true");
-        _out.dec();
-        _out << ");";
-    }
-    else
-    {
-        _out.dec();
-        _out << ");";
-    }
+    _out << nl << "Slice.defineStruct(" << localScope << '.' << name << ", "
+         << (legalKeyType ? "true" : "false") << ", "
+         << (p->isVariableLength() ? "true" : "false") << ");";
     return false;
 }
 
@@ -1690,9 +1918,6 @@ Slice::Gen::TypesVisitor::visitDictionary(const DictionaryPtr& p)
         keyUseEquals = true;
     }
 
-    b = BuiltinPtr::dynamicCast(valueType);
-    bool valueUseEquals = !b || (b->kind() == Builtin::KindLong);
-
     //
     // Stream helpers for dictionaries of objects are lazy initialized
     // as the required object type might not be available until later.
@@ -1702,6 +1927,7 @@ Slice::Gen::TypesVisitor::visitDictionary(const DictionaryPtr& p)
     const string propertyName = name + "Helper";
     bool fixed = !keyType->isVariableLength() && !valueType->isVariableLength();
 
+    _out << sp;
     _out << nl << "Slice.defineDictionary(" << scope << ", \"" << name << "\", \"" << propertyName << "\", "
          << "\"" << getHelper(keyType) << "\", "
          << "\"" << getHelper(valueType) << "\", "
@@ -1720,10 +1946,6 @@ Slice::Gen::TypesVisitor::visitDictionary(const DictionaryPtr& p)
     if(SequencePtr::dynamicCast(valueType))
     {
         _out << ", Ice.ArrayUtil.equals";
-    }
-    else if(valueUseEquals)
-    {
-        _out << ", Ice.HashMap.compareEquals";
     }
     _out << ");";
 }
@@ -1777,7 +1999,7 @@ Slice::Gen::TypesVisitor::visitConst(const ConstPtr& p)
     _out << nl << "Object.defineProperty(" << localScope << ", '" << name << "', {";
     _out.inc();
     _out << nl << "value: ";
-    writeConstantValue(scope, p->type(), p->valueType(), p->value());
+    _out << writeConstantValue(scope, p->type(), p->valueType(), p->value());
     _out.dec();
     _out << nl << "});";
 }

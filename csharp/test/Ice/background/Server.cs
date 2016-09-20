@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,8 +9,8 @@
 
 using System;
 using System.IO;
-using System.Diagnostics;
 using System.Reflection;
+using System.Threading.Tasks;
 
 [assembly: CLSCompliant(true)]
 
@@ -22,19 +22,19 @@ public class Server
 {
     internal class LocatorI : Ice.LocatorDisp_
     {
-        public override void findAdapterById_async(Ice.AMD_Locator_findAdapterById response, string adapter,
-                                                   Ice.Current current)
+        public override Task<Ice.ObjectPrx>
+        findAdapterByIdAsync(string adapter,  Ice.Current current)
         {
             _controller.checkCallPause(current);
             Ice.Communicator communicator = current.adapter.getCommunicator();
-            response.ice_response(current.adapter.createDirectProxy(communicator.stringToIdentity("dummy")));
+            return Task<Ice.ObjectPrx>.FromResult(current.adapter.createDirectProxy(Ice.Util.stringToIdentity("dummy")));
         }
 
-        public override void findObjectById_async(Ice.AMD_Locator_findObjectById response, Ice.Identity id,
-                                                  Ice.Current current)
+        public override Task<Ice.ObjectPrx>
+        findObjectByIdAsync(Ice.Identity id,  Ice.Current current)
         {
             _controller.checkCallPause(current);
-            response.ice_response(current.adapter.createDirectProxy(id));
+            return Task<Ice.ObjectPrx>.FromResult(current.adapter.createDirectProxy(id));
         }
 
         public override Ice.LocatorRegistryPrx getRegistry(Ice.Current current)
@@ -99,12 +99,12 @@ public class Server
 
         BackgroundControllerI backgroundController = new BackgroundControllerI(adapter);
 
-        adapter.add(new BackgroundI(backgroundController), communicator.stringToIdentity("background"));
-        adapter.add(new LocatorI(backgroundController), communicator.stringToIdentity("locator"));
-        adapter.add(new RouterI(backgroundController), communicator.stringToIdentity("router"));
+        adapter.add(new BackgroundI(backgroundController), Ice.Util.stringToIdentity("background"));
+        adapter.add(new LocatorI(backgroundController), Ice.Util.stringToIdentity("locator"));
+        adapter.add(new RouterI(backgroundController), Ice.Util.stringToIdentity("router"));
         adapter.activate();
 
-        adapter2.add(backgroundController, communicator.stringToIdentity("backgroundController"));
+        adapter2.add(backgroundController, Ice.Util.stringToIdentity("backgroundController"));
         adapter2.activate();
 
         communicator.waitForShutdown();

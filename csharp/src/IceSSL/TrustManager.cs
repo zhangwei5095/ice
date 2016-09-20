@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -58,7 +58,7 @@ namespace IceSSL
             }
         }
 
-        internal bool verify(NativeConnectionInfo info)
+        internal bool verify(NativeConnectionInfo info, string desc)
         {
             List<List<List<RFC2253.RDNPair>>> reject = new List<List<List<RFC2253.RDNPair>>>(),
                 accept = new List<List<List<RFC2253.RDNPair>>>();
@@ -130,9 +130,6 @@ namespace IceSSL
             //
             if(info.nativeCerts != null && info.nativeCerts.Length > 0)
             {
-#if UNITY
-                throw new Ice.FeatureNotSupportedException("certificate subjectName not available");
-#else
                 X500DistinguishedName subjectDN = info.nativeCerts[0].SubjectName;
                 string subjectName = subjectDN.Name;
                 Debug.Assert(subjectName != null);
@@ -146,17 +143,12 @@ namespace IceSSL
                         if(info.incoming)
                         {
                             communicator_.getLogger().trace("Security", "trust manager evaluating client:\n" +
-                                "subject = " + subjectName + "\n" +
-                                "adapter = " + info.adapterName + "\n" +
-                                "local addr = " + info.localAddress + ":" + info.localPort + "\n" +
-                                "remote addr = " +  info.remoteAddress + ":" + info.remotePort);
+                                "subject = " + subjectName + "\n" + "adapter = " + info.adapterName + "\n" + desc);
                         }
                         else
                         {
                             communicator_.getLogger().trace("Security", "trust manager evaluating server:\n" +
-                                "subject = " + subjectName + "\n" +
-                                "local addr = " + info.localAddress + ":" + info.localPort + "\n" +
-                                "remote addr = " +  info.remoteAddress + ":" + info.remotePort);
+                                "subject = " + subjectName + "\n" + desc);
                         }
                     }
 
@@ -218,7 +210,6 @@ namespace IceSSL
                 // At this point we accept the connection if there are no explicit accept rules.
                 //
                 return accept.Count == 0;
-#endif
             }
 
             return false;

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -10,7 +10,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Threading;
+using System.Threading.Tasks;
 using System.Diagnostics;
 
 namespace IceBox
@@ -242,7 +242,7 @@ class ServiceManagerI : ServiceManagerDisp_
 
         if(activeServices.Count > 0)
         {
-            observer.begin_servicesStarted(activeServices.ToArray(), this.observerCompleted, null);
+            observer.servicesStartedAsync(activeServices.ToArray()).ContinueWith((t) => observerCompleted(observer, t));
         }
     }
 
@@ -725,14 +725,14 @@ class ServiceManagerI : ServiceManagerDisp_
                 info.status = ServiceStatus.Started;
                 _services.Add(info);
             }
-            catch(System.Exception ex)
+            catch(System.Exception)
             {
                 if(info.communicator != null)
                 {
                     destroyServiceCommunicator(service, info.communicator);
                 }
 
-                throw ex;
+                throw;
             }
 
         }
@@ -810,7 +810,7 @@ class ServiceManagerI : ServiceManagerDisp_
 
             foreach(ServiceObserverPrx observer in observers)
             {
-                observer.begin_servicesStarted(servicesArray, this.observerCompleted, null);
+                observer.servicesStartedAsync(servicesArray).ContinueWith((t) => observerCompleted(observer, t));
             }
         }
     }
@@ -827,26 +827,25 @@ class ServiceManagerI : ServiceManagerDisp_
 
             foreach(ServiceObserverPrx observer in observers)
             {
-                observer.begin_servicesStopped(servicesArray, this.observerCompleted, null);
+                observer.servicesStoppedAsync(servicesArray).ContinueWith((t) => observerCompleted(observer, t));
             }
         }
     }
 
     private void
-    observerCompleted(Ice.AsyncResult result)
+    observerCompleted(ServiceObserverPrx observer, Task t)
     {
         try
         {
-            result.throwLocalException();
+            t.Wait();
         }
-        catch(Ice.LocalException ex)
+        catch(AggregateException ae)
         {
             lock(this)
             {
-                ServiceObserverPrx observer = ServiceObserverPrxHelper.uncheckedCast(result.getProxy());
                 if(_observers.Remove(observer))
                 {
-                    observerRemoved(observer, ex);
+                    observerRemoved(observer, ae.InnerException);
                 }
             }
         }

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -58,9 +58,9 @@ public class ServerManagerI : ServerManagerDisp_
         adapter2.setLocator(Ice.LocatorPrxHelper.uncheckedCast(locator));
         
         Ice.Object @object = new TestI(adapter, adapter2, _registry);
-        _registry.addObject(adapter.add(@object, serverCommunicator.stringToIdentity("test")));
-        _registry.addObject(adapter.add(@object, serverCommunicator.stringToIdentity("test2")));
-        adapter.add(@object, serverCommunicator.stringToIdentity("test3"));
+        _registry.addObject(adapter.add(@object, Ice.Util.stringToIdentity("test")));
+        _registry.addObject(adapter.add(@object, Ice.Util.stringToIdentity("test2")));
+        adapter.add(@object, Ice.Util.stringToIdentity("test3"));
 
         adapter.activate();
         adapter2.activate();

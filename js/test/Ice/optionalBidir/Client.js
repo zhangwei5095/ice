@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -11,7 +11,6 @@
 {
     var Ice = require("ice").Ice;
     var Test = require("Test").Test;
-    var TestAMD = require("TestAMD").TestAMD;
     var InitialI = require("InitialI").InitialI;
     var AMDInitialI = require("AMDInitialI").AMDInitialI;
     var Client = require("../optional/Client");
@@ -22,74 +21,54 @@
     var allTests = function(out, communicator, amd)
     {
         var base;
-        return Promise.try(
-            function()
+        return Promise.try(() =>
             {
                 base = communicator.stringToProxy("initial:default -p 12010");
                 return communicator.createObjectAdapter("");
             }
-        ).then(
-            function(adapter)
+        ).then(adapter =>
             {
                 if(amd)
                 {
-                    adapter.add(new AMDInitialI(), communicator.stringToIdentity("initial"));
+                    adapter.add(new AMDInitialI(), Ice.stringToIdentity("initial"));
                 }
                 else
                 {
-                    adapter.add(new InitialI(), communicator.stringToIdentity("initial"));
+                    adapter.add(new InitialI(), Ice.stringToIdentity("initial"));
                 }
-                return base.ice_getConnection().then(
-                    function(conn)
+                return base.ice_getConnection().then(conn =>
                     {
                         conn.setAdapter(adapter);
-                        return Client.__clientAllTests__(out, communicator, amd ? TestAMD : Test);
+                        return Client.__clientAllTests__(out, communicator, Test);
                     });
-            }
-        );
+            });
     };
 
     var run = function(out, id)
     {
         var communicator = null;
-        return Promise.try(
-            function()
+        return Promise.try(() =>
             {
                 communicator = Ice.initialize(id);
                 out.writeLine("testing bidir callbacks with synchronous dispatch...");
                 return allTests(out, communicator, false);
             }
-        ).then(
-            function()
-            {
-                return communicator.destroy();
-            }
-        ).then(
-            function()
+        ).then(() => communicator.destroy()
+        ).then(() =>
             {
                 communicator = Ice.initialize(id);
                 out.writeLine("testing bidir callbacks with asynchronous dispatch...");
                 return allTests(out, communicator, true);
             }
-        ).then(
-            function()
-            {
-                return communicator.destroy();
-            }
-        ).then(
-            function()
+        ).then(() => communicator.destroy()
+        ).then(() =>
             {
                 communicator = Ice.initialize(id);
                 var base = communicator.stringToProxy("__echo:default -p 12010");
                 return Test.EchoPrx.checkedCast(base);
             }
-        ).then(
-            function(prx)
-            {
-                return prx.shutdown();
-            }
-        ).finally(
-            function()
+        ).then(prx => prx.shutdown()
+        ).finally(() =>
             {
                 if(communicator)
                 {

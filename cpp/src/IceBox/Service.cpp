@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -100,7 +100,7 @@ IceBox::IceBoxService::start(int argc, char* argv[], int& status)
         return false;
     }
 
-    _serviceManager = new ServiceManagerI(communicator(), argc, argv);
+    _serviceManager = ICE_MAKE_SHARED(ServiceManagerI, communicator(), argc, argv);
 
     return _serviceManager->start();
 }

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,17 +8,17 @@
 // **********************************************************************
 
 package test.Ice.binding;
-import test.Ice.binding.Test._TestIntfDisp;
 
-public class TestI extends _TestIntfDisp
+import test.Ice.binding.Test.TestIntf;
+
+public class TestI implements TestIntf
 {
     TestI()
     {
     }
 
     @Override
-    public String
-    getAdapterName(Ice.Current current)
+    public String getAdapterName(com.zeroc.Ice.Current current)
     {
         return current.adapter.getName();
     }

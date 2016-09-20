@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -46,9 +46,9 @@ namespace Ice
         public byte[] bytes;
 
         /// <summary>
-        /// The Ice objects referenced by this slice.
+        /// The class instances referenced by this slice.
         /// </summary>
-        public Ice.Object[] objects;
+        public Value[] instances;
 
         /// <summary>
         /// Whether or not the slice contains optional members.

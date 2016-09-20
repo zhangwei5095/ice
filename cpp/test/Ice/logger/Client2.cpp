@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -42,9 +42,9 @@ main(int argc, char* argv[])
     // 28605 == ISO 8859-15 codepage
     //
     SetConsoleOutputCP(28605);
-    IceUtil::setProcessStringConverter(new IceUtil::WindowsStringConverter(1250));
+    setProcessStringConverter(Ice::createWindowsStringConverter(1250));
 #else
-    IceUtil::setProcessStringConverter(new IceUtil::IconvStringConverter<char>("ISO8859-15"));
+    setProcessStringConverter(Ice::createIconvStringConverter<char>("ISO8859-15"));
 #endif
     Ice::InitializationData id;
     id.properties = Ice::createProperties();

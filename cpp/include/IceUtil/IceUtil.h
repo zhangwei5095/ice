@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -40,10 +40,6 @@
 #include <IceUtil/Timer.h>
 #include <IceUtil/UUID.h>
 #include <IceUtil/UniquePtr.h>
-
-#ifndef _WIN32
-#   include <IceUtil/IconvStringConverter.h>
-#endif
 
 #include <IceUtil/PopDisableWarnings.h>
 #endif

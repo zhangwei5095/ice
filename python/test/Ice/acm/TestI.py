@@ -1,6 +1,6 @@
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -33,7 +33,7 @@ class RemoteObjectAdapterI(Test.RemoteObjectAdapter):
     def __init__(self, adapter):
         self._adapter = adapter
         self._testIntf = Test.TestIntfPrx.uncheckedCast(adapter.add(TestIntfI(),
-                                                        adapter.getCommunicator().stringToIdentity("test")))
+                                                        Ice.stringToIdentity("test")))
         adapter.activate()
 
     def getTestIntf(self, current=None):
@@ -79,7 +79,7 @@ class TestIntfI(Test.TestIntf):
 
     def waitForHeartbeat(self, count, current=None):
 
-        class ConnectionCallbackI(Ice.ConnectionCallback):
+        class ConnectionCallbackI():
 
             def __init__(self):
                 self.m = threading.Condition()
@@ -93,9 +93,6 @@ class TestIntfI(Test.TestIntf):
                 finally:
                     self.m.release()
 
-            def closed(self, con):
-                pass
-
             def waitForCount(self, count):
                 self.m.acquire()
                 self.count = count
@@ -106,6 +103,6 @@ class TestIntfI(Test.TestIntf):
                     self.m.release()
 
         callback = ConnectionCallbackI()
-        current.con.setCallback(callback)
+        current.con.setHeartbeatCallback(lambda con: callback.heartbeat(con))
         callback.waitForCount(2)
 

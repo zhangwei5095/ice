@@ -1,6 +1,6 @@
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -360,6 +360,8 @@ def allTests(communicator, collocated):
     sys.stdout.flush()
     test(communicator.identityToString(base.ice_identity(communicator.stringToIdentity("other")).ice_getIdentity()) \
          == "other")
+    test(Ice.identityToString(base.ice_identity(Ice.stringToIdentity("other")).ice_getIdentity()) == "other")
+    
     test(base.ice_facet("facet").ice_getFacet() == "facet")
     test(base.ice_adapterId("id").ice_getAdapterId() == "id")
     test(base.ice_twoway().ice_isTwoway())

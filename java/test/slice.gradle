@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -35,6 +35,7 @@ task testSliceTask {
                                                      'Ice/location/*.ice',
                                                      'Ice/metrics/*.ice',
                                                      'Ice/networkProxy/*.ice',
+                                                     'Ice/operations/*.ice',
                                                      'Ice/proxy/*.ice',
                                                      'Ice/retry/*.ice',
                                                      'Ice/seqMapping/*.ice',
@@ -47,6 +48,10 @@ task testSliceTask {
                                                      'Ice/throughput/*.ice',
                                                      'Ice/threadPoolPriority/*.ice',
                                                      'Ice/udp/*.ice',
+                                                     'Ice/objects/*.ice',
+                                                     'Ice/optional/*.ice',
+                                                     'Ice/stream/*.ice',
+                                                     'Ice/enums/*.ice',
                                                      'Glacier2/router/*.ice',
                                                      'Glacier2/sessionHelper/*.ice',
                                                      'IceDiscovery/simple/*.ice',
@@ -59,29 +64,18 @@ task testSliceTask {
                                                      'Slice/structure/*.ice'])
             }
             set2 {
-                args = "--tie"
-                files = fileTree(dir: testDir, includes:['Ice/operations/*.ice'])
-            }
-            set3 {
-                args = "--stream"
-                files = fileTree(dir: testDir, includes:['Ice/objects/*.ice',
-                                                     'Ice/optional/*.ice',
-                                                     'Ice/stream/*.ice',
-                                                     'Ice/enums/*.ice'])
-            }
-            set4 {
                 args = "--checksum test.Ice.checksum.Test.SliceChecksums"
                 files = fileTree(dir: testDir, includes:['Ice/checksum/Test.ice',
                                                      'Ice/checksum/Types.ice'])
             }
-            set5 {
-                include = ["${testDir}/Ice/packagemd"]
-                files = fileTree(dir: testDir, includes:['Ice/packagemd/*.ice'])
-            }
-            set6 {
+            set3 {
                 args = "--checksum test.Ice.checksum.server.Test.SliceChecksums"
                 files = fileTree(dir: testDir, includes:['Ice/checksum/TestServer.ice',
                                                      'Ice/checksum/TypesServer.ice'])
+            }
+            set4 {
+                include = ["${testDir}/Ice/packagemd"]
+                files = fileTree(dir: testDir, includes:['Ice/packagemd/*.ice'])
             }
         }
     }

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -38,21 +38,24 @@ namespace
 class UnknownManagerException : public Exception
 {
 public:
-    
+
     UnknownManagerException(const string& name, const char* file, int line) :
         Exception(file, line),
         name(name)
     {
     }
 
+#ifndef ICE_CPP11_COMPILER
     virtual
     ~UnknownManagerException() throw()
     {
     }
+#endif
+
     virtual string
-    ice_name() const
+    ice_id() const
     {
-        return "UnknownManagerException";
+        return "::UnknownManagerException";
     }
 
     virtual Exception*
@@ -60,7 +63,7 @@ public:
     {
         return new UnknownManagerException(*this);
     }
-    
+
     virtual void
     ice_throw() const
     {
@@ -156,8 +159,8 @@ Parser::link(const list<string>& args)
     }
 
     try
-    {    
-        list<string>::const_iterator p = args.begin(); 
+    {
+        list<string>::const_iterator p = args.begin();
 
         TopicPrx fromTopic = findTopic(*p++);
         TopicPrx toTopic = findTopic(*p++);
@@ -181,7 +184,7 @@ Parser::unlink(const list<string>& args)
     }
 
     try
-    {   
+    {
         list<string>::const_iterator p = args.begin();
 
         TopicPrx fromTopic = findTopic(*p++);
@@ -334,7 +337,7 @@ Parser::replica(const list<string>& args)
             }
             catch(const Exception& ex)
             {
-                cout << p->id << ": " << ex.ice_name() << endl;
+                cout << p->id << ": " << ex.ice_id() << endl;
             }
         }
     }
@@ -361,7 +364,7 @@ Parser::subscribers(const list<string>& args)
             IdentitySeq subscribers = topic->getSubscribers();
             for(IdentitySeq::const_iterator j = subscribers.begin(); j != subscribers.end(); ++j)
             {
-                cout << "\t" << _communicator->identityToString(*j) << endl;
+                cout << "\t" << identityToString(*j) << endl;
             }
         }
     }
@@ -376,7 +379,7 @@ Parser::current(const list<string>& args)
 {
     if(args.empty())
     {
-        cout << _communicator->identityToString(_defaultManager->ice_getIdentity()) << endl;
+        cout << identityToString(_defaultManager->ice_getIdentity()) << endl;
         return;
     }
     else if(args.size() > 1)
@@ -400,11 +403,11 @@ Parser::current(const list<string>& args)
 void
 Parser::showBanner()
 {
-    cout << "Ice " << ICE_STRING_VERSION << "  Copyright (c) 2003-2015 ZeroC, Inc." << endl;
+    cout << "Ice " << ICE_STRING_VERSION << "  Copyright (c) 2003-2016 ZeroC, Inc." << endl;
 }
 
 //
-// With older flex version <= 2.5.35 YY_INPUT second 
+// With older flex version <= 2.5.35 YY_INPUT second
 // paramenter is of type int&, in newer versions it
 // changes to size_t&
 //
@@ -492,7 +495,7 @@ Parser::getInput(char* buf, size_t& result, size_t maxSize)
                 break;
             }
         }
-        
+
         result = line.length();
         if(result > maxSize)
         {
@@ -615,7 +618,7 @@ Parser::parse(const std::string& commands, bool debug)
 TopicManagerPrx
 Parser::findManagerById(const string& full, string& arg) const
 {
-    Ice::Identity id = _communicator->stringToIdentity(full);
+    Ice::Identity id = stringToIdentity(full);
     arg = id.name;
     if(id.category.empty())
     {

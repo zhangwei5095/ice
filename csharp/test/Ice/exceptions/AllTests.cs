@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -11,18 +11,6 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 using Test;
-
-#if SILVERLIGHT
-using System.Net;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Documents;
-using System.Windows.Ink;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
-using System.Windows.Shapes;
-#endif
 
 public class AllTests : TestCommon.TestApp
 {
@@ -39,7 +27,7 @@ public class AllTests : TestCommon.TestApp
             {
                 while(!_called)
                 {
-                    System.Threading.Monitor.Wait(this);
+                    Monitor.Wait(this);
                 }
 
                 _called = false;
@@ -52,36 +40,16 @@ public class AllTests : TestCommon.TestApp
             {
                 Debug.Assert(!_called);
                 _called = true;
-                System.Threading.Monitor.Pulse(this);
+                Monitor.Pulse(this);
             }
         }
 
         private bool _called;
     }
 
-#if SILVERLIGHT
-    public override Ice.InitializationData initData()
-    {
-        Ice.InitializationData initData = new Ice.InitializationData();
-        initData.properties = Ice.Util.createProperties();
-        WriteLine("setting Ice.FactoryAssemblies");
-        initData.properties.setProperty("Ice.FactoryAssemblies", "exceptions,version=1.0.0.0");
-        initData.properties.setProperty("Ice.MessageSizeMax", "10");
-	initData.properties.setProperty("Ice.Warn.Connections", "0");
-        return initData;
-    }
 
-    override
-    public void run(Ice.Communicator communicator)
-#else
     public static ThrowerPrx allTests(Ice.Communicator communicator)
-#endif
     {
-#if SILVERLIGHT
-        WriteLine("Ice.FactoryAssemblies: " + communicator.getProperties().getProperty("Ice.FactoryAssemblies"));
-#endif
-
-#if !SILVERLIGHT
         {
             Write("testing object adapter registration exceptions... ");
             Ice.ObjectAdapter first;
@@ -130,10 +98,10 @@ public class AllTests : TestCommon.TestApp
             communicator.getProperties().setProperty("TestAdapter1.Endpoints", "default");
             Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter1");
             Ice.Object obj = new EmptyI();
-            adapter.add(obj, communicator.stringToIdentity("x"));
+            adapter.add(obj, Ice.Util.stringToIdentity("x"));
             try
             {
-                adapter.add(obj, communicator.stringToIdentity("x"));
+                adapter.add(obj, Ice.Util.stringToIdentity("x"));
                 test(false);
             }
             catch(Ice.AlreadyRegisteredException)
@@ -142,7 +110,7 @@ public class AllTests : TestCommon.TestApp
 
             try
             {
-                adapter.add(obj, communicator.stringToIdentity(""));
+                adapter.add(obj, Ice.Util.stringToIdentity(""));
                 test(false);
             }
             catch(Ice.IllegalIdentityException e)
@@ -152,17 +120,17 @@ public class AllTests : TestCommon.TestApp
 
             try
             {
-                adapter.add(null, communicator.stringToIdentity("x"));
+                adapter.add(null, Ice.Util.stringToIdentity("x"));
                 test(false);
             }
             catch(Ice.IllegalServantException)
             {
             }
 
-            adapter.remove(communicator.stringToIdentity("x"));
+            adapter.remove(Ice.Util.stringToIdentity("x"));
             try
             {
-                adapter.remove(communicator.stringToIdentity("x"));
+                adapter.remove(Ice.Util.stringToIdentity("x"));
                 test(false);
             }
             catch(Ice.NotRegisteredException)
@@ -190,14 +158,13 @@ public class AllTests : TestCommon.TestApp
             adapter.deactivate();
             WriteLine("ok");
         }
-#endif
+
         {
             Write("testing object factory registration exception... ");
-            Ice.ObjectFactory of = new ObjectFactoryI();
-            communicator.addObjectFactory(of, "::x");
+            communicator.getValueFactoryManager().add( _ => { return null; }, "::x");
             try
             {
-                communicator.addObjectFactory(of, "::x");
+                communicator.getValueFactoryManager().add( _ => { return null; }, "::x");
                 test(false);
             }
             catch(Ice.AlreadyRegisteredException)
@@ -233,8 +200,9 @@ public class AllTests : TestCommon.TestApp
         {
             test(ex.aMem == 1);
         }
-        catch(Exception)
+        catch(Exception ex)
         {
+            System.Console.WriteLine(ex);
             test(false);
         }
 
@@ -254,7 +222,7 @@ public class AllTests : TestCommon.TestApp
 
         try
         {
-            thrower.throwAorDasAorD(- 1);
+            thrower.throwAorDasAorD(-1);
             test(false);
         }
         catch(D ex)
@@ -489,7 +457,7 @@ public class AllTests : TestCommon.TestApp
         Flush();
 
         {
-            Ice.Identity id = communicator.stringToIdentity("does not exist");
+            Ice.Identity id = Ice.Util.stringToIdentity("does not exist");
             try
             {
                 ThrowerPrx thrower2 = ThrowerPrxHelper.uncheckedCast(thrower.ice_identity(id));
@@ -674,7 +642,7 @@ public class AllTests : TestCommon.TestApp
                     {
                         test(false);
                     }
-                    cb.called();                
+                    cb.called();
                 });
             cb.check();
         }
@@ -941,7 +909,7 @@ public class AllTests : TestCommon.TestApp
         Flush();
 
         {
-            Ice.Identity id = communicator.stringToIdentity("does not exist");
+            Ice.Identity id = Ice.Util.stringToIdentity("does not exist");
             ThrowerPrx thrower2 = ThrowerPrxHelper.uncheckedCast(thrower.ice_identity(id));
             Callback cb = new Callback();
             thrower2.begin_throwAasA(1).whenCompleted(
@@ -1125,7 +1093,6 @@ public class AllTests : TestCommon.TestApp
 
         WriteLine("ok");
 
-        // ----------------------------------------
         if(thrower.supportsUndeclaredExceptions())
         {
             Write("catching unknown user exception with new AMI mapping... ");
@@ -1213,7 +1180,7 @@ public class AllTests : TestCommon.TestApp
         Flush();
 
         {
-            Ice.Identity id = communicator.stringToIdentity("does not exist");
+            Ice.Identity id = Ice.Util.stringToIdentity("does not exist");
             ThrowerPrx thrower2 = ThrowerPrxHelper.uncheckedCast(thrower.ice_identity(id));
             Callback cb = new Callback();
             thrower2.begin_throwAasA(1).whenCompleted(
@@ -1396,10 +1363,6 @@ public class AllTests : TestCommon.TestApp
         }
 
         WriteLine("ok");
-#if SILVERLIGHT
-        thrower.shutdown();
-#else
         return thrower;
-#endif
     }
 }

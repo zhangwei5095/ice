@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -22,12 +22,12 @@ public class Server
     public static int run(string[] args, Ice.Communicator communicator)
     {
         Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
-        adapter.add(new MetricsI(), communicator.stringToIdentity("metrics"));
+        adapter.add(new MetricsI(), Ice.Util.stringToIdentity("metrics"));
         adapter.activate();
 
         communicator.getProperties().setProperty("ControllerAdapter.Endpoints", "default -p 12011");
         Ice.ObjectAdapter controllerAdapter = communicator.createObjectAdapter("ControllerAdapter");
-        controllerAdapter.add(new ControllerI(adapter), communicator.stringToIdentity("controller"));
+        controllerAdapter.add(new ControllerI(adapter), Ice.Util.stringToIdentity("controller"));
         controllerAdapter.activate();
 
         communicator.waitForShutdown();
@@ -38,11 +38,7 @@ public class Server
     {
         int status = 0;
         Ice.Communicator communicator = null;
-
-#if !COMPACT
         Debug.Listeners.Add(new ConsoleTraceListener());
-#endif
-
         try
         {
             Ice.InitializationData initData = new Ice.InitializationData();
@@ -58,7 +54,7 @@ public class Server
             communicator = Ice.Util.initialize(ref args, initData);
             status = run(args, communicator);
         }
-        catch(System.Exception ex)
+        catch(Exception ex)
         {
             Console.Error.WriteLine(ex);
             status = 1;

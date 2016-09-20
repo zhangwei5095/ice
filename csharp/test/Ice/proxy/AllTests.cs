@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -9,20 +9,10 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-
-#if SILVERLIGHT
-using System.Windows.Controls;
-#endif
 
 public class AllTests : TestCommon.TestApp
 {
-#if SILVERLIGHT
-    override
-    public void run(Ice.Communicator communicator)
-#else
     public static Test.MyClassPrx allTests(Ice.Communicator communicator)
-#endif
     {
         Write("testing stringToProxy... ");
         Flush();
@@ -264,11 +254,11 @@ public class AllTests : TestCommon.TestApp
         // Test for bug ICE-5543: escaped escapes in stringToIdentity
         //
         Ice.Identity id = new Ice.Identity("test", ",X2QNUAzSBcJ_e$AV;E\\");
-        Ice.Identity id2 = communicator.stringToIdentity(communicator.identityToString(id));
+        Ice.Identity id2 = Ice.Util.stringToIdentity(Ice.Util.identityToString(id));
         test(id.Equals(id2));
 
         id = new Ice.Identity("test", ",X2QNUAz\\SB\\/cJ_e$AV;E\\\\");
-        id2 = communicator.stringToIdentity(communicator.identityToString(id));
+        id2 = Ice.Util.stringToIdentity(Ice.Util.identityToString(id));
         test(id.Equals(id2));
 
         WriteLine("ok");
@@ -282,7 +272,7 @@ public class AllTests : TestCommon.TestApp
         test(b1.ice_getIdentity().name.Equals("test") && b1.ice_getIdentity().category.Length == 0 &&
              b1.ice_getAdapterId().Length == 0 && b1.ice_getFacet().Length == 0);
 
-        String property;
+        string property;
 
         property = propertyPrefix + ".Locator";
         test(b1.ice_getLocator() == null);
@@ -291,11 +281,11 @@ public class AllTests : TestCommon.TestApp
         test(b1.ice_getLocator() != null && b1.ice_getLocator().ice_getIdentity().name.Equals("locator"));
         try
         {
-                prop.setProperty(property, "");
+            prop.setProperty(property, "");
         }
         catch(Exception ex)
         {
-                System.Console.WriteLine(ex.ToString());
+            Console.WriteLine(ex.ToString());
         }
         property = propertyPrefix + ".LocatorCacheTimeout";
         test(b1.ice_getLocatorCacheTimeout() == -1);
@@ -460,8 +450,14 @@ public class AllTests : TestCommon.TestApp
         WriteLine("ok");
 
         Write("testing proxy methods... ");
+
+// Disable Obsolete warning/error
+#pragma warning disable 612, 618
         test(communicator.identityToString(
                  baseProxy.ice_identity(communicator.stringToIdentity("other")).ice_getIdentity()).Equals("other"));
+#pragma warning restore 612, 618
+        test(Ice.Util.identityToString(
+                 baseProxy.ice_identity(Ice.Util.stringToIdentity("other")).ice_getIdentity()).Equals("other"));
         test(baseProxy.ice_facet("facet").ice_getFacet().Equals("facet"));
         test(baseProxy.ice_adapterId("id").ice_getAdapterId().Equals("id"));
         test(baseProxy.ice_twoway().ice_isTwoway());
@@ -481,7 +477,7 @@ public class AllTests : TestCommon.TestApp
             baseProxy.ice_timeout(0);
             test(false);
         }
-        catch(System.ArgumentException)
+        catch(ArgumentException)
         {
         }
 
@@ -489,7 +485,7 @@ public class AllTests : TestCommon.TestApp
         {
             baseProxy.ice_timeout(-1);
         }
-        catch(System.ArgumentException)
+        catch(ArgumentException)
         {
             test(false);
         }
@@ -499,7 +495,7 @@ public class AllTests : TestCommon.TestApp
             baseProxy.ice_timeout(-2);
             test(false);
         }
-        catch(System.ArgumentException)
+        catch(ArgumentException)
         {
         }
 
@@ -508,7 +504,7 @@ public class AllTests : TestCommon.TestApp
             baseProxy.ice_invocationTimeout(0);
             test(false);
         }
-        catch(System.ArgumentException)
+        catch(ArgumentException)
         {
         }
 
@@ -517,7 +513,7 @@ public class AllTests : TestCommon.TestApp
             baseProxy.ice_invocationTimeout(-1);
             baseProxy.ice_invocationTimeout(-2);
         }
-        catch(System.ArgumentException)
+        catch(ArgumentException)
         {
             test(false);
         }
@@ -527,7 +523,7 @@ public class AllTests : TestCommon.TestApp
             baseProxy.ice_invocationTimeout(-3);
             test(false);
         }
-        catch(System.ArgumentException)
+        catch(ArgumentException)
         {
         }
 
@@ -535,7 +531,7 @@ public class AllTests : TestCommon.TestApp
         {
             baseProxy.ice_locatorCacheTimeout(0);
         }
-        catch(System.ArgumentException)
+        catch(ArgumentException)
         {
             test(false);
         }
@@ -544,7 +540,7 @@ public class AllTests : TestCommon.TestApp
         {
             baseProxy.ice_locatorCacheTimeout(-1);
         }
-        catch(System.ArgumentException)
+        catch(ArgumentException)
         {
             test(false);
         }
@@ -554,7 +550,7 @@ public class AllTests : TestCommon.TestApp
             baseProxy.ice_locatorCacheTimeout(-2);
             test(false);
         }
-        catch(System.ArgumentException)
+        catch(ArgumentException)
         {
         }
 
@@ -713,7 +709,7 @@ public class AllTests : TestCommon.TestApp
         {
             // Send request with bogus 1.2 encoding.
             Ice.EncodingVersion version = new Ice.EncodingVersion(1, 2);
-            Ice.OutputStream os = Ice.Util.createOutputStream(communicator);
+            Ice.OutputStream os = new Ice.OutputStream(communicator);
             os.startEncapsulation();
             os.endEncapsulation();
             byte[] inEncaps = os.finished();
@@ -734,7 +730,7 @@ public class AllTests : TestCommon.TestApp
         {
             // Send request with bogus 2.0 encoding.
             Ice.EncodingVersion version = new Ice.EncodingVersion(2, 0);
-            Ice.OutputStream os = Ice.Util.createOutputStream(communicator);
+            Ice.OutputStream os = new Ice.OutputStream(communicator);
             os.startEncapsulation();
             os.endEncapsulation();
             byte[] inEncaps = os.finished();
@@ -931,10 +927,6 @@ public class AllTests : TestCommon.TestApp
         }
 
         WriteLine("ok");
-#if SILVERLIGHT
-        cl.shutdown();
-#else
         return cl;
-#endif
     }
 }

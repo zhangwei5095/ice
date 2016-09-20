@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -15,15 +15,6 @@ namespace IceInternal
     using System.Net.Sockets;
     using System.Security.Cryptography;
     using System.Text;
-
-    //
-    // Delegate interface implemented by TcpTransceiver or IceSSL.TransceiverI or any endpoint that WS can
-    // delegate to.
-    //
-    public interface WSTransceiverDelegate
-    {
-        Ice.ConnectionInfo getWSInfo(Dictionary<string, string> headers);
-    };
 
     sealed class WSTransceiver : Transceiver
     {
@@ -70,9 +61,7 @@ namespace IceInternal
                         //
                         StringBuilder @out = new StringBuilder();
                         @out.Append("GET " + _resource + " HTTP/1.1\r\n");
-                        @out.Append("Host: " + _host + ":");
-                        @out.Append(_port);
-                        @out.Append("\r\n");
+                        @out.Append("Host: " + _host + "\r\n");
                         @out.Append("Upgrade: websocket\r\n");
                         @out.Append("Connection: Upgrade\r\n");
                         @out.Append("Sec-WebSocket-Protocol: " + _iceProtocol + "\r\n");
@@ -665,8 +654,10 @@ namespace IceInternal
 
         public Ice.ConnectionInfo getInfo()
         {
-            Debug.Assert(_delegate is WSTransceiverDelegate);
-            return ((WSTransceiverDelegate)_delegate).getWSInfo(_parser.getHeaders());
+            Ice.WSConnectionInfo info = new Ice.WSConnectionInfo();
+            info.headers = _parser.getHeaders();
+            info.underlying = _delegate.getInfo();
+            return info;
         }
 
         public void checkSendSize(Buffer buf)
@@ -690,11 +681,10 @@ namespace IceInternal
         }
 
         internal
-        WSTransceiver(ProtocolInstance instance, Transceiver del, string host, int port, string resource)
+        WSTransceiver(ProtocolInstance instance, Transceiver del, string host, string resource)
         {
             init(instance, del);
             _host = host;
-            _port = port;
             _resource = resource;
             _incoming = false;
 
@@ -718,7 +708,6 @@ namespace IceInternal
         {
             init(instance, del);
             _host = "";
-            _port = -1;
             _resource = "";
             _incoming = true;
 
@@ -875,12 +864,7 @@ namespace IceInternal
             //
             @out.Append("Sec-WebSocket-Accept: ");
             string input = key + _wsUUID;
-#if SILVERLIGHT
-            SHA1Managed sha1 = new SHA1Managed();
-            byte[] hash = sha1.ComputeHash(_utf8.GetBytes(input));
-#else
             byte[] hash = SHA1.Create().ComputeHash(_utf8.GetBytes(input));
-#endif
             @out.Append(IceUtilInternal.Base64.encode(hash) + "\r\n" + "\r\n"); // EOM
 
             byte[] bytes = _utf8.GetBytes(@out.ToString());
@@ -982,12 +966,7 @@ namespace IceInternal
             }
 
             string input = _key + _wsUUID;
-#if SILVERLIGHT
-            SHA1Managed sha1 = new SHA1Managed();
-            byte[] hash = sha1.ComputeHash(_utf8.GetBytes(input));
-#else
             byte[] hash = SHA1.Create().ComputeHash(_utf8.GetBytes(input));
-#endif
             if(!val.Equals(IceUtilInternal.Base64.encode(hash)))
             {
                 throw new WebSocketException("invalid value `" + val + "' for Sec-WebSocket-Accept");
@@ -1629,7 +1608,6 @@ namespace IceInternal
         private ProtocolInstance _instance;
         private Transceiver _delegate;
         private string _host;
-        private int _port;
         private string _resource;
         private bool _incoming;
 

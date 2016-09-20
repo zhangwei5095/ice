@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -28,14 +28,10 @@ namespace
 {
 
 void
-halt(const Ice::CommunicatorPtr& com, const IceDB::LMDBException& ex)
+logError(const Ice::CommunicatorPtr& com, const IceDB::LMDBException& ex)
 {
-    {
-        Ice::Error error(com->getLogger());
-        error << "fatal exception: " << ex << "\n*** Aborting application ***";
-    }
-
-    abort();
+    Ice::Error error(com->getLogger());
+    error << "LMDB error: " << ex;
 }
 
 class TopicManagerI : public TopicManagerInternal
@@ -347,7 +343,7 @@ TopicManagerImpl::create(const string& name)
         throw ex;
     }
 
-    // Identity is instanceName>/topic.<topicname>
+    // Identity is <instanceName>/topic.<topicname>
     Ice::Identity id = nameToIdentity(_instance, name);
 
     LogUpdate llu;
@@ -367,16 +363,10 @@ TopicManagerImpl::create(const string& name)
 
         txn.commit();
     }
-    catch(const IceDB::KeyTooLongException&)
-    {
-        ostringstream os;
-        os << "topic name is too long: ";
-        os << name;
-        throw InvalidTopic(os.str());
-    }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_instance->communicator(), ex);
+        logError(_instance->communicator(), ex);
+        throw; // will become UnknownException in caller
     }
 
     _instance->observers()->createTopic(llu, name);
@@ -431,14 +421,14 @@ TopicManagerImpl::observerInit(const LogUpdate& llu, const TopicContentSeq& cont
         out << "init";
         for(TopicContentSeq::const_iterator p = content.begin(); p != content.end(); ++p)
         {
-            out << " topic: " << _instance->communicator()->identityToString(p->id) << " subscribers: ";
+            out << " topic: " << identityToString(p->id) << " subscribers: ";
             for(SubscriberRecordSeq::const_iterator q = p->records.begin(); q != p->records.end(); ++q)
             {
                 if(q != p->records.begin())
                 {
                     out << ",";
                 }
-                out << _instance->communicator()->identityToString(q->id);
+                out << identityToString(q->id);
                 if(traceLevels->topicMgr > 1)
                 {
                     out << " endpoints: " << IceStormInternal::describeEndpoints(q->obj);
@@ -480,7 +470,8 @@ TopicManagerImpl::observerInit(const LogUpdate& llu, const TopicContentSeq& cont
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_instance->communicator(), ex);
+        logError(_instance->communicator(), ex);
+        throw; // will become UnknownException in caller
     }
 
     // We do this with two scans. The first runs through the topics
@@ -564,8 +555,10 @@ TopicManagerImpl::observerCreateTopic(const LogUpdate& llu, const string& name)
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_instance->communicator(), ex);
+        logError(_instance->communicator(), ex);
+        throw; // will become UnknownException in caller
     }
+
     installTopic(name, id, true);
 }
 
@@ -642,7 +635,8 @@ TopicManagerImpl::getContent(LogUpdate& llu, TopicContentSeq& content)
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_instance->communicator(), ex);
+        logError(_instance->communicator(), ex);
+        throw; // will become UnknownException in caller
     }
 }
 
@@ -657,8 +651,10 @@ TopicManagerImpl::getLastLogUpdate() const
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_instance->communicator(), ex);
+        logError(_instance->communicator(), ex);
+        throw; // will become UnknownException in caller
     }
+
     return llu;
 }
 
@@ -712,7 +708,8 @@ TopicManagerImpl::initMaster(const set<GroupNodeInfo>& slaves, const LogUpdate& 
     }
     catch(const IceDB::LMDBException& ex)
     {
-        halt(_instance->communicator(), ex);
+        logError(_instance->communicator(), ex);
+        throw; // will become UnknownException in caller
     }
 
     // Now initialize the observers.
@@ -806,7 +803,7 @@ TopicManagerImpl::installTopic(const string& name, const Ice::Identity& id, bool
         if(create)
         {
             out << "creating new topic \"" << name << "\". id: "
-                << _instance->communicator()->identityToString(id)
+                << identityToString(id)
                 << " subscribers: ";
             for(SubscriberRecordSeq::const_iterator q = subscribers.begin(); q != subscribers.end(); ++q)
             {
@@ -816,7 +813,7 @@ TopicManagerImpl::installTopic(const string& name, const Ice::Identity& id, bool
                 }
                 if(traceLevels->topicMgr > 1)
                 {
-                    out << _instance->communicator()->identityToString(q->id)
+                    out << identityToString(q->id)
                         << " endpoints: " << IceStormInternal::describeEndpoints(q->obj);
                 }
             }
@@ -824,7 +821,7 @@ TopicManagerImpl::installTopic(const string& name, const Ice::Identity& id, bool
         else
         {
             out << "loading topic \"" << name << "\" from database. id: "
-                << _instance->communicator()->identityToString(id)
+                << identityToString(id)
                 << " subscribers: ";
             for(SubscriberRecordSeq::const_iterator q = subscribers.begin(); q != subscribers.end(); ++q)
             {
@@ -834,7 +831,7 @@ TopicManagerImpl::installTopic(const string& name, const Ice::Identity& id, bool
                 }
                 if(traceLevels->topicMgr > 1)
                 {
-                    out << _instance->communicator()->identityToString(q->id)
+                    out << identityToString(q->id)
                         << " endpoints: " << IceStormInternal::describeEndpoints(q->obj);
                 }
             }

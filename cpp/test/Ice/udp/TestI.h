@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -11,14 +11,15 @@
 #define TEST_I_H
 
 #include <Test.h>
+#include <TestCommon.h>
 
 class TestIntfI : public Test::TestIntf
 {
 public:
 
-    virtual void ping(const Test::PingReplyPrx&, const Ice::Current&);
-    virtual void sendByteSeq(const Test::ByteSeq&, const Test::PingReplyPrx&, const Ice::Current&);
-    virtual void pingBiDir(const Ice::Identity&, const Ice::Current&);
+    virtual void ping(ICE_IN(Test::PingReplyPrxPtr), const Ice::Current&);
+    virtual void sendByteSeq(ICE_IN(Test::ByteSeq), ICE_IN(Test::PingReplyPrxPtr), const Ice::Current&);
+    virtual void pingBiDir(ICE_IN(Ice::Identity), const Ice::Current&);
     virtual void shutdown(const Ice::Current&);
 };
 

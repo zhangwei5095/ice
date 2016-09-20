@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -31,5 +31,8 @@ extern "C" PyObject* IcePy_initialize(PyObject*, PyObject*);
 extern "C" PyObject* IcePy_initializeWithProperties(PyObject*, PyObject*);
 extern "C" PyObject* IcePy_initializeWithLogger(PyObject*, PyObject*);
 extern "C" PyObject* IcePy_initializeWithPropertiesAndLogger(PyObject*, PyObject*);
+
+extern "C" PyObject* IcePy_identityToString(PyObject*, PyObject*);
+extern "C" PyObject* IcePy_stringToIdentity(PyObject*, PyObject*);
 
 #endif

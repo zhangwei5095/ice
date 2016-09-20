@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -92,7 +92,7 @@ Client::run(int argc, char* argv[])
     }
 
 
-    ObjectPrx base = communicator()->propertyToProxy("IceBoxAdmin.ServiceManager.Proxy");
+    ObjectPrxPtr base = communicator()->propertyToProxy("IceBoxAdmin.ServiceManager.Proxy");
 
     if(base == 0)
     {
@@ -116,7 +116,7 @@ Client::run(int argc, char* argv[])
                 return EXIT_FAILURE;
             }
 
-            managerProxy = "\"" + communicator()->identityToString(managerIdentity) + "\" :" + managerEndpoints;
+            managerProxy = "\"" + identityToString(managerIdentity) + "\" :" + managerEndpoints;
         }
         else
         {
@@ -127,13 +127,13 @@ Client::run(int argc, char* argv[])
                 return EXIT_FAILURE;
             }
 
-            managerProxy = "\"" + communicator()->identityToString(managerIdentity) + "\" @" + managerAdapterId;
+            managerProxy = "\"" + identityToString(managerIdentity) + "\" @" + managerAdapterId;
         }
 
         base = communicator()->stringToProxy(managerProxy);
     }
 
-    IceBox::ServiceManagerPrx manager = IceBox::ServiceManagerPrx::checkedCast(base);
+    IceBox::ServiceManagerPrxPtr manager = ICE_CHECKED_CAST(IceBox::ServiceManagerPrx, base);
     if(!manager)
     {
         cerr << appName() << ": `" << base << "' is not an IceBox::ServiceManager" << endl;

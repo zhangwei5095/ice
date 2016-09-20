@@ -1,21 +1,17 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
 
-#define TRACE
-
 namespace Ice
 {
     using System.Diagnostics;
     using System.Globalization;
-#if !SILVERLIGHT && !UNITY
     using System.IO;
-#endif
 
     public abstract class LoggerI : Logger
     {
@@ -120,7 +116,6 @@ namespace Ice
         }
     }
 
-#if !SILVERLIGHT && !UNITY
     public sealed class FileLoggerI : LoggerI
     {
         public FileLoggerI(string prefix, string file) :
@@ -145,8 +140,6 @@ namespace Ice
         private TextWriter _writer;
     }
 
-
-#  if !COMPACT
     public class ConsoleListener : TraceListener
     {
         public ConsoleListener()
@@ -259,6 +252,4 @@ namespace Ice
         private bool _console;
         internal static ConsoleListener _consoleListener = new ConsoleListener();
     }
-#  endif
-#endif
 }

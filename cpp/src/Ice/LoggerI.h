@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -11,8 +11,8 @@
 #define ICE_LOGGER_I_H
 
 #include <Ice/Logger.h>
-#include <IceUtil/FileUtil.h>
-#include <IceUtil/StringConverter.h>
+#include <Ice/StringConverter.h>
+#include <fstream>
 
 namespace Ice
 {
@@ -21,8 +21,7 @@ class LoggerI : public Logger
 {
 public:
 
-    LoggerI(const std::string&, const std::string&, bool convert = true,
-            const IceUtil::StringConverterPtr& converter = 0);
+    LoggerI(const std::string&, const std::string&, bool convert = true, std::size_t sizeMax = 0);
     ~LoggerI();
 
     virtual void print(const std::string&);
@@ -39,18 +38,23 @@ private:
     const std::string _prefix;
     std::string _formattedPrefix;
     const bool _convert;
-    const IceUtil::StringConverterPtr _converter;
-    IceUtilInternal::ofstream _out;
+    const StringConverterPtr _converter;
+    std::ofstream _out;
 
     std::string _file;
+    std::size_t _sizeMax;
 
+    //
+    // In case of a log file rename failure is set to the time in milliseconds
+    // after which rename could be attempted again. Otherwise is set to zero.
+    //
+    IceUtil::Time _nextRetry;
 #if defined(_WIN32) && !defined(ICE_OS_WINRT)
-    const IceUtil::StringConverterPtr _consoleConverter;
+    const StringConverterPtr _consoleConverter;
 #endif
 
 };
-
-typedef IceUtil::Handle<LoggerI> LoggerIPtr;
+ICE_DEFINE_PTR(LoggerIPtr, LoggerI);
 
 }
 

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -27,6 +27,7 @@
 #include <Ice/EndpointI.h>
 #include <Ice/InstrumentationF.h>
 #include <Ice/ACMF.h>
+#include <Ice/Comparable.h>
 
 #include <list>
 #include <set>
@@ -36,18 +37,18 @@ namespace Ice
 
 class LocalException;
 class ObjectAdapterI;
-typedef IceUtil::Handle<ObjectAdapterI> ObjectAdapterIPtr;
+ICE_DEFINE_PTR(ObjectAdapterIPtr, ObjectAdapterI);
 
 }
 
 namespace IceInternal
 {
 
-class OutgoingConnectionFactory : virtual public IceUtil::Shared, public IceUtil::Monitor<IceUtil::Mutex>
+class OutgoingConnectionFactory : public virtual IceUtil::Shared, public IceUtil::Monitor<IceUtil::Mutex>
 {
 public:
 
-    class CreateConnectionCallback : virtual public IceUtil::Shared
+    class CreateConnectionCallback : public virtual IceUtil::Shared
     {
     public:
 
@@ -62,17 +63,16 @@ public:
 
     void waitUntilFinished();
 
-    void create(const std::vector<EndpointIPtr>&, bool, Ice::EndpointSelectionType,
-                const CreateConnectionCallbackPtr&);
+    void create(const std::vector<EndpointIPtr>&, bool, Ice::EndpointSelectionType, const CreateConnectionCallbackPtr&);
     void setRouterInfo(const RouterInfoPtr&);
     void removeAdapter(const Ice::ObjectAdapterPtr&);
     void flushAsyncBatchRequests(const CommunicatorFlushBatchAsyncPtr&);
 
-private:
-
     OutgoingConnectionFactory(const Ice::CommunicatorPtr&, const InstancePtr&);
     virtual ~OutgoingConnectionFactory();
     friend class Instance;
+
+private:
 
     struct ConnectorInfo
     {
@@ -86,7 +86,12 @@ private:
         EndpointIPtr endpoint;
     };
 
-    class ConnectCallback : public Ice::ConnectionI::StartCallback, public IceInternal::EndpointI_connectors
+    class ConnectCallback : public Ice::ConnectionI::StartCallback,
+                            public IceInternal::EndpointI_connectors
+#ifdef ICE_CPP11_MAPPING
+                          , public std::enable_shared_from_this<ConnectCallback>
+#endif
+
     {
     public:
 
@@ -116,6 +121,8 @@ private:
 
     private:
 
+        bool connectionStartFailedImpl(const Ice::LocalException&);
+
         const InstancePtr _instance;
         const OutgoingConnectionFactoryPtr _factory;
         const std::vector<EndpointIPtr> _endpoints;
@@ -127,7 +134,7 @@ private:
         std::vector<ConnectorInfo> _connectors;
         std::vector<ConnectorInfo>::const_iterator _iter;
     };
-    typedef IceUtil::Handle<ConnectCallback> ConnectCallbackPtr;
+    ICE_DEFINE_PTR(ConnectCallbackPtr, ConnectCallback);
     friend class ConnectCallback;
 
     std::vector<EndpointIPtr> applyOverrides(const std::vector<EndpointIPtr>&);
@@ -156,7 +163,11 @@ private:
     std::multimap<ConnectorPtr, Ice::ConnectionIPtr> _connections;
     std::map<ConnectorPtr, std::set<ConnectCallbackPtr> > _pending;
 
+#ifdef ICE_CPP11_MAPPING
+    std::multimap<EndpointIPtr, Ice::ConnectionIPtr, Ice::TargetCompare<EndpointIPtr, std::less>> _connectionsByEndpoint;
+#else
     std::multimap<EndpointIPtr, Ice::ConnectionIPtr> _connectionsByEndpoint;
+#endif
     int _pendingConnectCount;
 };
 
@@ -201,11 +212,19 @@ public:
     virtual void connectionStartCompleted(const Ice::ConnectionIPtr&);
     virtual void connectionStartFailed(const Ice::ConnectionIPtr&, const Ice::LocalException&);
 
-private:
-
     IncomingConnectionFactory(const InstancePtr&, const EndpointIPtr&, const Ice::ObjectAdapterIPtr&);
     void initialize();
     virtual ~IncomingConnectionFactory();
+
+#ifdef ICE_CPP11_MAPPING
+    std::shared_ptr<IncomingConnectionFactory> shared_from_this()
+    {
+        return std::static_pointer_cast<IncomingConnectionFactory>(EventHandler::shared_from_this());
+    }
+#endif
+
+private:
+
     friend class Ice::ObjectAdapterI;
 
     enum State
@@ -233,11 +252,8 @@ private:
 #endif
 
     Ice::ObjectAdapterIPtr _adapter;
-
     const bool _warn;
-
     std::set<Ice::ConnectionIPtr> _connections;
-
     State _state;
 };
 

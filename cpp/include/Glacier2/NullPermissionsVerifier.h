@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -16,10 +16,10 @@
 #include <vector>
 
 #ifndef GLACIER2_API
-#   ifdef GLACIER2_API_EXPORTS
-#       define GLACIER2_API ICE_DECLSPEC_EXPORT
-#   elif defined(ICE_STATIC_LIBS)
+#   if defined(ICE_STATIC_LIBS)
 #       define GLACIER2_API /**/
+#   elif defined(GLACIER2_API_EXPORTS)
+#       define GLACIER2_API ICE_DECLSPEC_EXPORT
 #   else
 #       define GLACIER2_API ICE_DECLSPEC_IMPORT
 #   endif

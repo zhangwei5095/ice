@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -10,7 +10,7 @@
 #ifndef GEN_H
 #define GEN_H
 
-#include <Slice/ObjCUtil.h>
+#include <ObjCUtil.h>
 
 namespace Slice
 {
@@ -30,6 +30,7 @@ protected:
     virtual std::string getName(const OperationPtr&) const;
     virtual std::string getSelector(const OperationPtr&) const;
     virtual std::string getParams(const OperationPtr&) const;
+    virtual std::string getBlockParams(const OperationPtr&) const;
     virtual std::string getMarshalParams(const OperationPtr&) const;
     virtual std::string getUnmarshalParams(const OperationPtr&) const;
     virtual std::string getServerParams(const OperationPtr&) const;

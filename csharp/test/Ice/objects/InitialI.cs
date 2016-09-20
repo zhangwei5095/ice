@@ -1,15 +1,16 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
 
+using System.Threading.Tasks;
 using Test;
 
-public sealed class InitialI : Initial
+public sealed class InitialI : InitialDisp_
 {
     public InitialI(Ice.ObjectAdapter adapter)
     {
@@ -43,7 +44,7 @@ public sealed class InitialI : Initial
         c = _c;
         d = _d;
     }
-
+    
     public override B getB1(Ice.Current current)
     {
         return _b1;
@@ -74,22 +75,32 @@ public sealed class InitialI : Initial
         return _f;
     }
 
-    public override I getI(Ice.Current current)
+    public override Ice.Value getI(Ice.Current current)
     {
         return new II();
     }
 
-    public override I getJ(Ice.Current current)
+    public override Ice.Value getJ(Ice.Current current)
     {
         return new JI();
     }
 
-    public override I getH(Ice.Current current)
+    public override Ice.Value getH(Ice.Current current)
     {
         return new HI();
     }
+    
+    public override D1 getD1(D1 d1, Ice.Current current)
+    {
+        return d1;
+    }
 
-    public override void setI(I theI, Ice.Current current)
+    public override void throwEDerived(Ice.Current current)
+    {
+        throw new EDerived(new A1("a1"), new A1("a2"), new A1("a3"), new A1("a4"));
+    }
+
+    public override void setI(Ice.Value theI, Ice.Current current)
     {
     }
 
@@ -104,7 +115,7 @@ public sealed class InitialI : Initial
         return new CompactExt();
     }
 
-    public override void shutdown(Ice.Current current)
+    public override void shutdown(Ice.Current current = null)
     {
         _adapter.getCommunicator().shutdown();
     }
@@ -129,6 +140,16 @@ public sealed class InitialI : Initial
     public override void throwInnerSubEx(Ice.Current current)
     {
         throw new Test.Inner.Sub.Ex("Inner::Sub::Ex");
+    }
+
+    public override Initial_GetMBMarshaledResult getMB(Ice.Current current)
+    {
+        return new Initial_GetMBMarshaledResult(_b1, current);
+    }
+
+    public override Task<Initial_GetAMDMBMarshaledResult> getAMDMBAsync(Ice.Current current)
+    {
+        return Task.FromResult(new Initial_GetAMDMBMarshaledResult(_b1, current));
     }
 
     private Ice.ObjectAdapter _adapter;

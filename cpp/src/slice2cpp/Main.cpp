@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -73,7 +73,8 @@ usage(const char* n)
         "--include-dir DIR        Use DIR as the header include directory in source files.\n"
         "--output-dir DIR         Create files in the directory DIR.\n"
         "--dll-export SYMBOL      Use SYMBOL for DLL exports.\n"
-        "--impl                   Generate sample implementations.\n"
+        "--impl-c++98             Generate sample implementations for C++98 mapping.\n"
+        "--impl-c++11             Generate sample implementations for C++11 mapping.\n"
         "--depend                 Generate Makefile dependencies.\n"
         "--depend-xml             Generate dependencies in XML format.\n"
         "--depend-file FILE       Write dependencies to FILE instead of standard output.\n"
@@ -81,7 +82,6 @@ usage(const char* n)
         "--ice                    Allow reserved Ice prefix in Slice identifiers.\n"
         "--underscore             Allow underscores in Slice identifiers.\n"
         "--checksum               Generate checksums for Slice definitions.\n"
-        "--stream                 Generate marshaling support for public stream API.\n"
         ;
 }
 
@@ -102,7 +102,8 @@ compile(int argc, char* argv[])
     opts.addOpt("", "include-dir", IceUtilInternal::Options::NeedArg);
     opts.addOpt("", "output-dir", IceUtilInternal::Options::NeedArg);
     opts.addOpt("", "dll-export", IceUtilInternal::Options::NeedArg);
-    opts.addOpt("", "impl");
+    opts.addOpt("", "impl-c++98");
+    opts.addOpt("", "impl-c++11");
     opts.addOpt("", "depend");
     opts.addOpt("", "depend-xml");
     opts.addOpt("", "depend-file", IceUtilInternal::Options::NeedArg, "");
@@ -110,7 +111,6 @@ compile(int argc, char* argv[])
     opts.addOpt("", "ice");
     opts.addOpt("", "underscore");
     opts.addOpt("", "checksum");
-    opts.addOpt("", "stream");
 
     bool validate = false;
     for(int i = 0; i < argc; ++i)
@@ -182,7 +182,9 @@ compile(int argc, char* argv[])
 
     string dllExport = opts.optArg("dll-export");
 
-    bool impl = opts.isSet("impl");
+    bool implCpp98 = opts.isSet("impl-c++98");
+    
+    bool implCpp11 = opts.isSet("impl-c++11");
 
     bool depend = opts.isSet("depend");
 
@@ -198,8 +200,6 @@ compile(int argc, char* argv[])
 
     bool checksum = opts.isSet("checksum");
 
-    bool stream = opts.isSet("stream");
-
     if(args.empty())
     {
         getErrorStream() << argv[0] << ": error: no input file" << endl;
@@ -213,6 +213,16 @@ compile(int argc, char* argv[])
     if(depend && dependxml)
     {
         getErrorStream() << argv[0] << ": error: cannot specify both --depend and --depend-xml" << endl;
+        if(!validate)
+        {
+            usage(argv[0]);
+        }
+        return EXIT_FAILURE;
+    }
+    
+    if(implCpp98 && implCpp11)
+    {
+        getErrorStream() << argv[0] << ": error: cannot specify both --impl-c++98 and --impl-c++11" << endl;
         if(!validate)
         {
             usage(argv[0]);
@@ -326,7 +336,7 @@ compile(int argc, char* argv[])
                     try
                     {
                         Gen gen(icecpp->getBaseName(), headerExtension, sourceExtension, extraHeaders, include,
-                                includePaths, dllExport, output, impl, checksum, stream, ice);
+                                includePaths, dllExport, output, implCpp98, implCpp11, checksum, ice);
                         gen.generate(u);
                     }
                     catch(const Slice::FileException& ex)

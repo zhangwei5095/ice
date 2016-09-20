@@ -1,13 +1,11 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
-
-#if !SILVERLIGHT
 
 namespace IceInternal
 {
@@ -136,9 +134,7 @@ namespace IceInternal
                 _addr = (IPEndPoint)Network.getAddressForServer(host, port, protocol, _instance.preferIPv6());
                 _fd = Network.createServerSocket(false, _addr.AddressFamily, protocol);
                 Network.setBlock(_fd, false);
-#  if !COMPACT
                 Network.setTcpBufSize(_fd, _instance);
-#  endif
                 if(AssemblyUtil.platform_ != AssemblyUtil.Platform.Windows)
                 {
                     //
@@ -173,4 +169,3 @@ namespace IceInternal
         private IAsyncResult _result;
     }
 }
-#endif

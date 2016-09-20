@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -61,8 +61,8 @@ exception sizeof extends return
 
 local interface friend
 {
-	auto goto(continue if, auto d, delete inline, switch private, do mutable, break* namespace,
-		  char* new, switch* not, do* operator, int or, int protected, int public, int register)
+        auto goto(continue if, auto d, delete inline, switch private, do mutable, break* namespace,
+                  char* new, switch* not, do* operator, int or, int protected, int public, int register)
             throws return, sizeof;
 };
 

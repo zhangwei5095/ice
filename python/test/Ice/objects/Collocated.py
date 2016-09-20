@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -19,9 +19,9 @@ def run(args, communicator):
     communicator.getProperties().setProperty("TestAdapter.Endpoints", "default -p 12010")
     adapter = communicator.createObjectAdapter("TestAdapter")
     initial = TestI.InitialI(adapter)
-    adapter.add(initial, communicator.stringToIdentity("initial"))
+    adapter.add(initial, Ice.stringToIdentity("initial"))
     uoet = TestI.UnexpectedObjectExceptionTestI()
-    adapter.add(uoet, communicator.stringToIdentity("uoet"))
+    adapter.add(uoet, Ice.stringToIdentity("uoet"))
     #adapter.activate() // Don't activate OA to ensure collocation is used.
 
     AllTests.allTests(communicator)

@@ -1,6 +1,6 @@
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -32,17 +32,6 @@ class SessionNotExistException(Exception):
 class RestartSessionException(Exception):
     def __init__(self):
         pass
-
-class ConnectionCallbackI(Ice.ConnectionCallback):
-    def __init__(self, app):
-        self._app = app
-
-    def heartbeat(self, conn):
-        pass
-
-    def closed(self, conn):
-        self._app.sessionDestroyed()
-
 
 class Application(Ice.Application):
 
@@ -150,7 +139,7 @@ Application.NoSignalHandling.
                         connection = Application._router.ice_getCachedConnection()
                         assert(connection)
                         connection.setACM(acmTimeout, Ice.Unset, Ice.ACMHeartbeat.HeartbeatAlways)
-                        connection.setCallback(ConnectionCallbackI(self))
+                        connection.setCloseCallback(lambda conn: self.sessionDestroyed())
                     Application._category = Application._router.getCategoryForClient()
                     status = self.runWithSession(args)
 

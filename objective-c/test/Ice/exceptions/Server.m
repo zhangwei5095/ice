@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -24,9 +24,9 @@ run(id<ICECommunicator> communicator)
     id<ICEObjectAdapter> adapter2 = [communicator createObjectAdapter:@"TestAdapter2"];
     id<ICEObjectAdapter> adapter3 = [communicator createObjectAdapter:@"TestAdapter3"];
     ICEObject* object = [ThrowerI thrower];
-    [adapter add:object identity:[communicator stringToIdentity:@"thrower"]];
-    [adapter2 add:object identity:[communicator stringToIdentity:@"thrower"]];
-    [adapter3 add:object identity:[communicator stringToIdentity:@"thrower"]];
+    [adapter add:object identity:[ICEUtil stringToIdentity:@"thrower"]];
+    [adapter2 add:object identity:[ICEUtil stringToIdentity:@"thrower"]];
+    [adapter3 add:object identity:[ICEUtil stringToIdentity:@"thrower"]];
     [adapter activate];
     [adapter2 activate];
     [adapter3 activate];
@@ -44,6 +44,13 @@ run(id<ICECommunicator> communicator)
 int
 main(int argc, char* argv[])
 {
+#ifdef ICE_STATIC_LIBS
+    ICEregisterIceSSL(YES);
+#if TARGET_OS_IPHONE
+    ICEregisterIceIAP(YES);
+#endif
+#endif
+
     int status;
     @autoreleasepool
     {

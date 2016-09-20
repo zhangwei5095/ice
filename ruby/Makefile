@@ -1,37 +1,46 @@
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
 #
 # **********************************************************************
 
-top_srcdir	= .
+top_srcdir	:= ..
+lang_srcdir	:= $(top_srcdir)/ruby
 
 include $(top_srcdir)/config/Make.rules
 
-SUBDIRS		= src ruby
+#
+# Load C++ dependencies
+#
+$(eval $(call load-dependencies,$(addprefix $(top_srcdir)/cpp/src/,Ice IceSSL)))
+$(eval $(call load-translator-dependencies,$(top_srcdir)/cpp/src/slice2rb))
 
-INSTALL_SUBDIRS = $(install_rubydir) $(install_libdir)
+#
+# Load ruby rules after loading C++ dependencies
+#
+include $(lang_srcdir)/config/Make.rules
 
-install:: install-common
-	@for subdir in $(INSTALL_SUBDIRS); \
-	do \
-	    if test ! -d $(DESTDIR)$$subdir ; \
-	    then \
-		echo "Creating $(DESTDIR)$$subdir..." ; \
-		mkdir -p $(DESTDIR)$$subdir ; \
-		chmod a+rx $(DESTDIR)$$subdir ; \
-	    fi ; \
-	done
+#
+# Load Makefile.mk fragments
+#
+include $(shell find $(lang_srcdir) -name Makefile.mk)
 
-$(EVERYTHING)::
-	@for subdir in $(SUBDIRS); \
-	do \
-	    echo "making $@ in $$subdir"; \
-	    ( cd $$subdir && $(MAKE) $@ ) || exit 1; \
-	done
+#
+# Make the projects (this expands all the build configuration and defines rules for all
+# the components).
+#
+$(call make-projects,$(projects))
 
-test::
-	@python $(top_srcdir)/allTests.py
+install:: | $(DESTDIR)$(install_rubydir)
+	$(E) "Installing generated code"
+	$(Q)$(INSTALL) $(lang_srcdir)/ruby/*.rb $(DESTDIR)$(install_rubydir)
+
+$(eval $(call make-ruby-package,$(slicedir),$(lang_srcdir)/ruby,Ice))
+$(eval $(call make-ruby-package,$(slicedir),$(lang_srcdir)/ruby,Glacier2))
+$(eval $(call make-ruby-package,$(slicedir),$(lang_srcdir)/ruby,IceBox))
+$(eval $(call make-ruby-package,$(slicedir),$(lang_srcdir)/ruby,IceGrid))
+$(eval $(call make-ruby-package,$(slicedir),$(lang_srcdir)/ruby,IcePatch2))
+$(eval $(call make-ruby-package,$(slicedir),$(lang_srcdir)/ruby,IceStorm))

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,64 +8,56 @@
 // **********************************************************************
 
 #include <Glacier2/Application.h>
+#include <Ice/Ice.h>
 #include <IceUtil/IceUtil.h>
 #include <IceUtil/ArgVector.h>
 
 using namespace std;
 using namespace Ice;
-    
+
 Ice::ObjectAdapterPtr Glacier2::Application::_adapter;
-Glacier2::RouterPrx Glacier2::Application::_router;
-Glacier2::SessionPrx Glacier2::Application::_session;
+Glacier2::RouterPrxPtr Glacier2::Application::_router;
+Glacier2::SessionPrxPtr Glacier2::Application::_session;
 bool Glacier2::Application::_createdSession = false;
 string Glacier2::Application::_category;
 
 namespace
 {
-
-class ConnectionCallbackI : public Ice::ConnectionCallback
+#ifndef ICE_CPP11_MAPPING // C++98
+class CloseCallbackI : public Ice::CloseCallback
 {
 public:
 
-    ConnectionCallbackI(Glacier2::Application* app) : _app(app)
+    CloseCallbackI(Glacier2::Application* app) : _app(app)
     {
     }
 
     virtual void
-    heartbeat(const Ice::ConnectionPtr&)
-    {
-    }
-
-    virtual void 
     closed(const Ice::ConnectionPtr&)
     {
         _app->sessionDestroyed();
     }
-    
+
 private:
 
     Glacier2::Application* _app;
 };
-    
+#endif
 }
 
 string
-Glacier2::RestartSessionException::ice_name() const
+Glacier2::RestartSessionException::ice_id() const
 {
-    return "RestartSessionException";
+    return "::Glacier2::RestartSessionException";
 }
 
+#ifndef ICE_CPP11_MAPPING
 Glacier2::RestartSessionException*
 Glacier2::RestartSessionException::ice_clone() const
 {
     return new RestartSessionException(*this);
 }
-
-void
-Glacier2::RestartSessionException::ice_throw() const
-{
-    throw *this;
-}
+#endif
 
 Ice::ObjectAdapterPtr
 Glacier2::Application::objectAdapter()
@@ -85,10 +77,10 @@ Glacier2::Application::objectAdapter()
     return _adapter;
 }
 
-Ice::ObjectPrx
+Ice::ObjectPrxPtr
 Glacier2::Application::addWithUUID(const Ice::ObjectPtr& servant)
 {
-    return objectAdapter()->add(servant, createCallbackIdentity(IceUtil::generateUUID()));
+    return objectAdapter()->add(servant, createCallbackIdentity(Ice::generateUUID()));
 }
 
 Ice::Identity
@@ -153,8 +145,8 @@ Glacier2::Application::doMain(Ice::StringSeq& args, const Ice::InitializationDat
     try
     {
         IceInternal::Application::_communicator = Ice::initialize(args, initData);
-        _router = Glacier2::RouterPrx::uncheckedCast(communicator()->getDefaultRouter());
-        
+        _router = ICE_UNCHECKED_CAST(Glacier2::RouterPrx, communicator()->getDefaultRouter());
+
         if(!_router)
         {
             Error out(getProcessLogger());
@@ -188,7 +180,7 @@ Glacier2::Application::doMain(Ice::StringSeq& args, const Ice::InitializationDat
             {
                 Ice::Int acmTimeout = 0;
                 try
-                { 
+                {
                     acmTimeout = _router->getACMTimeout();
                 }
                 catch(const Ice::OperationNotExistException&)
@@ -204,7 +196,16 @@ Glacier2::Application::doMain(Ice::StringSeq& args, const Ice::InitializationDat
                     Ice::ConnectionPtr connection = _router->ice_getCachedConnection();
                     assert(connection);
                     connection->setACM(acmTimeout, IceUtil::None, Ice::HeartbeatAlways);
-                    connection->setCallback(new ConnectionCallbackI(this));
+#ifdef ICE_CPP11_MAPPING
+                    auto app = this;
+                    connection->setCloseCallback(
+                        [app](Ice::ConnectionPtr)
+                        {
+                            app->sessionDestroyed();
+                        });
+#else
+                    connection->setCloseCallback(ICE_MAKE_SHARED(CloseCallbackI, this));
+#endif
                 }
 
                 _category = _router->getCategoryForClient();

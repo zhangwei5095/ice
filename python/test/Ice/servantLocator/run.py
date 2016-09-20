@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -20,9 +20,8 @@ if len(path) == 0:
 sys.path.append(os.path.join(path[0], "scripts"))
 import TestUtil
 
-print("tests with regular server.")
-TestUtil.clientServerTest()
-print("tests with AMD server.")
-TestUtil.clientServerTest(server="ServerAMD.py")
-print("tests with collocated server.")
-TestUtil.collocatedTest(" --Ice.ThreadPool.Client.SizeMax=2 --Ice.ThreadPool.Client.SizeWarn=0")
+TestUtil.queueClientServerTest()
+TestUtil.queueClientServerTest(configName = "amd", localOnly = True, message = "Running test with AMD server.",
+                               server="ServerAMD.py")
+TestUtil.queueCollocatedTest(additionalOptions = " --Ice.ThreadPool.Client.SizeMax=2 --Ice.ThreadPool.Client.SizeWarn=0")
+TestUtil.runQueuedTests()

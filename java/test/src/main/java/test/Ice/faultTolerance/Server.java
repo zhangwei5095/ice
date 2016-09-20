@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -20,10 +20,9 @@ public class Server extends test.Util.Application
     }
 
     @Override
-    public int
-    run(String[] args)
+    public int run(String[] args)
     {
-        Ice.Communicator communicator = communicator();
+        com.zeroc.Ice.Communicator communicator = communicator();
         int port = 0;
         PrintWriter out = getWriter();
         for(String arg : args)
@@ -63,22 +62,21 @@ public class Server extends test.Util.Application
 
         // Don't move this, it needs the port.
         communicator.getProperties().setProperty("TestAdapter.Endpoints", "default -p " + port + ":udp");
-        Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
-        Ice.Object object = new TestI(port);
-        adapter.add(object, communicator.stringToIdentity("test"));
+        com.zeroc.Ice.ObjectAdapter adapter = communicator.createObjectAdapter("TestAdapter");
+        com.zeroc.Ice.Object object = new TestI(port);
+        adapter.add(object, com.zeroc.Ice.Util.stringToIdentity("test"));
         adapter.activate();
         return WAIT;
     }
 
     @Override
-    protected Ice.InitializationData getInitData(Ice.StringSeqHolder argsH)
+    protected GetInitDataResult getInitData(String[] args)
     {
-        Ice.InitializationData initData = createInitializationData() ;
-        initData.properties = Ice.Util.createProperties(argsH);
-        initData.properties.setProperty("Ice.Package.Test", "test.Ice.faultTolerance");
+        GetInitDataResult r = super.getInitData(args);
+        r.initData.properties.setProperty("Ice.Package.Test", "test.Ice.faultTolerance");
         // Two minutes.
-        initData.properties.setProperty("Ice.ServerIdleTime", "120");
-        return initData;
+        r.initData.properties.setProperty("Ice.ServerIdleTime", "120");
+        return r;
     }
 
     public static void main(String[] args)

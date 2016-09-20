@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -20,8 +20,7 @@ if len(path) == 0:
 sys.path.append(os.path.join(path[0], "scripts"))
 import TestUtil
 
-print("tests with Blobject server.")
-TestUtil.clientServerTest()
-
-print("tests with BlobjectAsync server.")
-TestUtil.clientServerTest(additionalServerOptions = "--async")
+TestUtil.queueClientServerTest(configName = "blobject", message = "Running test with Blobject server.")
+TestUtil.queueClientServerTest(configName = "blobjectAsync", message = "Running test with BlobjectAsync server.",
+                               additionalServerOptions = "--async")
+TestUtil.runQueuedTests()

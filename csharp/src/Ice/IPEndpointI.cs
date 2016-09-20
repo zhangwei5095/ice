@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -38,7 +38,7 @@ namespace IceInternal
             _hashInitialized = false;
         }
 
-        public IPEndpointI(ProtocolInstance instance, BasicStream s)
+        public IPEndpointI(ProtocolInstance instance, Ice.InputStream s)
         {
             instance_ = instance;
             host_ = s.readString();
@@ -80,13 +80,6 @@ namespace IceInternal
             return info;
         }
 
-        public override void streamWrite(BasicStream s)
-        {
-            s.startWriteEncaps();
-            streamWriteImpl(s);
-            s.endWriteEncaps();
-        }
-
         public override short type()
         {
             return instance_.type();
@@ -121,11 +114,7 @@ namespace IceInternal
 
         public override void connectors_async(Ice.EndpointSelectionType selType, EndpointI_connectors callback)
         {
-#if SILVERLIGHT
-            callback.connectors(connectors(selType));
-#else
             instance_.resolve(host_, port_, selType, this, callback);
-#endif
         }
 
         public override List<EndpointI> expand()
@@ -166,15 +155,6 @@ namespace IceInternal
             }
             return connectors;
         }
-
-#if SILVERLIGHT
-        public List<Connector> connectors(Ice.EndpointSelectionType selType)
-        {
-            return connectors(Network.getAddresses(host_, port_, instance_.protocolSupport(), selType,
-                                                   instance_.preferIPv6(), false),
-                              instance_.networkProxy());
-        }
-#endif
 
         public override string options()
         {
@@ -262,17 +242,7 @@ namespace IceInternal
             return string.Compare(connectionId_, p.connectionId_, StringComparison.Ordinal);
         }
 
-        public string host()
-        {
-            return host_;
-        }
-
-        public int port()
-        {
-            return port_;
-        }
-
-        public virtual void streamWriteImpl(BasicStream s)
+        public override void streamWriteImpl(Ice.OutputStream s)
         {
             s.writeString(host_);
             s.writeInt(port_);

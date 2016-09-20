@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -33,7 +33,7 @@ class Cond;
 // `IceUtil::noncopyable' inaccessible in `IceInternal::Outgoing' due
 // to ambiguity
 //
-class ICE_UTIL_API Mutex
+class ICE_API Mutex
 {
 public:
 

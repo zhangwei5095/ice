@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -12,6 +12,7 @@
 #import <CommunicatorI.h>
 #import <StreamI.h>
 #import <LoggerI.h>
+#import <IdentityI.h>
 #import <DispatcherI.h>
 #import <BatchRequestInterceptorI.h>
 #import <Util.h>
@@ -21,6 +22,7 @@
 #import <objc/Ice/LocalException.h>
 
 #include <Ice/Initialize.h>
+#include <Ice/RegisterPlugins.h>
 #include <IceUtil/UUID.h>
 #include <IceUtil/MutexPtrLock.h>
 
@@ -32,6 +34,21 @@
 #ifdef ICE_NO_KQUEUE
 #  define ICE_USE_CFSTREAM 1
 #endif
+
+extern "C"
+{
+
+Ice::Plugin*
+createIceSSL(const Ice::CommunicatorPtr&, const std::string&, const Ice::StringSeq&);
+Ice::Plugin*
+createIceDiscovery(const Ice::CommunicatorPtr&, const std::string&, const Ice::StringSeq&);
+Ice::Plugin*
+createIceLocatorDiscovery(const Ice::CommunicatorPtr&, const std::string&, const Ice::StringSeq&);
+#if defined(__APPLE__) && TARGET_OS_IPHONE > 0
+Ice::Plugin*
+createIceIAP(const Ice::CommunicatorPtr&, const std::string&, const Ice::StringSeq&);
+#endif
+}
 
 namespace
 {
@@ -389,7 +406,7 @@ private:
         }
 
         ICECommunicator* c = [ICECommunicator localObjectWithCxxObject:communicator.get()];
-        [c setup:initData.prefixTable__];
+        [c setup:initData];
         return c;
     }
     catch(const std::exception& ex)
@@ -400,23 +417,12 @@ private:
     return nil; // Keep the compiler happy.
 }
 
-+(id<ICEInputStream>) createInputStream:(id<ICECommunicator>)communicator data:(NSData*)data
++(id<ICEInputStream>) createInputStream:(id<ICECommunicator>)c data:(NSData*)data
 {
     NSException* nsex = nil;
     try
     {
-        Ice::CommunicatorPtr com = [(ICECommunicator*)communicator communicator];
-        Ice::Byte* start = (Ice::Byte*)[data bytes];
-        Ice::Byte* end = (Ice::Byte*)[data bytes] + [data length];
-        Ice::InputStreamPtr is = Ice::createInputStream(com, std::make_pair(start, end));
-        if(is)
-        {
-            return [ICEInputStream localObjectWithCxxObject:is.get()];
-        }
-        else
-        {
-            return nil;
-        }
+        return [[[ICEInputStream alloc] initWithCommunicator:c data:data encoding:nil] autorelease];
     }
     catch(const std::exception& ex)
     {
@@ -431,70 +437,7 @@ private:
     NSException* nsex = nil;
     try
     {
-        Ice::CommunicatorPtr com = [(ICECommunicator*)c communicator];
-        Ice::Byte* start = (Ice::Byte*)[data bytes];
-        Ice::Byte* end = (Ice::Byte*)[data bytes] + [data length];
-        Ice::InputStreamPtr is = Ice::createInputStream(com, std::make_pair(start, end), [e encodingVersion]);
-        if(is)
-        {
-            return [ICEInputStream localObjectWithCxxObject:is.get()];
-        }
-        else
-        {
-            return nil;
-        }
-    }
-    catch(const std::exception& ex)
-    {
-        nsex = toObjCException(ex);
-    }
-    @throw nsex;
-    return nil; // Keep the compiler happy.
-}
-
-+(id<ICEInputStream>) wrapInputStream:(id<ICECommunicator>)communicator data:(NSData*)data
-{
-    NSException* nsex = nil;
-    try
-    {
-        Ice::CommunicatorPtr com = [(ICECommunicator*)communicator communicator];
-        Ice::Byte* start = (Ice::Byte*)[data bytes];
-        Ice::Byte* end = (Ice::Byte*)[data bytes] + [data length];
-        Ice::InputStreamPtr is = Ice::wrapInputStream(com, std::make_pair(start, end));
-        if(is)
-        {
-            return [ICEInputStream localObjectWithCxxObject:is.get()];
-        }
-        else
-        {
-            return nil;
-        }
-    }
-    catch(const std::exception& ex)
-    {
-        nsex = toObjCException(ex);
-    }
-    @throw nsex;
-    return nil; // Keep the compiler happy.
-}
-
-+(id<ICEInputStream>) wrapInputStream:(id<ICECommunicator>)c data:(NSData*)data encoding:(ICEEncodingVersion*)e
-{
-    NSException* nsex = nil;
-    try
-    {
-        Ice::CommunicatorPtr com = [(ICECommunicator*)c communicator];
-        Ice::Byte* start = (Ice::Byte*)[data bytes];
-        Ice::Byte* end = (Ice::Byte*)[data bytes] + [data length];
-        Ice::InputStreamPtr is = Ice::wrapInputStream(com, std::make_pair(start, end), [e encodingVersion]);
-        if(is)
-        {
-            return [ICEInputStream localObjectWithCxxObject:is.get()];
-        }
-        else
-        {
-            return nil;
-        }
+        return [[[ICEInputStream alloc] initWithCommunicator:c data:data encoding:e] autorelease];
     }
     catch(const std::exception& ex)
     {
@@ -509,16 +452,7 @@ private:
     NSException* nsex = nil;
     try
     {
-        Ice::CommunicatorPtr com = [(ICECommunicator*)communicator communicator];
-        Ice::OutputStreamPtr os = Ice::createOutputStream(com);
-        if(os)
-        {
-            return [ICEOutputStream localObjectWithCxxObject:os.get()];
-        }
-        else
-        {
-            return nil;
-        }
+        return [[[ICEOutputStream alloc] initWithCommunicator:communicator encoding:nil] autorelease];
     }
     catch(const std::exception& ex)
     {
@@ -533,16 +467,7 @@ private:
     NSException* nsex = nil;
     try
     {
-        Ice::CommunicatorPtr com = [(ICECommunicator*)communicator communicator];
-        Ice::OutputStreamPtr os = Ice::createOutputStream(com, [encoding encodingVersion]);
-        if(os)
-        {
-            return [ICEOutputStream localObjectWithCxxObject:os.get()];
-        }
-        else
-        {
-            return nil;
-        }
+        return [[[ICEOutputStream alloc] initWithCommunicator:communicator encoding:encoding] autorelease];
     }
     catch(const std::exception& ex)
     {
@@ -568,7 +493,7 @@ private:
     return [[ns copy] autorelease];
 }
 
-+(void)stringSeqToArgs:(NSArray*)args argc:(int*)argc argv:(char*[])argv;
++(void)stringSeqToArgs:(NSArray*)args argc:(int*)argc argv:(char*[])argv
 {
     //
     // Shift all elements in argv which are present in args to the
@@ -612,6 +537,36 @@ private:
     {
         argv[*argc] = 0;
     }
+}
+
++(ICEIdentity*) stringToIdentity:(NSString*)str
+{
+    NSException* nsex = nil;
+    try
+    {
+        return [ICEIdentity identityWithIdentity:Ice::stringToIdentity(fromNSString(str))];
+    }
+    catch(const std::exception& ex)
+    {
+        nsex = toObjCException(ex);
+    }
+    @throw nsex;
+    return nil; // Keep the compiler happy.
+}
+
++(NSMutableString*) identityToString:(ICEIdentity*)ident
+{
+    NSException* nsex = nil;
+    try
+    {
+        return [toNSMutableString(Ice::identityToString([ident identity])) autorelease];
+    }
+    catch(const std::exception& ex)
+    {
+        nsex = toObjCException(ex);
+    }
+    @throw nsex;
+    return nil; // Keep the compiler happy.
 }
 @end
 

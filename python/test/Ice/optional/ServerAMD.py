@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -121,13 +121,16 @@ class InitialI(Test.Initial):
     def opVarStructSeq_async(self, cb, p1, current=None):
         cb.ice_response(p1, p1)
 
-    def opSerializable(self, cb, p1, current=None):
+    def opSerializable_async(self, cb, p1, current=None):
         cb.ice_response(p1, p1)
 
     def opIntIntDict_async(self, cb, p1, current=None):
         cb.ice_response(p1, p1)
 
     def opStringIntDict_async(self, cb, p1, current=None):
+        cb.ice_response(p1, p1)
+
+    def opIntOneOptionalDict_async(self, cb, p1, current=None):
         cb.ice_response(p1, p1)
 
     def opClassAndUnknownOptional_async(self, cb, p, current=None):
@@ -137,25 +140,58 @@ class InitialI(Test.Initial):
         cb.ice_response()
 
     def returnOptionalClass_async(self, cb, req, current=None):
-        cb.ice_response(Test.OneOptional(5))
-        
+        cb.ice_response(Test.OneOptional(53))
+
     def opG_async(self, cb, g, current=None):
         cb.ice_response(g)
+
+    def opVoid_async(self, cb, current=None):
+        cb.ice_response()
+
+    def opMStruct1_async(self, cb, current):
+        cb.ice_response(Test.SmallStruct())
+
+    def opMStruct2_async(self, cb, p1, current):
+        cb.ice_response(p1, p1)
+
+    def opMSeq1_async(self, cb, current):
+        cb.ice_response([])
+
+    def opMSeq2_async(self, cb, p1, current):
+        cb.ice_response(p1, p1)
+
+    def opMDict1_async(self, cb, current):
+        cb.ice_response({})
+
+    def opMDict2_async(self, cb, p1, current):
+        cb.ice_response(p1, p1)
+
+    def opMG1_async(self, cb, current):
+        cb.ice_response(Test.G())
+
+    def opMG2_async(self, cb, p1, current):
+        cb.ice_response(p1, p1)
 
     def supportsRequiredParams_async(self, cb, current=None):
         cb.ice_response(False)
 
-    def supportsJavaSerializable(self, cb, current=None):
+    def supportsJavaSerializable_async(self, cb, current=None):
         cb.ice_response(True)
 
-    def supportsCsharpSerializable(self, cb, current=None):
+    def supportsCsharpSerializable_async(self, cb, current=None):
+        cb.ice_response(False)
+
+    def supportsCppStringView_async(self, cb, current=None):
+        cb.ice_response(False)
+
+    def supportsNullOptional_async(self, cb, current=None):
         cb.ice_response(True)
 
 def run(args, communicator):
     communicator.getProperties().setProperty("TestAdapter.Endpoints", "default -p 12010:udp")
     adapter = communicator.createObjectAdapter("TestAdapter")
     initial = InitialI()
-    adapter.add(initial, communicator.stringToIdentity("initial"))
+    adapter.add(initial, Ice.stringToIdentity("initial"))
     adapter.activate()
 
     communicator.waitForShutdown()

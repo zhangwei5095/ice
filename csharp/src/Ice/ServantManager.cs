@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -37,7 +37,7 @@ public sealed class ServantManager
                 if(m.ContainsKey(facet))
                 {
                     Ice.AlreadyRegisteredException ex = new Ice.AlreadyRegisteredException();
-                    ex.id = instance_.identityToString(ident);
+                    ex.id = Ice.Util.identityToString(ident);
                     ex.kindOfObject = "servant";
                     if(facet.Length > 0)
                     {

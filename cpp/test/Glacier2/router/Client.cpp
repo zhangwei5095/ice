@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -612,7 +612,10 @@ CallbackClient::run(int argc, char* argv[])
         Context context;
         context["_fwd"] = "o";
         oneway->initiateCallback(onewayR, context);
-        callbackReceiverImpl->callbackOK();
+        oneway->initiateCallback(onewayR, context);
+        oneway->initiateCallback(onewayR, context);
+        oneway->initiateCallback(onewayR, context);
+        callbackReceiverImpl->callbackOK(4);
         cout << "ok" << endl;
     }
 
@@ -621,7 +624,27 @@ CallbackClient::run(int argc, char* argv[])
         Context context;
         context["_fwd"] = "t";
         twoway->initiateCallback(twowayR, context);
-        callbackReceiverImpl->callbackOK();
+        twoway->initiateCallback(twowayR, context);
+        twoway->initiateCallback(twowayR, context);
+        twoway->initiateCallback(twowayR, context);
+        callbackReceiverImpl->callbackOK(4);
+        cout << "ok" << endl;
+    }
+
+    {
+        cout << "testing batch oneway callback... " << flush;
+        Context context;
+        context["_fwd"] = "O";
+        CallbackPrx batchOneway = CallbackPrx::uncheckedCast(twoway->ice_batchOneway());
+        CallbackReceiverPrx onewayR = CallbackReceiverPrx::uncheckedCast(twowayR->ice_oneway());
+        batchOneway->initiateCallback(onewayR, context);
+        batchOneway->initiateCallback(onewayR, context);
+        batchOneway->initiateCallback(onewayR, context);
+        batchOneway->initiateCallback(onewayR, context);
+        batchOneway->initiateCallback(onewayR, context);
+        batchOneway->initiateCallback(onewayR, context);
+        batchOneway->ice_flushBatchRequests();
+        callbackReceiverImpl->callbackOK(6);
         cout << "ok" << endl;
     }
 
@@ -689,7 +712,7 @@ CallbackClient::run(int argc, char* argv[])
         Context context;
         context["_fwd"] = "t";
         CallbackPrx otherCategoryTwoway = CallbackPrx::uncheckedCast(
-            twoway->ice_identity(communicator()->stringToIdentity("c2/callback")));
+            twoway->ice_identity(stringToIdentity("c2/callback")));
         otherCategoryTwoway->initiateCallback(twowayR, context);
         callbackReceiverImpl->callbackOK();
         cout << "ok" << endl;
@@ -702,7 +725,7 @@ CallbackClient::run(int argc, char* argv[])
         try
         {
             CallbackPrx otherCategoryTwoway = CallbackPrx::uncheckedCast(
-                twoway->ice_identity(communicator()->stringToIdentity("c3/callback")));
+                twoway->ice_identity(stringToIdentity("c3/callback")));
             otherCategoryTwoway->initiateCallback(twowayR, context);
             test(false);
         }
@@ -717,7 +740,7 @@ CallbackClient::run(int argc, char* argv[])
         Context context;
         context["_fwd"] = "t";
         CallbackPrx otherCategoryTwoway = CallbackPrx::uncheckedCast(
-            twoway->ice_identity(communicator()->stringToIdentity("_userid/callback")));
+            twoway->ice_identity(stringToIdentity("_userid/callback")));
         otherCategoryTwoway->initiateCallback(twowayR, context);
         callbackReceiverImpl->callbackOK();
         cout << "ok" << endl;

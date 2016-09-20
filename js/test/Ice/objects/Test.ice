@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -37,7 +37,7 @@ class A
     C theC;
 
     bool preMarshalInvoked;
-    bool postUnmarshalInvoked();
+    bool postUnmarshalInvoked;
 };
 
 class B extends A
@@ -50,17 +50,17 @@ class C
     B theB;
 
     bool preMarshalInvoked;
-    bool postUnmarshalInvoked();
+    bool postUnmarshalInvoked;
 };
 
 class D
 {
     A theA;
     B theB;
-    C theC;    
+    C theC;
 
     bool preMarshalInvoked;
-    bool postUnmarshalInvoked();
+    bool postUnmarshalInvoked;
 };
 
 ["protected"] class E
@@ -109,9 +109,39 @@ class CompactExt(CompactExtId) extends Compact
 {
 };
 
+
+class A1
+{
+    string name;
+};
+
+class B1
+{
+    A1 a1;
+    A1 a2;
+};
+
+class D1 extends B1
+{
+    A1 a3;
+    A1 a4;
+};
+
+exception EBase
+{
+    A1 a1;
+    A1 a2;
+};
+
+exception EDerived extends EBase
+{
+    A1 a3;
+    A1 a4;
+};
+
 module Inner
 {
-    
+
 class A
 {
     ::Test::A theA;
@@ -149,21 +179,27 @@ class Initial
     E getE();
     F getF();
 
+    ["marshaled-result"] B getMB();
+    ["amd", "marshaled-result"] B getAMDMB();
+
     void getAll(out B b1, out B b2, out C theC, out D theD);
 
     I getI();
     I getJ();
     I getH();
 
+    D1 getD1(D1 d1);
+    void throwEDerived() throws EDerived;
+
     void setI(I theI);
 
     BaseSeq opBaseSeq(BaseSeq inSeq, out BaseSeq outSeq);
 
     Compact getCompact();
-    
+
     Inner::A getInnerA();
     Inner::Sub::A getInnerSubA();
-    
+
     void throwInnerEx() throws Inner::Ex;
     void throwInnerSubEx() throws Inner::Sub::Ex;
 };

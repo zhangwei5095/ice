@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -23,15 +23,16 @@ namespace IceInternal
 class ICE_API IncomingRequest : public Ice::Request
 {
 public:
-    IncomingRequest(Incoming& in) :
-        _in(in)
+
+    IncomingRequest(Incoming& in) : _in(in)
     {
     }
 
     virtual const Ice::Current& getCurrent();
-    
+
     Incoming& _in;
 };
+
 }
 
 #endif

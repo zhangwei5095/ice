@@ -1,6 +1,6 @@
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -10,7 +10,17 @@
 import Ice, Test
 
 class RemoteCommunicatorI(Test.RemoteCommunicator):
+
+    def __init__(self):
+        self._nextPort = 10001
+
     def createObjectAdapter(self, name, endpoints, current=None):
+        self._nextPort += 1
+        if endpoints.find("-p") < 0:
+            endpoints += " -h \"{0}\" -p {1}".format(
+                current.adapter.getCommunicator().getProperties().getPropertyWithDefault("Ice.Default.Host", "127.0.0.1"),
+                self._nextPort)
+
         com = current.adapter.getCommunicator()
         com.getProperties().setProperty(name + ".ThreadPool.Size", "1")
         adapter = com.createObjectAdapterWithEndpoints(name, endpoints)
@@ -25,7 +35,7 @@ class RemoteCommunicatorI(Test.RemoteCommunicator):
 class RemoteObjectAdapterI(Test.RemoteObjectAdapter):
     def __init__(self, adapter):
         self._adapter = adapter
-        self._testIntf = Test.TestIntfPrx.uncheckedCast(self._adapter.add(TestI(), adapter.getCommunicator().stringToIdentity("test")))
+        self._testIntf = Test.TestIntfPrx.uncheckedCast(self._adapter.add(TestI(), Ice.stringToIdentity("test")))
         self._adapter.activate()
 
     def getTestIntf(self, current=None):

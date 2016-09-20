@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,22 +8,10 @@
 // **********************************************************************
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Threading;
 using Test;
-#if SILVERLIGHT
-using System.Net;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Documents;
-using System.Windows.Ink;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
-using System.Windows.Shapes;
-#endif
+
 
 class LoggerI : Ice.Logger
 {
@@ -107,7 +95,7 @@ class LoggerI : Ice.Logger
     private List<string> _messages = new List<string>();
 };
 
-abstract class TestCase : Ice.ConnectionCallback
+abstract class TestCase
 {
     public TestCase(string name, RemoteCommunicatorPrx com)
     {
@@ -187,29 +175,28 @@ abstract class TestCase : Ice.ConnectionCallback
                                                                 _adapter.getTestIntf().ToString()));
         try
         {
-            proxy.ice_getConnection().setCallback(this);
+            proxy.ice_getConnection().setCloseCallback(_=>
+            {
+                lock(this)
+                {
+                    _closed = true;
+                    Monitor.Pulse(this);
+                }
+            });
+
+            proxy.ice_getConnection().setHeartbeatCallback(_=>
+            {
+                lock(this)
+                {
+                    ++_heartbeat;
+                }
+            });
+
             runTestCase(_adapter, proxy);
         }
         catch(Exception ex)
         {
             _msg = "unexpected exception:\n" + ex.ToString();
-        }
-    }
-
-    public void heartbeat(Ice.Connection con)
-    {
-        lock(this)
-        {
-            ++_heartbeat;
-        }
-    }
-
-    public void closed(Ice.Connection con)
-    {
-        lock(this)
-        {
-            _closed = true;
-            Monitor.Pulse(this);
         }
     }
 
@@ -528,13 +515,7 @@ public class AllTests : TestCommon.TestApp
         }
     };
 
-
-#if SILVERLIGHT
-    override
-    public void run(Ice.Communicator communicator)
-#else
     public static void allTests(Ice.Communicator communicator)
-#endif
     {
         string @ref = "communicator:default -p 12010";
         RemoteCommunicatorPrx com = RemoteCommunicatorPrxHelper.uncheckedCast(communicator.stringToProxy(@ref));
@@ -572,9 +553,9 @@ public class AllTests : TestCommon.TestApp
             test.destroy();
         }
 
-        System.Console.Out.Write("shutting down... ");
-        System.Console.Out.Flush();
+        Console.Out.Write("shutting down... ");
+        Console.Out.Flush();
         com.shutdown();
-        System.Console.WriteLine("ok");
+        Console.WriteLine("ok");
     }
 }

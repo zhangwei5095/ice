@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -33,7 +33,7 @@ class A
     C theC;
 
     bool preMarshalInvoked;
-    bool postUnmarshalInvoked();
+    bool postUnmarshalInvoked;
 };
 
 class B extends A
@@ -46,7 +46,7 @@ class C
     B theB;
 
     bool preMarshalInvoked;
-    bool postUnmarshalInvoked();
+    bool postUnmarshalInvoked;
 };
 
 class D
@@ -56,7 +56,7 @@ class D
     C theC;
 
     bool preMarshalInvoked;
-    bool postUnmarshalInvoked();
+    bool postUnmarshalInvoked;
 };
 
 ["protected"] class E
@@ -129,15 +129,44 @@ exception Ex
 
 };
 
-sequence<Object> ObjectSeq;			// For Objective-C only
-sequence<Object*> ObjectPrxSeq;			// For Objective-C only
-sequence<Base> BaseSeq;				// For Objective-C only
-sequence<Base*> BasePrxSeq;			// For Objective-C only
+class A1
+{
+    string name;
+};
 
-dictionary<string, Object> ObjectDict;		// For Objective-C only
-dictionary<string, Object*> ObjectPrxDict;	// For Objective-C only
-dictionary<string, Base> BaseDict;		// For Objective-C only
-dictionary<string, Base*> BasePrxDict;		// For Objective-C only
+class B1
+{
+    A1 a1;
+    A1 a2;
+};
+
+class D1 extends B1
+{
+    A1 a3;
+    A1 a4;
+};
+
+exception EBase
+{
+    A1 a1;
+    A1 a2;
+};
+
+exception EDerived extends EBase
+{
+    A1 a3;
+    A1 a4;
+};
+
+sequence<Object> ObjectSeq;         // For Objective-C only
+sequence<Object*> ObjectPrxSeq;     // For Objective-C only
+sequence<Base> BaseSeq;             // For Objective-C only
+sequence<Base*> BasePrxSeq;         // For Objective-C only
+
+dictionary<string, Object> ObjectDict;      // For Objective-C only
+dictionary<string, Object*> ObjectPrxDict;  // For Objective-C only
+dictionary<string, Base> BaseDict;          // For Objective-C only
+dictionary<string, Base*> BasePrxDict;      // For Objective-C only
 
 class Initial
 {
@@ -149,11 +178,17 @@ class Initial
     E getE();
     F getF();
 
+    ["marshaled-result"] B getMB();
+    ["amd", "marshaled-result"] B getAMDMB();
+
     void getAll(out B b1, out B b2, out C theC, out D theD);
 
     I getI();
     I getJ();
     I getH();
+
+    D1 getD1(D1 d1);
+    void throwEDerived() throws EDerived;
 
     void setI(I theI);
 

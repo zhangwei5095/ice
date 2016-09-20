@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -81,12 +81,29 @@ sealed class LoggerAdminI : Ice.LoggerAdminDisp_
         
         try
         {
-            remoteLogger.begin_init(_logger.getPrefix(), initLogMessages.ToArray(), initCompleted, null);
+            remoteLogger.initAsync(_logger.getPrefix(), initLogMessages.ToArray()).ContinueWith(
+                (t) =>
+                {
+                    try
+                    {
+                        t.Wait();
+                        if(_traceLevel > 1)
+                        {
+                            _logger.trace(_traceCategory,"init on `" + remoteLogger.ToString()
+                                          + "' completed successfully");
+                        }
+                    }
+                    catch(System.AggregateException ae)
+                    {
+                        Debug.Assert(ae.InnerException is Ice.LocalException);
+                        deadRemoteLogger(remoteLogger, _logger, (Ice.LocalException)ae.InnerException, "init");
+                    }
+                });
         }
         catch(Ice.LocalException ex)
         {
             deadRemoteLogger(remoteLogger, _logger, ex, "init");
-            throw ex;
+            throw;
         }    
     }
     
@@ -304,26 +321,6 @@ sealed class LoggerAdminI : Ice.LoggerAdminDisp_
         {
             return _remoteLoggerMap.Remove(remoteLogger.ice_getIdentity()); 
         }
-    }
-
-    private void initCompleted(Ice.AsyncResult r)
-    {
-        Ice.RemoteLoggerPrx remoteLogger = Ice.RemoteLoggerPrxHelper.uncheckedCast(r.getProxy());
-        
-        try 
-        {
-            remoteLogger.end_init(r);
-            
-            if(_traceLevel > 1)
-            {
-                _logger.trace(_traceCategory, r.getOperation() + " on `" + remoteLogger.ToString() 
-                              + "' completed successfully");
-            }
-        }
-        catch(Ice.LocalException ex)
-        {
-            deadRemoteLogger(remoteLogger, _logger, ex, r.getOperation());
-        }      
     }
     
     private static void filterLogMessages(LinkedList<Ice.LogMessage> logMessages,

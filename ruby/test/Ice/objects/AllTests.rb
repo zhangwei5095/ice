@@ -1,6 +1,6 @@
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -15,7 +15,7 @@ require './TestI.rb'
 # we always need to install the factories, even for the collocated
 # case.
 #
-class MyObjectFactory
+class MyValueFactory
     def create(type)
         if type == '::Test::B'
             return BI.new
@@ -34,6 +34,12 @@ class MyObjectFactory
         end
         fail "unknown type"
     end
+end
+
+class MyObjectFactory
+    def create(type)
+        return nil
+    end
 
     def destroy
         # Nothing to do
@@ -48,12 +54,14 @@ end
 
 def allTests(communicator)
 
-    factory = MyObjectFactory.new
-    communicator.addObjectFactory(factory, '::Test::B')
-    communicator.addObjectFactory(factory, '::Test::C')
-    #communicator.addObjectFactory(factory, '::Test::D')
-    communicator.addObjectFactory(factory, '::Test::E')
-    communicator.addObjectFactory(factory, '::Test::F')
+    factory = MyValueFactory.new
+    communicator.getValueFactoryManager().add(factory, '::Test::B')
+    communicator.getValueFactoryManager().add(factory, '::Test::C')
+    #communicator.getValueFactoryManager().add(factory, '::Test::D')
+    communicator.getValueFactoryManager().add(factory, '::Test::E')
+    communicator.getValueFactoryManager().add(factory, '::Test::F')
+
+    communicator.addObjectFactory(MyObjectFactory.new, 'TestOF')
 
     print "testing stringToProxy... "
     STDOUT.flush
@@ -74,25 +82,25 @@ def allTests(communicator)
     b1 = initial.getB1()
     test(b1)
     puts "ok"
-    
+
     print "getting B2... "
     STDOUT.flush
     b2 = initial.getB2()
     test(b2)
     puts "ok"
-    
+
     print "getting C... "
     STDOUT.flush
     c = initial.getC()
     test(c)
     puts "ok"
-    
+
     print "getting D... "
     STDOUT.flush
     d = initial.getD()
     test(d)
     puts "ok"
-    
+
     print "checking consistency... "
     STDOUT.flush
     test(b1 != b2)
@@ -109,11 +117,11 @@ def allTests(communicator)
     test(b1.theA.theC)
     test(b1.theA.theC.theB == b1.theA)
     test(b1.preMarshalInvoked)
-    test(b1.postUnmarshalInvoked())
+    test(b1.postUnmarshalInvoked)
     test(b1.theA.preMarshalInvoked)
-    test(b1.theA.postUnmarshalInvoked())
+    test(b1.theA.postUnmarshalInvoked)
     test(b1.theA.theC.preMarshalInvoked)
-    test(b1.theA.theC.postUnmarshalInvoked())
+    test(b1.theA.theC.postUnmarshalInvoked)
     # More tests possible for b2 and d, but I think this is already sufficient.
     test(b2.theA == b2)
     test(d.theC == nil)
@@ -127,7 +135,7 @@ def allTests(communicator)
     test(c)
     test(d)
     puts "ok"
-    
+
     print "checking consistency... "
     STDOUT.flush
     test(b1 != b2)
@@ -147,13 +155,13 @@ def allTests(communicator)
     test(d.theB == b2)
     test(d.theC == nil)
     test(d.preMarshalInvoked)
-    test(d.postUnmarshalInvoked())
+    test(d.postUnmarshalInvoked)
     test(d.theA.preMarshalInvoked)
-    test(d.theA.postUnmarshalInvoked())
+    test(d.theA.postUnmarshalInvoked)
     test(d.theB.preMarshalInvoked)
-    test(d.theB.postUnmarshalInvoked())
+    test(d.theB.postUnmarshalInvoked)
     test(d.theB.theC.preMarshalInvoked)
-    test(d.theB.theC.postUnmarshalInvoked())
+    test(d.theB.theC.postUnmarshalInvoked)
     puts "ok"
 
     print "testing protected members... "
@@ -193,6 +201,28 @@ def allTests(communicator)
     test(i)
     puts "ok"
 
+    print "getting D1... "
+    STDOUT.flush
+    d1 = initial.getD1(Test::D1.new(Test::A1.new("a1"), Test::A1.new("a2"), Test::A1.new("a3"), Test::A1.new("a4")))
+    test(d1.a1.name == "a1")
+    test(d1.a2.name == "a2")
+    test(d1.a3.name == "a3")
+    test(d1.a4.name == "a4")
+    puts "ok"
+
+    print "throw EDerived... "
+    STDOUT.flush
+    begin
+        initial.throwEDerived()
+        test(false)
+    rescue Test::EDerived => e
+        test(e.a1.name == "a1")
+        test(e.a2.name == "a2")
+        test(e.a3.name == "a3")
+        test(e.a4.name == "a4")
+    end
+    puts "ok"
+
     print "setting I... "
     STDOUT.flush
     initial.setI(i)
@@ -215,6 +245,14 @@ def allTests(communicator)
         test(r != nil)
     rescue Ice::OperationNotExistException
     end
+    puts "ok"
+
+    print "testing marshaled results..."
+    STDOUT.flush
+    b1 = initial.getMB()
+    test(b1 != nil && b1.theB == b1);
+    b1 = initial.getAMDMB()
+    test(b1 != nil && b1.theB == b1);
     puts "ok"
 
     print "testing UnexpectedObjectException... "
@@ -243,6 +281,16 @@ def allTests(communicator)
         print ex.backtrace.join("\n")
         test(false)
     end
+    puts "ok"
+
+    print "testing getting ObjectFactory... "
+    STDOUT.flush
+    test(communicator.findObjectFactory('TestOF') != nil)
+    puts "ok"
+
+    print "testing getting ObjectFactory as ValueFactory... "
+    STDOUT.flush
+    test(communicator.getValueFactoryManager().find('TestOF') != nil)
     puts "ok"
 
     return initial

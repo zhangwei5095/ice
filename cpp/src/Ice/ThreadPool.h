@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -23,7 +23,7 @@
 #include <Ice/PropertiesF.h>
 #include <Ice/EventHandler.h>
 #include <Ice/Selector.h>
-#include <Ice/BasicStream.h>
+#include <Ice/InputStream.h>
 #include <Ice/ObserverHelper.h>
 
 #include <set>
@@ -35,9 +35,9 @@ namespace IceInternal
 class ThreadPoolCurrent;
 
 class ThreadPoolWorkQueue;
-typedef IceUtil::Handle<ThreadPoolWorkQueue> ThreadPoolWorkQueuePtr;
+ICE_DEFINE_PTR(ThreadPoolWorkQueuePtr, ThreadPoolWorkQueue);
 
-class ThreadPoolWorkItem : virtual public IceUtil::Shared
+class ThreadPoolWorkItem : public virtual IceUtil::Shared
 {
 public:
 
@@ -132,7 +132,11 @@ private:
     std::string nextThreadId();
 
     const InstancePtr _instance;
+#ifdef ICE_CPP11_MAPPING
+    std::function<void(std::function<void()>, const std::shared_ptr<Ice::Connection>&)> _dispatcher;
+#else
     const Ice::DispatcherPtr _dispatcher;
+#endif
     ThreadPoolWorkQueuePtr _workQueue;
     bool _destroyed;
     const std::string _prefix;
@@ -172,7 +176,7 @@ public:
     ThreadPoolCurrent(const InstancePtr&, const ThreadPoolPtr&, const ThreadPool::EventHandlerThreadPtr&);
 
     SocketOperation operation;
-    BasicStream stream; // A per-thread stream to be used by event handlers for optimization.
+    Ice::InputStream stream; // A per-thread stream to be used by event handlers for optimization.
 
     bool ioCompleted() const
     {

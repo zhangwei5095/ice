@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # **********************************************************************
 #
-# Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+# Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 #
 # This copy of Ice is licensed to you under the terms described in the
 # ICE_LICENSE file included in this distribution.
@@ -29,8 +29,8 @@ if TestUtil.isSolaris() and TestUtil.ipv6:
     print("test not supported on Solaris with IPv6")
     sys.exit(0)
 
-server = os.path.join(os.getcwd(), "server")
-client = os.path.join(os.getcwd(), "client")
+server = os.path.join(os.getcwd(), TestUtil.getTestExecutable("server"))
+client = os.path.join(os.getcwd(), TestUtil.getTestExecutable("client"))
 
 num = 5
 

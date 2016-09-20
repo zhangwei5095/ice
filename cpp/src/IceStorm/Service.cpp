@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -26,8 +26,7 @@
 #include <IceStorm/NodeI.h>
 #include <IceStorm/TransientTopicI.h>
 
-#include <IceGrid/Locator.h>
-#include <IceGrid/Query.h>
+#include <IceGrid/Registry.h>
 
 using namespace std;
 using namespace Ice;
@@ -404,7 +403,7 @@ ServiceI::start(
     }
 
     topicAdapter->add(new FinderI(TopicManagerPrx::uncheckedCast(topicAdapter->createProxy(topicManagerId))),
-                      communicator->stringToIdentity("IceStorm/Finder"));
+                      stringToIdentity("IceStorm/Finder"));
 
     topicAdapter->activate();
     publishAdapter->activate();

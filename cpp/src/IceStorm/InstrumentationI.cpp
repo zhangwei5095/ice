@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -174,7 +174,7 @@ public:
             }
             catch(const ::Ice::FixedProxyException&)
             {
-                _id = _proxy->ice_getCommunicator()->identityToString(_proxy->ice_getIdentity());
+                _id = identityToString(_proxy->ice_getIdentity());
             }
         }
         return _id;
@@ -206,7 +206,7 @@ public:
     string
     getIdentity() const
     {
-        return _proxy->ice_getCommunicator()->identityToString(_proxy->ice_getIdentity());
+        return identityToString(_proxy->ice_getIdentity());
     }
 
 private:

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -14,13 +14,36 @@ buildscript {
         ext.iceMavenRepo = "repo.zeroc.com"
     }
 
+    //
+    // If iceBuilderHome is set add its lib directory it to the local maven repositories
+    // so we can build using a local plugin version
+    //
+    if (iceBuilderHome) {
+        def builder  = new File([iceBuilderHome, "build", "libs"].join(File.separator))
+        if(builder.exists()) {
+            repositories {
+                flatDir dirs: "file://${builder.getCanonicalPath()}"
+            }
+        }
+    }
+
+    if(new File("/usr/share/maven-repo").exists()){
+        repositories {
+            maven {
+                url "file:///usr/share/maven-repo"
+            }
+        }
+    }
+
     repositories {
+        mavenCentral()
+
         maven {
             url "https://${iceMavenRepo}/nexus/content/repositories/releases"
         }
     }
     dependencies {
-        classpath group: 'com.zeroc.gradle.ice-builder', name: 'slice', version: '1.0.2'
+        classpath group: 'com.zeroc.gradle.ice-builder', name: 'slice', version: "${iceBuilderVersion}"
     }
 }
 
@@ -28,40 +51,31 @@ if (!project.plugins.findPlugin(com.zeroc.gradle.icebuilder.slice.SlicePlugin)) 
     project.apply(plugin: com.zeroc.gradle.icebuilder.slice.SlicePlugin)
 }
 
+slice {
+    cppConfiguration = this.cppConfiguration
+    cppPlatform = this.cppPlatform
+    if(System.env.USE_BIN_DIST != "yes") {
+        iceHome =  this.hasProperty('iceHome') ? this.iceHome
+            : new File([rootProject.projectDir, ".."].join(File.separator)).getCanonicalPath()
+    }
+}
+
 ext.generatedDir = "$project.buildDir/generated"
 ext.useLocalOnly = false
 
-def android = false
-try {
+// Android does not have a compileJava task
+if(!(project.hasProperty('android') && project.android.sourceSets)) {
     compileJava {
         options.debug = debug
     }
-} catch(MissingMethodException ex) {
-    // For Android builds: thrown if compileJava isn't available.
-    android = true
 }
 
 def env = System.getenv()
 
 // Determine the name of the Slice-to-Java translator
-def isWindows = false
-def programFiles
-def slice2java = "slice2java"
-if (System.properties['os.name'].toLowerCase().contains('windows')) {
-    isWindows = true
-    slice2java = "slice2java.exe"
+def isWindows = System.properties['os.name'].toLowerCase().contains('windows')
 
-    def arch1 = env['PROCESSOR_ARCHITECTURE']
-    def arch2 = env['PROCESSOR_ARCHITEW6432']
-    if (arch1 == "AMD64" || arch1 == "IA64" || arch2 == "AMD64" || arch2 == "IA64") {
-        programFiles = System.getenv('ProgramFiles(x86)')
-    } else {
-        programFiles = System.getenv('ProgramFiles')
-    }
-}
-
-
-if (prefix == null || prefix.length() == 0) {
+if (!prefix) {
     // If the prefix isn't set use these default locations.
     if (isWindows) {
         prefix = "C:\\Ice-${project.version}"
@@ -82,106 +96,10 @@ if ((prefix.startsWith("/usr") || prefix.startsWith("/usr/local")) && !prefix.st
     ext.binDir = prefix + "/bin"
 }
 
-// First check if ICE_HOME is set and it points at a valid installation
-def iceHome = env['ICE_HOME']
-if (iceHome != null && iceHome.length() > 0) {
-    def translator = new File("$iceHome/bin/$slice2java")
-    if (!translator.exists()) {
-        //
-        // Make sure ICE_HOME is not just pointing to the source distribution
-        //
-        translator = new File("$iceHome/cpp/bin/$slice2java")
-        if (!translator.exists()) {
-            throw new GradleException("Unable to find $slice2java in $iceHome, please verify ICE_HOME is " +
-                                      "properly configured and Ice is correctly installed.")
-        }
-        iceHome = null
-    }
-}
-
-def iceBinDist = false
-if(env['USE_BIN_DIST'] == "yes") {
-    iceBinDist = true
-}
-
 // Check if we are building against source distribution
-def iceDir
-def iceCppDir
+def iceCppDir = slice.srcDist ? [slice.iceHome, "cpp"].join(File.separator) : slice.iceHome
 def iceSrcDist = false
-if (!iceBinDist) {
-    def f1 = new File("$rootProject.projectDir/../java/src/Ice/src/main/java/Ice/Util.java")
-    if (f1.exists()) {
-        iceDir = "$rootProject.projectDir/.."
-        iceSrcDist = true
 
-        if (iceHome != null && iceHome.length() > 0) {
-            iceCppDir = iceHome
-
-            def f2 = new File("$iceDir/cpp/bin/$slice2java")
-            if (f2.exists()) {
-                println "Found $slice2java in both $iceCppDir/bin and $iceDir/cpp/bin, $iceCppDir/bin/$slice2java will be used!"
-            }
-        } else {
-            iceCppDir = iceDir + "/cpp"
-            slice.srcDist = true
-        }
-
-        slice.iceHome = iceCppDir
-    }
-}
-
-// Then, check if we're building against a binary distribution.
-if (!iceDir) {
-    if (iceHome != null && iceHome.length() > 0) {
-        iceDir = iceHome
-    }
-
-    if (iceDir == null) {
-        def f1 = new File("/usr/bin/$slice2java")
-        if (f1.exists()) {
-            iceDir = "/usr"
-        }
-    }
-
-    if (iceDir == null && isWindows) {
-        iceDir = "${programFiles}\\ZeroC\\Ice-${project.version}"
-    }
-
-    if (iceDir == null) {
-        def f1 = new File("/usr/local/bin/${slice2java}")
-        if (f1.exists()) {
-            iceDir = "/usr/local"
-        }
-    }
-
-    if (iceDir == null) {
-        def f1 = new File("/opt/Ice-${project.version}/bin/${slice2java}")
-        if (f1.exists())
-        {
-            iceDir = "/opt/Ice-${project.version}"
-        }
-    }
-
-    if (iceDir == null) {
-        throw new GradleException("Unable to find a valid Ice distribution, please verify ICE_HOME is properly " +
-                                  "configured and Ice is correctly installed.")
-    }
-
-    slice.iceHome = iceDir
-    slice.srcDist = false
-}
-
-// Set the slice and java jar directory
-if (iceDir == "/usr") {
-    ext.sliceDir = "/usr/share/Ice-${project.version}/slice"
-    ext.distJarDir = "/usr/share/java"
-} else if (iceDir == "/usr/local") {
-    ext.sliceDir = "/usr/local/share/slice"
-    ext.distJarDir = "/usr/local/share/java"
-} else {
-    ext.sliceDir = "${iceDir}/slice"
-    ext.distJarDir = iceSrcDist ? null : "${iceDir}/lib"
-}
 
 // Check is DESTDIR is set (non-Windows)
 if (isWindows) {
@@ -215,38 +133,10 @@ ext.searchFile = { List<Closure> places, List<String> searchPaths ->
     }
 }
 
-def demoJar(name) {
-    def taskName = name + "Jar"
-    // Create a jar for the client & server which includes everything in the demo.
-    def jarTask = tasks.create(name: taskName, type: Jar) {
-        version = ""
-        baseName = name
-        from(sourceSets.main.output) {
-            include "**"
-        }
-    }
-
-    jarTask.manifest {
-        attributes("Main-Class": name.capitalize())
-        attributes("Class-Path": configurations.runtime.resolve().collect { it.toURI() }.join(' '))
-    }
-
-    artifacts {
-        archives jarTask
-    }
-}
-ext {
-    demoJar = this.&demoJar
-}
-
-def localDependency(artifactId) {
-    if (distJarDir != null) {
-        return "com.zeroc:${artifactId}:${project.version}"
-    } else {
+ext.localDependency = { artifactId ->
+    if (project.slice.srcDist) {
         return project(":${artifactId}")
+    } else {
+        return "com.zeroc:${artifactId}:${project.version}"
     }
 }
-ext {
-    localDependency = this.&localDependency
-}
-

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -15,15 +15,15 @@
 
 using namespace std;
 
-Test::PriorityPrx
+Test::PriorityPrxPtr
 allTests(const Ice::CommunicatorPtr& communicator)
 {
     cout << "testing server priority... " << flush;
-    string ref = "test:default -p 12010 -t 10000";
-    Ice::ObjectPrx base = communicator->stringToProxy(ref);
+    string ref = "test:" + getTestEndpoint(communicator, 0) + " -t 10000";
+    Ice::ObjectPrxPtr base = communicator->stringToProxy(ref);
     test(base);
 
-    Test::PriorityPrx priority = Test::PriorityPrx::checkedCast(base);
+    Test::PriorityPrxPtr priority = ICE_UNCHECKED_CAST(Test::PriorityPrx, base);
 
     try
     {

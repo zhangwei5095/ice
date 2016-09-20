@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -15,25 +15,29 @@ using namespace std;
 using namespace Ice;
 using namespace Test;
 
-TestIntfPrx
+TestIntfPrxPtr
 allTests(const CommunicatorPtr& communicator)
 {
     cout << "testing stringToProxy... " << flush;
-    ObjectPrx base = communicator->stringToProxy("test:default -p 12010");
+    ObjectPrxPtr base = communicator->stringToProxy("test:" + getTestEndpoint(communicator, 0));
     test(base);
     cout << "ok" << endl;
 
     cout << "testing checked cast... " << flush;
-    TestIntfPrx obj = TestIntfPrx::checkedCast(base);
+    TestIntfPrxPtr obj = ICE_CHECKED_CAST(TestIntfPrx, base);
     test(obj);
+#ifdef ICE_CPP11_MAPPING
+    test(Ice::targetEqualTo(obj, base));
+#else
     test(obj == base);
+#endif
     cout << "ok" << endl;
 
     {
-        string host = communicator->getProperties()->getPropertyAsIntWithDefault("Ice.IPv6", 0) == 0 ? 
+        string host = communicator->getProperties()->getPropertyAsIntWithDefault("Ice.IPv6", 0) == 0 ?
             "127.0.0.1" : "\"0:0:0:0:0:0:0:1\"";
         cout << "creating/destroying/recreating object adapter... " << flush;
-        ObjectAdapterPtr adapter = 
+        ObjectAdapterPtr adapter =
             communicator->createObjectAdapterWithEndpoints("TransientTestAdapter", "default -h " + host);
         try
         {
@@ -55,6 +59,11 @@ allTests(const CommunicatorPtr& communicator)
 
     cout << "creating/activating/deactivating object adapter in one operation... " << flush;
     obj->transient();
+#ifdef ICE_CPP11_MAPPING
+    obj->transientAsync().get();
+#else
+    obj->end_transient(obj->begin_transient());
+#endif
     cout << "ok" << endl;
 
     {
@@ -63,9 +72,12 @@ allTests(const CommunicatorPtr& communicator)
         {
             Ice::InitializationData initData;
             initData.properties = communicator->getProperties()->clone();
-            Ice::CommunicatorPtr comm = Ice::initialize(initData);
-            comm->stringToProxy("test:default -p 12010")->begin_ice_ping();
-            comm->destroy();
+            Ice::CommunicatorHolder comm = Ice::initialize(initData);
+#ifdef ICE_CPP11_MAPPING
+            comm->stringToProxy("test:" + getTestEndpoint(communicator, 0))->ice_pingAsync();
+#else
+            comm->stringToProxy("test:" + getTestEndpoint(communicator, 0))->begin_ice_ping();
+#endif
         }
         cout << "ok" << endl;
     }

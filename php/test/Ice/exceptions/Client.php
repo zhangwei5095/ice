@@ -1,7 +1,7 @@
 <?
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -25,7 +25,8 @@ function test($b)
     if(!$b)
     {
         $bt = debug_backtrace();
-        die("\ntest failed in ".$bt[0]["file"]." line ".$bt[0]["line"]."\n");
+        echo "\ntest failed in ".$bt[0]["file"]." line ".$bt[0]["line"]."\n";
+        exit(1);
     }
 }
 
@@ -308,7 +309,8 @@ function allTests($communicator)
     echo "catching object not exist exception... ";
     flush();
 
-    $id = $communicator->stringToIdentity("does not exist");
+    $stringToIdentity = $NS ? "Ice\\stringToIdentity" : "Ice_stringToIdentity";
+    $id = $stringToIdentity("does not exist");
     try
     {
         $thrower2 = $thrower->ice_identity($id)->ice_uncheckedCast("::Test::Thrower");
@@ -431,6 +433,11 @@ $initData = $NS ? eval("return new Ice\\InitializationData;") : eval("return new
 $initData->properties = Ice_getProperties();
 $initData->properties->setProperty("Ice.MessageSizeMax", "10");
 $communicator = Ice_initialize($argv, $initData);
+
+// This property is set by the test suite, howerver we need to override it for this test.
+// Unlike C++, we can not pass $argv into Ice::createProperties, so we just set it after.
+$communicator->getProperties()->setProperty("Ice.Warn.Connections", "0");
+
 $thrower = allTests($communicator);
 $thrower->shutdown();
 $communicator->destroy();

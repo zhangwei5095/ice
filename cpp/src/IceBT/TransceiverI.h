@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -11,7 +11,6 @@
 #define ICE_BT_TRANSCEIVER_H
 
 #include <IceBT/InstanceF.h>
-#include <IceBT/Engine.h>
 #include <IceBT/StreamSocket.h>
 
 #include <Ice/Transceiver.h>
@@ -29,6 +28,7 @@ public:
     virtual IceInternal::NativeInfoPtr getNativeInfo();
 
     virtual IceInternal::SocketOperation initialize(IceInternal::Buffer&, IceInternal::Buffer&);
+
     virtual IceInternal::SocketOperation closing(bool, const Ice::LocalException&);
     virtual void close();
     virtual IceInternal::SocketOperation write(IceInternal::Buffer&);
@@ -42,7 +42,7 @@ public:
 
 private:
 
-    TransceiverI(const InstancePtr&, const StreamSocketPtr&, const ConnectionPtr&, const std::string&);
+    TransceiverI(const InstancePtr&, const StreamSocketPtr&, const std::string&);
     virtual ~TransceiverI();
 
     friend class ConnectorI;
@@ -50,7 +50,6 @@ private:
 
     const InstancePtr _instance;
     const StreamSocketPtr _stream;
-    const ConnectionPtr _connection;
     const std::string _uuid;
 };
 

@@ -1,16 +1,14 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
 
-#if !SILVERLIGHT
 namespace IceInternal
 {
-    using System;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Net;
@@ -163,7 +161,7 @@ namespace IceInternal
                 {
                     if(r.observer != null)
                     {
-                        r.observer.failed(ex.ice_name());
+                        r.observer.failed(ex.ice_id());
                     }
                     r.callback.exception(ex);
                 }
@@ -186,7 +184,7 @@ namespace IceInternal
                 Ice.CommunicatorDestroyedException ex = new Ice.CommunicatorDestroyedException();
                 if(entry.observer != null)
                 {
-                    entry.observer.failed(ex.ice_name());
+                    entry.observer.failed(ex.ice_id());
                     entry.observer.detach();
                 }
                 entry.callback.exception(ex);
@@ -289,4 +287,3 @@ namespace IceInternal
         private HelperThread _thread;
     }
 }
-#endif

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -12,8 +12,9 @@
 
 #include <IceUtil/PushDisableWarnings.h>
 #include <Ice/Config.h>
-#include <Ice/DeprecatedStringConverter.h>
+#include <Ice/Comparable.h>
 #include <Ice/Initialize.h>
+#include <Ice/Optional.h>
 #include <Ice/LocalException.h>
 #include <Ice/PropertiesAdmin.h>
 #include <Ice/Properties.h>
@@ -37,7 +38,6 @@
 #include <Ice/Connection.h>
 #include <Ice/ConnectionAsync.h>
 #include <Ice/Functional.h>
-#include <Ice/Stream.h>
 #include <Ice/ImplicitContext.h>
 #include <Ice/Locator.h>
 #include <Ice/Router.h>
@@ -51,6 +51,10 @@
 #   include <Ice/Service.h>
 #endif
 #include <Ice/RegisterPlugins.h>
+#include <Ice/InterfaceByValue.h>
+#include <Ice/StringConverter.h>
+#include <Ice/IconvStringConverter.h>
+#include <Ice/UUID.h>
 #include <IceUtil/PopDisableWarnings.h>
 
 #endif

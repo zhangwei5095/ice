@@ -1,13 +1,13 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
 
-#include <IceUtil/UUID.h>
+#include <Ice/UUID.h>
 #include <IceUtil/Timer.h>
 #include <IceUtil/StringUtil.h>
 #include <IceUtil/FileUtil.h>
@@ -100,7 +100,7 @@ private:
 void
 setNoIndexingAttribute(const string& pa)
 {
-    wstring path = IceUtil::stringToWstring(pa);
+    wstring path = Ice::stringToWstring(pa);
     DWORD attrs = GetFileAttributesW(path.c_str());
     if(attrs == INVALID_FILE_ATTRIBUTES)
     {
@@ -470,7 +470,7 @@ NodeService::startImpl(int argc, char* argv[], int& status)
     // for the server and server adapter. It also takes care of installing the
     // evictors and object factories necessary to store these objects.
     //
-    Identity id = communicator()->stringToIdentity(instanceName + "/Node-" + name);
+    Identity id = stringToIdentity(instanceName + "/Node-" + name);
     NodePrx nodeProxy = NodePrx::uncheckedCast(_adapter->createProxy(id));
     _node = new NodeI(_adapter, *_sessions, _activator, _timer, traceLevels, nodeProxy, name, mapper, instanceName);
     _adapter->add(_node, nodeProxy->ice_getIdentity());

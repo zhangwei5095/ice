@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -31,24 +31,22 @@ IceBT::TransceiverI::getNativeInfo()
 IceInternal::SocketOperation
 IceBT::TransceiverI::initialize(IceInternal::Buffer& readBuffer, IceInternal::Buffer& writeBuffer)
 {
-    return IceInternal::SocketOperationNone; // Already connected.
+    return _stream->connect(readBuffer, writeBuffer);
 }
 
 IceInternal::SocketOperation
 IceBT::TransceiverI::closing(bool initiator, const Ice::LocalException&)
 {
+    //
     // If we are initiating the connection closure, wait for the peer
     // to close the TCP/IP connection. Otherwise, close immediately.
+    //
     return initiator ? IceInternal::SocketOperationRead : IceInternal::SocketOperationNone;
 }
 
 void
 IceBT::TransceiverI::close()
 {
-    if(_connection)
-    {
-        _connection->close();
-    }
     _stream->close();
 }
 
@@ -85,9 +83,14 @@ IceBT::TransceiverI::toDetailedString() const
 Ice::ConnectionInfoPtr
 IceBT::TransceiverI::getInfo() const
 {
-    IceBT::ConnectionInfoPtr info = new IceBT::ConnectionInfo();
+    IceBT::ConnectionInfoPtr info = ICE_MAKE_SHARED(IceBT::ConnectionInfo);
     fdToAddressAndChannel(_stream->fd(), info->localAddress, info->localChannel, info->remoteAddress,
                           info->remoteChannel);
+    if(_stream->fd() != INVALID_SOCKET)
+    {
+        info->rcvSize = IceInternal::getRecvBufferSize(_stream->fd());
+        info->sndSize = IceInternal::getSendBufferSize(_stream->fd());
+    }
     info->uuid = _uuid;
     return info;
 }
@@ -103,11 +106,9 @@ IceBT::TransceiverI::setBufferSize(int rcvSize, int sndSize)
     _stream->setBufferSize(rcvSize, sndSize);
 }
 
-IceBT::TransceiverI::TransceiverI(const InstancePtr& instance, const StreamSocketPtr& stream, const ConnectionPtr& conn,
-                                  const string& uuid) :
+IceBT::TransceiverI::TransceiverI(const InstancePtr& instance, const StreamSocketPtr& stream, const string& uuid) :
     _instance(instance),
     _stream(stream),
-    _connection(conn),
     _uuid(uuid)
 {
 }

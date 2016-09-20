@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -14,9 +14,14 @@
 #include <IceUtil/FileUtil.h>
 #include <IceUtil/StringUtil.h>
 #include <IceUtil/InputUtil.h>
+#include <IceUtil/Mutex.h>
 
-#if defined(__GLIBC__)
+#include <fstream>
+
+#if defined(__GLIBC__) || defined(_AIX)
 #   include <crypt.h>
+#elif defined(__FreeBSD__)
+#   include <unistd.h>
 #elif defined(__APPLE__)
 #   include <CoreFoundation/CoreFoundation.h>
 #   include <Security/Security.h>
@@ -33,6 +38,34 @@ using namespace Glacier2;
 namespace
 {
 
+#if defined(__FreeBSD__) && !defined(__GLIBC__)
+
+//
+// FreeBSD crypt is no reentrat we use this global mutex
+// to serialize access.
+//
+IceUtil::Mutex* _staticMutex = 0;
+
+class Init
+{
+public:
+
+    Init()
+    {
+        _staticMutex = new IceUtil::Mutex;
+    }
+
+    ~Init()
+    {
+        delete _staticMutex;
+        _staticMutex = 0;
+    }
+};
+
+Init init;
+#endif
+
+
 class CryptPermissionsVerifierI : public PermissionsVerifier
 {
 public:
@@ -44,6 +77,7 @@ public:
 private:
 
     const map<string, string> _passwords;
+    IceUtil::Mutex _cryptMutex; // for old thread-unsafe crypt()
 };
 
 class CryptPermissionsVerifierPlugin : public Ice::Plugin
@@ -51,12 +85,12 @@ class CryptPermissionsVerifierPlugin : public Ice::Plugin
 public:
 
     CryptPermissionsVerifierPlugin(const CommunicatorPtr&);
-    
+
     virtual void initialize();
     virtual void destroy();
 
 private:
-    
+
     CommunicatorPtr _communicator;
 };
 
@@ -64,7 +98,7 @@ private:
 map<string, string>
 retrievePasswordMap(const string& file)
 {
-    IceUtilInternal::ifstream passwordFile(file);
+    ifstream passwordFile(IceUtilInternal::streamFilename(file).c_str());
     if(!passwordFile)
     {
         string err = IceUtilInternal::lastErrorToString();
@@ -140,7 +174,7 @@ CryptPermissionsVerifierI::checkPermissions(const string& userId, const string& 
     {
         return false;
     }
-#if defined(__GLIBC__)
+#if defined(__GLIBC__) || defined(__FreeBSD__)
     size_t i = p->second.rfind('$');
     string salt;
     if(i == string::npos)
@@ -162,10 +196,15 @@ CryptPermissionsVerifierI::checkPermissions(const string& userId, const string& 
             return false;
         }
     }
+#   if defined(__GLIBC__)
     struct crypt_data data;
     data.initialized = 0;
     return p->second == crypt_r(password.c_str(), salt.c_str(), &data);
-#elif defined(__APPLE__) || defined(_WIN32)    
+#   else
+    IceUtilInternal::MutexPtrLock<IceUtil::Mutex> lock(_staticMutex);
+    return p->second == crypt(password.c_str(), salt.c_str())
+#   endif
+#elif defined(__APPLE__) || defined(_WIN32)
     //
     // Pbkdf2 string format:
     //
@@ -174,7 +213,7 @@ CryptPermissionsVerifierI::checkPermissions(const string& userId, const string& 
     //
     size_t beg = 0;
     size_t end = 0;
-    
+
     //
     // Determine the digest algorithm
     //
@@ -373,7 +412,7 @@ CryptPermissionsVerifierI::checkPermissions(const string& userId, const string& 
 
     vector<BYTE> passwordBuffer(password.begin(), password.end());
 
-    DWORD status = BCryptDeriveKeyPBKDF2(algorithmHandle, &passwordBuffer[0], 
+    DWORD status = BCryptDeriveKeyPBKDF2(algorithmHandle, &passwordBuffer[0],
                                          static_cast<DWORD>(passwordBuffer.size()),
                                          &saltBuffer[0], saltLength, rounds,
                                          &checksumBuffer1[0], static_cast<DWORD>(checksumLength), 0);
@@ -388,7 +427,7 @@ CryptPermissionsVerifierI::checkPermissions(const string& userId, const string& 
     DWORD checksumBuffer2Length = checksumLength;
     vector<BYTE> checksumBuffer2(checksumLength);
 
-    if(!CryptStringToBinary(checksum.c_str(), static_cast<DWORD>(checksum.size()), 
+    if(!CryptStringToBinary(checksum.c_str(), static_cast<DWORD>(checksum.size()),
                             CRYPT_STRING_BASE64, &checksumBuffer2[0],
                             &checksumBuffer2Length, 0, 0))
     {
@@ -397,7 +436,17 @@ CryptPermissionsVerifierI::checkPermissions(const string& userId, const string& 
     return checksumBuffer1 == checksumBuffer2;
 #   endif
 #else
-#   error Password hashing not implemented
+    // Fallback to plain crypt() - DES-style
+
+    if(p->second.size() != 13)
+    {
+        return false;
+    }
+    string salt = p->second.substr(0, 2);
+
+    IceUtil::Mutex::Lock lock(_cryptMutex);
+    return p->second == crypt(password.c_str(), salt.c_str());
+
 #endif
 }
 
@@ -412,23 +461,23 @@ CryptPermissionsVerifierPlugin::initialize()
 {
     const string prefix = "Glacier2CryptPermissionsVerifier.";
     const PropertyDict props = _communicator->getProperties()->getPropertiesForPrefix(prefix);
-  
+
     if(!props.empty())
     {
         ObjectAdapterPtr adapter = _communicator->createObjectAdapter(""); // colloc-only adapter
-        
+
         // Each prop represents a property to set + the associated password file
-        
+
         for(PropertyDict::const_iterator p = props.begin(); p != props.end(); ++p)
         {
             string name = p->first.substr(prefix.size());
             Identity id;
-            id.name = IceUtil::generateUUID();
+            id.name = Ice::generateUUID();
             id.category = "Glacier2CryptPermissionsVerifier";
             ObjectPrx prx = adapter->add(new CryptPermissionsVerifierI(retrievePasswordMap(p->second)), id);
-            _communicator->getProperties()->setProperty(name, _communicator->proxyToString(prx));  
+            _communicator->getProperties()->setProperty(name, _communicator->proxyToString(prx));
         }
-        
+
         adapter->activate();
     }
 }
@@ -463,7 +512,7 @@ createCryptPermissionsVerifier(const CommunicatorPtr& communicator, const string
         out << "Plugin " << name << ": too many arguments";
         return 0;
     }
-    
+
     return new CryptPermissionsVerifierPlugin(communicator);
 }
 

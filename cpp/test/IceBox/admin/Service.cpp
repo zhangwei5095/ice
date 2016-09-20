@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -44,7 +44,7 @@ create(CommunicatorPtr communicator)
 
 ServiceI::ServiceI(const CommunicatorPtr& serviceManagerCommunicator)
 {
-    TestFacetIPtr facet = new TestFacetI;
+    TestFacetIPtr facet = ICE_MAKE_SHARED(TestFacetI);
 
     //
     // Install a custom admin facet.
@@ -56,9 +56,14 @@ ServiceI::ServiceI(const CommunicatorPtr& serviceManagerCommunicator)
     // Set the callback on the admin facet.
     //
     ObjectPtr propFacet = serviceManagerCommunicator->findAdminFacet("IceBox.Service.TestService.Properties");
-    NativePropertiesAdminPtr admin = NativePropertiesAdminPtr::dynamicCast(propFacet);
+    NativePropertiesAdminPtr admin = ICE_DYNAMIC_CAST(NativePropertiesAdmin, propFacet);
     assert(admin);
+
+#ifdef ICE_CPP11_MAPPING
+    admin->addUpdateCallback([facet](const Ice::PropertyDict& changes) { facet->updated(changes); });
+#else
     admin->addUpdateCallback(facet);
+#endif
 }
 
 ServiceI::~ServiceI()

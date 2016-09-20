@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -113,7 +113,7 @@ WellKnownObjectsManager::updateReplicatedWellKnownObjects()
     objects.push_back(info);
 
     id.name = "LocatorRegistry";
-    info.type = Ice::Locator::ice_staticId();
+    info.type = Ice::LocatorRegistry::ice_staticId();
     info.proxy = _database->getReplicaCache().getEndpoints("Server", _endpoints["Server"])->ice_identity(id);
     objects.push_back(info);
 

@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -42,7 +42,7 @@ class NodeI : public Node, public IceUtil::Monitor<IceUtil::Mutex>
 {
 public:
 
-    class Update : virtual public IceUtil::Shared
+    class Update : public virtual IceUtil::Shared
     {
     public:
         
@@ -99,9 +99,9 @@ public:
     virtual void replicaAdded(const InternalRegistryPrx&, const Ice::Current&);
     virtual void replicaRemoved(const InternalRegistryPrx&, const Ice::Current&);
 
-    virtual std::string getName(const Ice::Current& = Ice::Current()) const;
-    virtual std::string getHostname(const Ice::Current& = Ice::Current()) const;
-    virtual LoadInfo getLoad(const Ice::Current& = Ice::Current()) const;
+    virtual std::string getName(const Ice::Current& = Ice::noExplicitCurrent) const;
+    virtual std::string getHostname(const Ice::Current& = Ice::noExplicitCurrent) const;
+    virtual LoadInfo getLoad(const Ice::Current& = Ice::noExplicitCurrent) const;
     virtual int getProcessorSocketCount(const Ice::Current&) const;
     virtual void shutdown(const Ice::Current&) const;
 

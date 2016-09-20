@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -25,7 +25,7 @@
 namespace
 {
 
-std::map<Ice::Object*, ICEObjectWrapper*> cachedObjects;
+std::map<Ice::Object*, ICEServantWrapper*> cachedObjects;
 
 NSString*
 operationModeToString(ICEOperationMode mode)
@@ -46,7 +46,7 @@ operationModeToString(ICEOperationMode mode)
     }
 }
 
-class ObjectI : public IceObjC::ObjectWrapper, public Ice::BlobjectArrayAsync
+class ObjectI : public IceObjC::ServantWrapper, public Ice::BlobjectArrayAsync
 {
 public:
 
@@ -56,7 +56,7 @@ public:
                                   const std::pair<const Ice::Byte*, const Ice::Byte*>&,
                                   const Ice::Current&);
 
-    virtual ICEObject* getObject()
+    virtual ICEObject* getServant()
     {
         return _object;
     }
@@ -78,7 +78,7 @@ private:
     ICEServant* _object;
 };
 
-class BlobjectI : public IceObjC::ObjectWrapper, public Ice::BlobjectArrayAsync
+class BlobjectI : public IceObjC::ServantWrapper, public Ice::BlobjectArrayAsync
 {
 public:
 
@@ -88,7 +88,7 @@ public:
                                   const std::pair<const Ice::Byte*, const Ice::Byte*>&,
                                   const Ice::Current&);
 
-    virtual ICEObject* getObject()
+    virtual ICEObject* getServant()
     {
         return _blobject;
     }
@@ -117,19 +117,12 @@ ObjectI::ObjectI(ICEServant* object) : _object(object)
 
 void
 ObjectI::ice_invoke_async(const Ice::AMD_Object_ice_invokePtr& cb,
-                                   const std::pair<const Ice::Byte*, const Ice::Byte*>& inParams,
-                                   const Ice::Current& current)
+                          const std::pair<const Ice::Byte*, const Ice::Byte*>& inParams,
+                          const Ice::Current& current)
 {
-    ICEInputStream* is = nil;
-    ICEOutputStream* os = nil;
-    {
-        Ice::InputStreamPtr s = Ice::createInputStream(current.adapter->getCommunicator(), inParams);
-        is = [ICEInputStream localObjectWithCxxObjectNoAutoRelease:s.get()];
-    }
-    {
-        Ice::OutputStreamPtr s = Ice::createOutputStream(current.adapter->getCommunicator());
-        os = [ICEOutputStream localObjectWithCxxObjectNoAutoRelease:s.get()];
-    }
+    Ice::Communicator* communicator = current.adapter->getCommunicator().get();
+    ICEInputStream* is = [[ICEInputStream alloc] initWithCxxCommunicator:communicator data:inParams];
+    ICEOutputStream* os = [[ICEOutputStream alloc] initWithCxxCommunicator:communicator];
 
     NSException* exception = nil;
     BOOL ok = YES; // Keep the compiler happy
@@ -138,7 +131,14 @@ ObjectI::ice_invoke_async(const Ice::AMD_Object_ice_invokePtr& cb,
         ICECurrent* c = [[ICECurrent alloc] initWithCurrent:current];
         @try
         {
-            ok = [_object dispatch__:c is:is os:os];
+            [_object dispatch__:c is:is os:os];
+        }
+        @catch(ICEUserException* ex)
+        {
+            // The generated code started the encapsulation with the appropriate format.
+            ok = NO;
+            [os writeException:ex];
+            [os endEncapsulation];
         }
         @catch(id ex)
         {
@@ -157,11 +157,8 @@ ObjectI::ice_invoke_async(const Ice::AMD_Object_ice_invokePtr& cb,
         rethrowCxxException(exception, true); // True = release the exception.
     }
 
-    std::vector<Ice::Byte> outParams;
-    [os os]->finished(outParams);
+    cb->ice_response(ok, [os os]->finished());
     [os release];
-
-    cb->ice_response(ok, std::make_pair(&outParams[0], &outParams[0] + outParams.size()));
 }
 
 BlobjectI::BlobjectI(ICEBlobject* blobject) : _blobject(blobject), _target([blobject target__])
@@ -170,8 +167,8 @@ BlobjectI::BlobjectI(ICEBlobject* blobject) : _blobject(blobject), _target([blob
 
 void
 BlobjectI::ice_invoke_async(const Ice::AMD_Object_ice_invokePtr& cb,
-                                     const std::pair<const Ice::Byte*, const Ice::Byte*>& inEncaps,
-                                     const Ice::Current& current)
+                            const std::pair<const Ice::Byte*, const Ice::Byte*>& inEncaps,
+                            const Ice::Current& current)
 {
     NSException* exception = nil;
     BOOL ok = YES; // Keep the compiler happy.
@@ -187,6 +184,17 @@ BlobjectI::ice_invoke_async(const Ice::AMD_Object_ice_invokePtr& cb,
         {
             ok = [_target ice_invoke:inE outEncaps:&outE current:c];
             [outE retain];
+        }
+        @catch(ICEUserException* ex)
+        {
+            ok = NO;
+            Ice::Communicator* communicator = current.adapter->getCommunicator().get();
+            ICEOutputStream* os = [[ICEOutputStream alloc] initWithCxxCommunicator:communicator];
+            [os startEncapsulation:c.encoding format:ICEDefaultFormat];
+            [os writeException:ex];
+            [os endEncapsulation];
+            outE = [[os finished] retain];
+            [os release];
         }
         @catch(id ex)
         {
@@ -344,10 +352,9 @@ static NSString* ICEObject_ids__[1] =
     NSAssert(NO, @"ice_ids requires override");
     return nil;
 }
--(BOOL) ice_dispatch:(id<ICERequest>)request;
+-(void) ice_dispatch:(id<ICERequest>)request;
 {
     NSAssert(NO, @"ice_dispatch requires override");
-    return NO;
 }
 +(NSString*) ice_staticId
 {
@@ -412,7 +419,7 @@ static NSString* ICEObject_all__[4] =
 {
     if(object__)
     {
-        delete static_cast<IceObjC::ObjectWrapper*>(object__);
+        delete static_cast<IceObjC::ServantWrapper*>(object__);
         object__ = 0;
     }
     [delegate__ release];
@@ -448,21 +455,12 @@ static NSString* ICEObject_all__[4] =
     return [NSArray arrayWithObjects:staticIds count:count];
 }
 
--(BOOL) ice_dispatch:(id<ICERequest>)request
+-(void) ice_dispatch:(id<ICERequest>)request
 {
-    @try
-    {
-        ICERequest* requestI = (ICERequest*)request;
-        return [requestI callDispatch:self];
-    }
-    @catch(ICELocalException*)
-    {
-        @throw;
-    }
-    return FALSE;
+    [(ICERequest*)request callDispatch:self];
 }
 
-+(BOOL) ice_isA___:(id)servant current:(ICECurrent*)current is:(id<ICEInputStream>)is os:(id<ICEOutputStream>)os
++(void) ice_isA___:(id)servant current:(ICECurrent*)current is:(id<ICEInputStream>)is os:(id<ICEOutputStream>)os
 {
     ICEEncodingVersion* encoding = [is startEncapsulation];
     NSString* id__ = [is readString];
@@ -471,20 +469,18 @@ static NSString* ICEObject_all__[4] =
     BOOL ret__ = [servant ice_isA:id__ current:current];
     [os writeBool:ret__];
     [os endEncapsulation];
-    return YES;
 }
 
-+(BOOL) ice_ping___:(id)servant current:(ICECurrent*)current is:(id<ICEInputStream>)is os:(id<ICEOutputStream>)os
++(void) ice_ping___:(id)servant current:(ICECurrent*)current is:(id<ICEInputStream>)is os:(id<ICEOutputStream>)os
 {
     ICEEncodingVersion* encoding = [is startEncapsulation];
     [is endEncapsulation];
     [os startEncapsulation:encoding format:ICEDefaultFormat];
     [servant ice_ping:current];
     [os endEncapsulation];
-    return YES;
 }
 
-+(BOOL) ice_id___:(id)servant current:(ICECurrent*)current is:(id<ICEInputStream>)is os:(id<ICEOutputStream>)os
++(void) ice_id___:(id)servant current:(ICECurrent*)current is:(id<ICEInputStream>)is os:(id<ICEOutputStream>)os
 {
     ICEEncodingVersion* encoding = [is startEncapsulation];
     [is endEncapsulation];
@@ -492,10 +488,9 @@ static NSString* ICEObject_all__[4] =
     NSString* ret__ = [servant ice_id:current];
     [os writeString:ret__];
     [os endEncapsulation];
-    return YES;
 }
 
-+(BOOL) ice_ids___:(id)servant current:(ICECurrent*)current is:(id<ICEInputStream>)is os:(id<ICEOutputStream>)os
++(void) ice_ids___:(id)servant current:(ICECurrent*)current is:(id<ICEInputStream>)is os:(id<ICEOutputStream>)os
 {
     ICEEncodingVersion* encoding = [is startEncapsulation];
     [is endEncapsulation];
@@ -503,21 +498,24 @@ static NSString* ICEObject_all__[4] =
     NSArray* ret__ = [servant ice_ids:current];
     [os writeStringSeq:ret__];
     [os endEncapsulation];
-    return YES;
 }
 
--(BOOL) dispatch__:(ICECurrent*)current is:(id<ICEInputStream>)is os:(id<ICEOutputStream>)os
+-(void) dispatch__:(ICECurrent*)current is:(id<ICEInputStream>)is os:(id<ICEOutputStream>)os
 {
     switch(ICEInternalLookupString(ICEObject_all__, sizeof(ICEObject_all__) / sizeof(NSString*), current.operation))
     {
     case 0:
-        return [ICEServant ice_id___:self current:current is:is os:os];
+        [ICEServant ice_id___:self current:current is:is os:os];
+        return;
     case 1:
-        return [ICEServant ice_ids___:self current:current is:is os:os];
+        [ICEServant ice_ids___:self current:current is:is os:os];
+        return;
     case 2:
-        return [ICEServant ice_isA___:self current:current is:is os:os];
+        [ICEServant ice_isA___:self current:current is:is os:os];
+        return;
     case 3:
-        return [ICEServant ice_ping___:self current:current is:is os:os];
+        [ICEServant ice_ping___:self current:current is:is os:os];
+        return;
     default:
         @throw [ICEOperationNotExistException requestFailedException:__FILE__
                                               line:__LINE__
@@ -529,16 +527,16 @@ static NSString* ICEObject_all__[4] =
 
 -(void) write__:(id<ICEOutputStream>)os
 {
-    [os startObject:nil];
+    [os startValue:nil];
     [self writeImpl__:os];
-    [os endObject];
+    [os endValue];
 }
 
 -(void) read__:(id<ICEInputStream>)is
 {
-    [is startObject];
+    [is startValue];
     [self readImpl__:is];
-    [is endObject:NO];
+    [is endValue:NO];
 }
 
 -(void) writeImpl__:(id<ICEOutputStream>)os
@@ -570,10 +568,10 @@ static NSString* ICEObject_all__[4] =
             // reference to the object (without this, servants added to the object adapter
             // couldn't be retained or released easily).
             //
-            object__ = static_cast<IceObjC::ObjectWrapper*>(new ObjectI(self));
+            object__ = static_cast<IceObjC::ServantWrapper*>(new ObjectI(self));
         }
     }
-    return static_cast<IceObjC::ObjectWrapper*>(object__);
+    return static_cast<IceObjC::ServantWrapper*>(object__);
 }
 @end
 
@@ -592,14 +590,14 @@ static NSString* ICEObject_all__[4] =
             // reference to the object (without this, servants added to the object adapter
             // couldn't be retained or released easily).
             //
-            object__ = static_cast<IceObjC::ObjectWrapper*>(new BlobjectI(self));
+            object__ = static_cast<IceObjC::ServantWrapper*>(new BlobjectI(self));
         }
     }
-    return static_cast<IceObjC::ObjectWrapper*>(object__);
+    return static_cast<IceObjC::ServantWrapper*>(object__);
 }
 @end
 
-@implementation ICEObjectWrapper
+@implementation ICEServantWrapper
 -(id) initWithCxxObject:(Ice::Object*)arg
 {
     self = [super init];
@@ -620,18 +618,18 @@ static NSString* ICEObject_all__[4] =
     object__->__decRef();
     [super dealloc];
 }
-+(id) objectWrapperWithCxxObject:(Ice::Object*)arg
++(id) servantWrapperWithCxxObject:(Ice::Object*)arg
 {
-    @synchronized([ICEObjectWrapper class])
+    @synchronized([ICEServantWrapper class])
     {
-        std::map<Ice::Object*, ICEObjectWrapper*>::const_iterator p = cachedObjects.find(arg);
+        std::map<Ice::Object*, ICEServantWrapper*>::const_iterator p = cachedObjects.find(arg);
         if(p != cachedObjects.end())
         {
             return [p->second retain];
         }
         else
         {
-            return [[(ICEObjectWrapper*)[self alloc] initWithCxxObject:arg] autorelease];
+            return [[(ICEServantWrapper*)[self alloc] initWithCxxObject:arg] autorelease];
         }
     }
 }
@@ -642,7 +640,7 @@ static NSString* ICEObject_all__[4] =
 }
 -(oneway void) release
 {
-    @synchronized([ICEObjectWrapper class])
+    @synchronized([ICEServantWrapper class])
     {
         if(NSDecrementExtraRefCountWasZero(self))
         {
@@ -702,7 +700,7 @@ static NSString* ICEObject_all__[4] =
     }
     @throw nsex;
 }
--(BOOL) ice_dispatch:(id<ICERequest>)request
+-(void) ice_dispatch:(id<ICERequest>)request
 {
     @throw [ICEFeatureNotSupportedException featureNotSupportedException:__FILE__ line:__LINE__];
 }

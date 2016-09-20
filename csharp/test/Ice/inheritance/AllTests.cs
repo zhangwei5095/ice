@@ -1,36 +1,17 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
 
-using System;
 using Test;
 
-#if SILVERLIGHT
-using System.Windows.Controls;
-#endif
-
 public class AllTests : TestCommon.TestApp
-{   
-#if SILVERLIGHT
-    public override Ice.InitializationData initData()
-    {
-        Ice.InitializationData initData = new Ice.InitializationData();
-        initData.properties = Ice.Util.createProperties();
-        initData.properties.setProperty("Ice.FactoryAssemblies", "inheritance,version=1.0.0.0");
-        return initData;
-    }
-
-    override
-    public void run(Ice.Communicator communicator)
-#else
+{
     public static InitialPrx allTests(Ice.Communicator communicator)
-#endif
-
     {
         Write("testing stringToProxy... ");
         Flush();
@@ -238,11 +219,6 @@ public class AllTests : TestCommon.TestApp
         ib2o = cd.cdop(cd);
         test(ib2o.Equals(cd));
         WriteLine("ok");
-        
-#if SILVERLIGHT
-        initial.shutdown();
-#else
         return initial;
-#endif
     }
 }

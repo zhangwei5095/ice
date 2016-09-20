@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -8,13 +8,11 @@
 // **********************************************************************
 
 
-var Ice = require("../Ice/ModuleRegistry").Ice;
-var __M = Ice.__M;
+const Ice = require("../Ice/ModuleRegistry").Ice;
+const __M = Ice.__M;
 __M.require(module,
     [
-        "../Ice/Class",
         "../Ice/Current",
-        "../Ice/DispatchStatus",
         "../Ice/Exception",
         "../Ice/FormatType",
         "../Ice/Object",
@@ -23,9 +21,7 @@ __M.require(module,
         "../Ice/StreamHelpers"
     ]);
 
-var Class = Ice.Class;
-
-var builtinHelpers =
+const builtinHelpers =
 [
     Ice.ByteHelper,
     Ice.BoolHelper,
@@ -41,17 +37,15 @@ var builtinHelpers =
 
 function parseParam(p)
 {
-    var type = p[0];
-    var t = typeof(type);
+    let type = p[0];
+    const t = typeof(type);
     if(t === 'number')
     {
         type = builtinHelpers[p[0]];
     }
     else if(t === 'string')
     {
-        /*jshint -W061 */
         type = __M.type(type);
-        /*jshint +W061 */
     }
 
     return {
@@ -69,51 +63,39 @@ function parseParam(p)
 //     otherwise an empty string
 //  1: mode (undefined == Normal or int)
 //  2: sendMode (undefined == Normal or int)
-//  3: amd (undefined or 1)
-//  4: format (undefined == Default or int)
-//  5: return type (undefined if void, or [type, tag])
-//  6: in params (undefined if none, or array of [type, tag])
-//  7: out params (undefined if none, or array of [type, tag])
-//  8: exceptions (undefined if none, or array of types)
-//  9: sends classes (true or undefined)
-// 10: returns classes (true or undefined)
+//  3: format (undefined == Default or int)
+//  4: return type (undefined if void, or [type, tag])
+//  5: in params (undefined if none, or array of [type, tag])
+//  6: out params (undefined if none, or array of [type, tag])
+//  7: exceptions (undefined if none, or array of types)
+//  8: sends classes (true or undefined)
+//  9: returns classes (true or undefined)
 //
 function parseOperation(name, arr)
 {
-    var r = {};
-    var i;
-    var p;
+    const r = {};
 
     r.name = name;
+    r.servantMethod = arr[0] ? arr[0] : name;
     r.mode = arr[1] ? Ice.OperationMode.valueOf(arr[1]) : Ice.OperationMode.Normal;
     r.sendMode = arr[2] ? Ice.OperationMode.valueOf(arr[2]) : Ice.OperationMode.Normal;
-    r.amd = arr[3] ? true : false;
-    r.format = arr[4] ? Ice.FormatType.valueOf(arr[4]) : Ice.FormatType.DefaultFormat;
+    r.format = arr[3] ? Ice.FormatType.valueOf(arr[3]) : Ice.FormatType.DefaultFormat;
 
-    if(r.amd)
+    let ret;
+    if(arr[4])
     {
-        r.servantMethod = name + "_async";
-    }
-    else
-    {
-        r.servantMethod = arr[0] ? arr[0] : name;
-    }
-
-    var ret;
-    if(arr[5])
-    {
-        ret = parseParam(arr[5]);
+        ret = parseParam(arr[4]);
         ret.pos = 0;
     }
     r.returns = ret;
 
-    var inParams = [];
-    var inParamsOpt = [];
-    if(arr[6])
+    const inParams = [];
+    const inParamsOpt = [];
+    if(arr[5])
     {
-        for(i = 0; i < arr[6].length; ++i)
+        for(let i = 0; i < arr[5].length; ++i)
         {
-            p = parseParam(arr[6][i]);
+            let p = parseParam(arr[5][i]);
             p.pos = i;
             inParams.push(p);
             if(p.tag)
@@ -126,14 +108,14 @@ function parseOperation(name, arr)
     r.inParams = inParams;
     r.inParamsOpt = inParamsOpt;
 
-    var outParams = [];
-    var outParamsOpt = [];
-    if(arr[7])
+    const outParams = [];
+    const outParamsOpt = [];
+    if(arr[6])
     {
-        var offs = ret ? 1 : 0;
-        for(i = 0; i < arr[7].length; ++i)
+        const offs = ret ? 1 : 0;
+        for(let i = 0; i < arr[6].length; ++i)
         {
-            p = parseParam(arr[7][i]);
+            let p = parseParam(arr[6][i]);
             p.pos = i + offs;
             outParams.push(p);
             if(p.tag)
@@ -150,34 +132,36 @@ function parseOperation(name, arr)
     r.outParams = outParams;
     r.outParamsOpt = outParamsOpt;
 
-    var exceptions = [];
-    if(arr[8])
+    const exceptions = [];
+    if(arr[7])
     {
-        for(i = 0; i < arr[8].length; ++i)
+        for(let i = 0; i < arr[7].length; ++i)
         {
-            exceptions.push(arr[8][i]);
+            exceptions.push(arr[7][i]);
         }
     }
     r.exceptions = exceptions;
 
-    r.sendsClasses = arr[9] === true;
-    r.returnsClasses = arr[10] === true;
+    r.sendsClasses = arr[8] === true;
+    r.returnsClasses = arr[9] === true;
 
     return r;
 }
 
-var OpTable = Class({
-    __init__: function(ops)
+class OpTable
+{
+    constructor(ops)
     {
         this.raw = ops;
         this.parsed = {};
-    },
-    find: function(name)
+    }
+
+    find(name)
     {
         //
         // Check if we've already parsed the operation.
         //
-        var op = this.parsed[name];
+        let op = this.parsed[name];
         if(op === undefined && this.raw[name] !== undefined)
         {
             //
@@ -188,21 +172,44 @@ var OpTable = Class({
         }
         return op;
     }
-});
+}
 
 function unmarshalParams(is, retvalInfo, allParamInfo, optParamInfo, usesClasses, params, offset)
 {
-    var i, p, v;
+    const readParam = (p, optional) =>
+    {
+        if(optional)
+        {
+            if(p.isObject)
+            {
+                is.readOptionalValue(p.tag, obj => params[p.pos + offset] = obj, p.type);
+            }
+            else
+            {
+                params[p.pos + offset] = p.type.readOptional(is, p.tag);
+            }
+        }
+        else
+        {
+            if(p.isObject)
+            {
+                is.readValue(obj => params[p.pos + offset] = obj, p.type);
+            }
+            else
+            {
+                params[p.pos + offset] = p.type.read(is);
+            }
+        }
+    };
+
     //
     // First read all required params.
     //
-    for(i = 0; i < allParamInfo.length; ++i)
+    for(let i = 0; i < allParamInfo.length; ++i)
     {
-        p = allParamInfo[i];
-        if(!p.tag)
+        if(!allParamInfo[i].tag)
         {
-            v = p.type.read(is);
-            params[p.pos + offset] = v;
+            readParam(allParamInfo[i], false);
         }
     }
 
@@ -211,36 +218,31 @@ function unmarshalParams(is, retvalInfo, allParamInfo, optParamInfo, usesClasses
     //
     if(retvalInfo)
     {
-        v = retvalInfo.type.read(is);
-        params[retvalInfo.pos + offset] = v;
+        readParam(retvalInfo, false);
     }
 
     //
     // Then read all optional params.
     //
-    for(i = 0; i < optParamInfo.length; ++i)
+    for(let i = 0; i < optParamInfo.length; ++i)
     {
-        p = optParamInfo[i];
-        v = p.type.readOpt(is, p.tag);
-        params[p.pos + offset] = v;
+        readParam(optParamInfo[i], true);
     }
 
     if(usesClasses)
     {
-        is.readPendingObjects();
+        is.readPendingValues();
     }
 }
 
 function marshalParams(os, params, retvalInfo, paramInfo, optParamInfo, usesClasses)
 {
-    var i, p;
-
     //
     // Write the required params.
     //
-    for(i = 0; i < paramInfo.length; ++i)
+    for(let i = 0; i < paramInfo.length; ++i)
     {
-        p = paramInfo[i];
+        let p = paramInfo[i];
         if(!p.tag)
         {
             p.type.write(os, params[p.pos]);
@@ -258,236 +260,104 @@ function marshalParams(os, params, retvalInfo, paramInfo, optParamInfo, usesClas
     //
     // Write the optional params.
     //
-    for(i = 0; i < optParamInfo.length; ++i)
+    for(let i = 0; i < optParamInfo.length; ++i)
     {
-        p = optParamInfo[i];
-        p.type.writeOpt(os, p.tag, params[p.pos]);
+        let p = optParamInfo[i];
+        p.type.writeOptional(os, p.tag, params[p.pos]);
     }
 
     if(usesClasses)
     {
-        os.writePendingObjects();
+        os.writePendingValues();
     }
 }
 
-var Upcall = Class({
-    __init__: function(incomingAsync, op)
-    {
-        this.incomingAsync = incomingAsync;
-        this.op = op;
-    },
-    ice_response: function()
-    {
-        var args = arguments;
-
-        if(this.incomingAsync.__validateResponse(true))
-        {
-            try
-            {
-                this.__sendResponse(args);
-                this.incomingAsync.__response();
-            }
-            catch(ex)
-            {
-                this.incomingAsync.__exception(ex);
-            }
-        }
-    },
-    ice_exception: function(ex)
-    {
-        if(this.__checkException(ex))
-        {
-            if(this.incomingAsync.__validateResponse(false))
-            {
-                this.__sendException(ex);
-                this.incomingAsync.__response();
-            }
-        }
-        else
-        {
-            this.incomingAsync.ice_exception(ex);
-        }
-    },
-    __sendResponse: function(results)
-    {
-        if(this.op.returns === undefined && this.op.outParams.length === 0)
-        {
-            if(results && results.length > 0)
-            {
-                //
-                // No results expected.
-                //
-                throw new Error("ice_response called with invalid arguments");
-            }
-            else
-            {
-                this.incomingAsync.__writeEmptyParams();
-            }
-        }
-        else
-        {
-            var __os = this.incomingAsync.__startWriteParams(this.op.format);
-            var retvalInfo;
-            if(this.op.returns && !this.op.returns.tag)
-            {
-                retvalInfo = this.op.returns;
-            }
-            marshalParams(__os, results, retvalInfo, this.op.outParams, this.op.outParamsOpt,
-                            this.op.returnsClasses);
-            this.incomingAsync.__endWriteParams(true);
-        }
-    },
-    __checkException: function(ex)
-    {
-        //
-        // Make sure the given exception is an instance of one of the declared user exceptions
-        // for this operation.
-        //
-        for(var i = 0; i < this.op.exceptions.length; ++i)
-        {
-            if(ex instanceof this.op.exceptions[i])
-            {
-                //
-                // User exception is valid.
-                //
-                return true;
-            }
-        }
-
-        return false;
-    },
-    __sendException: function(ex)
-    {
-        //
-        // User exception is valid, now marshal it.
-        //
-        this.incomingAsync.__writeUserException(ex, this.op.format);
-    }
-});
-
-var __dispatchImpl = function(servant, op, incomingAsync, current)
+function __dispatchImpl(servant, op, incomingAsync, current)
 {
     //
     // Check to make sure the servant implements the operation.
     //
-    var method = servant[op.servantMethod];
+    const method = servant[op.servantMethod];
     if(method === undefined || typeof(method) !== "function")
     {
-        var comm = current.adapter.getCommunicator();
-        var msg = "servant for identity " + comm.identityToString(current.id) +
-            " does not define operation `" + op.servantMethod + "'";
-        throw new Ice.UnknownException(msg);
+        throw new Ice.UnknownException("servant for identity " + Ice.identityToString(current.id) +
+                                       " does not define operation `" + op.servantMethod + "'");
     }
 
-    var up = new Upcall(incomingAsync, op);
-
-    try
+    //
+    // Unmarshal the in params (if any).
+    //
+    const params = [];
+    if(op.inParams.length === 0)
     {
-        //
-        // Unmarshal the in params (if any).
-        //
-        var params = op.amd ? [null] : [];
-        if(op.inParams.length === 0)
-        {
-            incomingAsync.readEmptyParams();
-        }
-        else
-        {
-            var __is = incomingAsync.startReadParams();
-            var offset = op.amd ? 1 : 0;
-            unmarshalParams(__is, undefined, op.inParams, op.inParamsOpt, op.sendsClasses, params, offset);
-            incomingAsync.endReadParams();
-
-            //
-            // When unmarshaling objects, the ObjectHelper returns a wrapper object
-            // and eventually stores the unmarshaled object into its "value" member.
-            // Here we scan the parameter array and replace the wrappers with the
-            // actual object references.
-            //
-            if(op.inParams.length > 0 && (op.sendsClasses || op.inParamsOpt.length > 0))
-            {
-                for(var i = 0; i < op.inParams.length; ++i)
-                {
-                    var p = op.inParams[i];
-                    //
-                    // Optional parameters may be undefined.
-                    //
-                    if(p.isObject && params[p.pos + offset] !== undefined)
-                    {
-                        params[p.pos + offset] = params[p.pos + offset].value;
-                    }
-                }
-            }
-        }
-
-        params.push(current);
-
-        if(op.amd)
-        {
-            params[0] = up; // The AMD callback object.
-            try
-            {
-                method.apply(servant, params);
-            }
-            catch(ex)
-            {
-                up.ice_exception(ex);
-            }
-            return Ice.DispatchStatus.DispatchAsync;
-        }
-        else
-        {
-            //
-            // Determine how many out parameters to expect.
-            //
-            var numExpectedResults = op.outParams.length;
-            if(op.returns)
-            {
-                ++numExpectedResults;
-            }
-
-            var results = method.apply(servant, params);
-
-            //
-            // Complain if we expect more than out parameter and the servant doesn't return an array.
-            //
-            if(numExpectedResults > 1 && !(results instanceof Array))
-            {
-                throw new Ice.MarshalException("operation `" + op.servantMethod +
-                                               "' should return an array of length " + numExpectedResults);
-            }
-            else if(numExpectedResults === 1)
-            {
-                //
-                // Wrap a single out parameter in an array.
-                //
-                results = [results];
-            }
-
-            up.__sendResponse(results);
-            return Ice.DispatchStatus.DispatchOK;
-        }
+        incomingAsync.readEmptyParams();
     }
-    catch(ex)
+    else
     {
-        if(up.__checkException(ex))
+        const is = incomingAsync.startReadParams();
+        unmarshalParams(is, undefined, op.inParams, op.inParamsOpt, op.sendsClasses, params, 0);
+        incomingAsync.endReadParams();
+    }
+
+    params.push(current);
+
+    incomingAsync.setFormat(op.format);
+
+    let marshalFn = function(params)
+    {
+        let numExpectedResults = op.outParams.length + (op.returns ? 1 : 0);
+        if(numExpectedResults > 1 && !(params instanceof Array))
         {
-            up.__sendException(ex);
-            return Ice.DispatchStatus.DispatchUserException;
+            throw new Ice.MarshalException("operation `" + op.servantMethod + "' should return an array");
+        }
+        else if(numExpectedResults === 1)
+        {
+            params = [params]; // Wrap a single out parameter in an array.
+        }
+
+        if(op.returns === undefined && op.outParams.length === 0)
+        {
+            if(params && params.length > 0)
+            {
+                throw new Ice.MarshalException("operation `" + op.servantMethod + "' shouldn't return any value");
+            }
+            else
+            {
+                incomingAsync.writeEmptyParams();
+            }
         }
         else
         {
-            throw ex;
+            let retvalInfo;
+            if(op.returns && !op.returns.tag)
+            {
+                retvalInfo = op.returns;
+            }
+
+            const os = incomingAsync.startWriteParams();
+            marshalParams(os, params, retvalInfo, op.outParams, op.outParamsOpt, op.returnsClasses);
+            incomingAsync.endWriteParams();
         }
+    };
+
+    let results = method.apply(servant, params);
+    if(results instanceof Promise)
+    {
+        return results.then(marshalFn);
     }
-};
+    else
+    {
+        marshalFn(results);
+        return null;
+    }
+}
 
 function getServantMethodFromInterfaces(interfaces, methodName, all)
 {
-    var method;
-    for(var i = 0; method === undefined && i < interfaces.length; ++i)
+    let method;
+    for(let i = 0; method === undefined && i < interfaces.length; ++i)
     {
-        var intf = interfaces[i];
+        let intf = interfaces[i];
         method = intf[methodName];
         if(method === undefined)
         {
@@ -504,21 +374,21 @@ function getServantMethodFromInterfaces(interfaces, methodName, all)
     return method;
 }
 
-var dispatchPrefix = "__op_";
+const dispatchPrefix = "__op_";
 
 function getServantMethod(servantType, name)
 {
     //
     // The dispatch method is named __op_<Slice name> and is stored in the type (not the prototype).
     //
-    var methodName = dispatchPrefix + name;
+    const methodName = dispatchPrefix + name;
 
     //
     // First check the servant type.
     //
-    var method = servantType[methodName];
+    let method = servantType[methodName];
 
-    var allInterfaces;
+    let allInterfaces;
 
     if(method === undefined)
     {
@@ -527,7 +397,7 @@ function getServantMethod(servantType, name)
         //
         // Now check the prototypes of the implemented interfaces.
         //
-        var curr = servantType;
+        let curr = servantType;
         while(curr && method === undefined)
         {
             if(curr.__implements)
@@ -551,19 +421,19 @@ function getServantMethod(servantType, name)
         //
         // Next check the op table for the servant's type.
         //
-        var op;
+        let op;
         if(servantType.__ops)
         {
             op = servantType.__ops.find(name);
         }
 
-        var source;
+        let source;
         if(op === undefined)
         {
             //
             // Now check the op tables of the base types.
             //
-            var parent = servantType.__parent;
+            let parent = servantType.__parent;
             while(op === undefined && parent)
             {
                 if(parent.__ops)
@@ -579,9 +449,9 @@ function getServantMethod(servantType, name)
             //
             // Now check the op tables of all base interfaces.
             //
-            for(var i = 0; op === undefined && i < allInterfaces.length; ++i)
+            for(let i = 0; op === undefined && i < allInterfaces.length; ++i)
             {
-                var intf = allInterfaces[i];
+                let intf = allInterfaces[i];
                 if(intf.__ops)
                 {
                     if((op = intf.__ops.find(name)) !== undefined)
@@ -619,13 +489,13 @@ function getServantMethod(servantType, name)
 
 function addProxyOperation(proxyType, name, data)
 {
-    var method = data[0] ? data[0] : name;
+    let method = data[0] ? data[0] : name;
 
-    var op = null;
+    let op = null;
 
     proxyType.prototype[method] = function()
     {
-        var args = arguments;
+        let args = arguments;
 
         //
         // Parse the operation data on the first invocation of a proxy method.
@@ -635,22 +505,20 @@ function addProxyOperation(proxyType, name, data)
             op = parseOperation(name, data);
         }
 
-        var ctx = args[op.inParams.length]; // The request context is the last argument (if present).
+        let ctx = args[op.inParams.length]; // The request context is the last argument (if present).
 
-        var marshalFn = null;
+        let marshalFn = null;
         if(op.inParams.length > 0)
         {
             marshalFn = function(os, params)
             {
-                var i, p, v;
-
                 //
                 // Validate the parameters.
                 //
-                for(i = 0; i < op.inParams.length; ++i)
+                for(let i = 0; i < op.inParams.length; ++i)
                 {
-                    p = op.inParams[i];
-                    v = params[p.pos];
+                    let p = op.inParams[i];
+                    let v = params[p.pos];
                     if(!p.tag || v !== undefined)
                     {
                         if(typeof p.type.validate === "function")
@@ -668,7 +536,7 @@ function addProxyOperation(proxyType, name, data)
             };
         }
 
-        var unmarshalFn = null;
+        let unmarshalFn = null;
         if(op.returns || op.outParams.length > 0)
         {
             unmarshalFn = function(asyncResult)
@@ -678,55 +546,25 @@ function addProxyOperation(proxyType, name, data)
                 //
                 // [retval, out1, out2, ..., asyncResult]
                 //
-                var results = [];
+                let results = [];
 
-                var is = asyncResult.__startReadParams();
-
-                var retvalInfo;
+                let is = asyncResult.__startReadParams();
+                let retvalInfo;
                 if(op.returns && !op.returns.tag)
                 {
                     retvalInfo = op.returns;
                 }
                 unmarshalParams(is, retvalInfo, op.outParams, op.outParamsOpt, op.returnsClasses, results, 0);
-
                 asyncResult.__endReadParams();
-
-                //
-                // When unmarshaling objects, the ObjectHelper returns a wrapper object
-                // and eventually stores the unmarshaled object into its "value" member.
-                // Here we scan the results array and replace the wrappers with the
-                // actual object references.
-                //
-                if(op.returnsClasses || op.outParamsOpt.length > 0)
-                {
-                    var offset = 0; // Skip asyncResult in results.
-                    if(op.returns && op.returns.isObject && results[op.returns.pos + offset] !== undefined)
-                    {
-                        results[op.returns.pos + offset] = results[op.returns.pos + offset].value;
-                    }
-                    for(var i = 0; i < op.outParams.length; ++i)
-                    {
-                        var p = op.outParams[i];
-                        //
-                        // Optional parameters may be undefined.
-                        //
-                        if(p.isObject && results[p.pos + offset] !== undefined)
-                        {
-                            results[p.pos + offset] = results[p.pos + offset].value;
-                        }
-                    }
-                }
-                results.push(asyncResult);
-                return results;
+                return results.length == 1 ? results[0] : results;
             };
         }
-
-        return Ice.ObjectPrx.__invoke(this, op.name, op.sendMode, op.format, ctx, marshalFn, unmarshalFn,
-                                        op.exceptions, Array.prototype.slice.call(args));
+        return  Ice.ObjectPrx.__invoke(this, op.name, op.sendMode, op.format, ctx, marshalFn, unmarshalFn,
+                                       op.exceptions, Array.prototype.slice.call(args));
     };
 }
 
-var Slice = Ice.Slice;
+const Slice = Ice.Slice;
 Slice.defineOperations = function(classType, proxyType, ops)
 {
     if(ops)
@@ -739,7 +577,7 @@ Slice.defineOperations = function(classType, proxyType, ops)
         //
         // Retrieve the dispatch method for this operation.
         //
-        var method = getServantMethod(classType, current.operation);
+        const method = getServantMethod(classType, current.operation);
 
         if(method === undefined || typeof(method) !== 'function')
         {
@@ -751,7 +589,7 @@ Slice.defineOperations = function(classType, proxyType, ops)
 
     if(ops)
     {
-        for(var name in ops)
+        for(let name in ops)
         {
             addProxyOperation(proxyType, name, ops[name]);
         }
@@ -762,10 +600,10 @@ Slice.defineOperations = function(classType, proxyType, ops)
     //
     if(proxyType.__implements)
     {
-        for(var intf in proxyType.__implements)
+        for(let intf in proxyType.__implements)
         {
-            var proto = proxyType.__implements[intf].prototype;
-            for(var f in proto)
+            let proto = proxyType.__implements[intf].prototype;
+            for(let f in proto)
             {
                 if(typeof proto[f] == "function" && proxyType.prototype[f] === undefined)
                 {
@@ -781,10 +619,10 @@ Slice.defineOperations = function(classType, proxyType, ops)
 //
 Slice.defineOperations(Ice.Object, Ice.ObjectPrx,
 {
-    "ice_ping": [, 1, 1, , , , , , ],
-    "ice_isA": [, 1, 1, , , [1], [[7]], , ],
-    "ice_id": [, 1, 1, , , [7], , , ],
-    "ice_ids": [, 1, 1, , , ["Ice.StringSeqHelper"], , , ]
+    "ice_ping": [, 1, 1, , , , , ],
+    "ice_isA": [, 1, 1, , [1], [[7]], , ],
+    "ice_id": [, 1, 1, , [7], , , ],
+    "ice_ids": [, 1, 1, , ["Ice.StringSeqHelper"], , , ]
 });
 
 module.exports.Ice = Ice;

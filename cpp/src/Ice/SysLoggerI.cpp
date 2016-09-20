@@ -1,11 +1,13 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
 //
 // **********************************************************************
+
+#ifndef _WIN32
 
 #include <Ice/SysLoggerI.h>
 #include <Ice/LocalException.h>
@@ -163,5 +165,7 @@ Ice::SysLoggerI::getPrefix()
 Ice::LoggerPtr
 Ice::SysLoggerI::cloneWithPrefix(const string& prefix)
 {
-    return new SysLoggerI(prefix, _facility);
+    return ICE_MAKE_SHARED(SysLoggerI, prefix, _facility);
 }
+
+#endif

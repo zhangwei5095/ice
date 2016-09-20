@@ -1,6 +1,6 @@
 // **********************************************************************
 //
-// Copyright (c) 2003-2015 ZeroC, Inc. All rights reserved.
+// Copyright (c) 2003-2016 ZeroC, Inc. All rights reserved.
 //
 // This copy of Ice is licensed to you under the terms described in the
 // ICE_LICENSE file included in this distribution.
@@ -11,7 +11,7 @@
 #define ICE_GRID_LOCATOR_I_H
 
 #include <IceGrid/Internal.h>
-#include <IceGrid/Locator.h>
+#include <IceGrid/Registry.h>
 
 #include <set>
 
@@ -37,7 +37,7 @@ class LocatorI : public Locator, public IceUtil::Mutex
 {
 public:
 
-    class Request : virtual public IceUtil::Shared
+    class Request : public virtual IceUtil::Shared
     {
     public:
 
@@ -55,7 +55,7 @@ public:
                                       const Ice::Current&) const;
 
     virtual void findAdapterById_async(const Ice::AMD_Locator_findAdapterByIdPtr&, const ::std::string&, 
-                                       const Ice::Current& = Ice::Current()) const;
+                                       const Ice::Current& = Ice::noExplicitCurrent) const;
 
     virtual Ice::LocatorRegistryPrx getRegistry(const Ice::Current&) const;
     virtual RegistryPrx getLocalRegistry(const Ice::Current&) const;
